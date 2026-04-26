@@ -1,5 +1,5 @@
 {
-  "version": 428,
+  "version": 429,
   "released": "2026-04-26",
-  "notes": "v428: removed time clock widget from Dispatch (lives in Payroll > Timesheets + Crew View)"
+  "notes": "v429: SocialBranch Competitors tab — type company name + city, AI auto-discovers FB/IG/GMB/YouTube/TikTok/website"
 }
