@@ -695,14 +695,12 @@ var SettingsPage = {
     html += '</div></details>';
 
     // ═══ close BUSINESS meta-group ═══
-    // v398: Crew Performance — team metrics, lives at the bottom of Business
-    html += '<details style="background:var(--white);border-radius:12px;padding:0;border:1px solid var(--border);margin-bottom:16px;overflow:hidden;">'
-      +   '<summary style="padding:14px 18px;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;">'
-      +     '<span style="font-size:14px;font-weight:700;">Crew Performance</span>'
-      +     '<button onclick="event.stopPropagation();loadPage(\'crewperformance\');" class="btn btn-outline" style="font-size:12px;padding:5px 10px;">Open Dashboard &rarr;</button>'
-      +   '</summary>'
-      +   '<div style="padding:0 18px 14px;font-size:12px;color:var(--text-light);">View crew leaderboards, productivity stats, and time-on-job metrics. Same data as the standalone /#crewperformance page.</div>'
-      + '</details>';
+    // v426: Crew Performance — refactored to use cardOpen helper so it matches
+    // the rest of Business cards visually + collapses uniformly with Expand All.
+    html += cardOpen('Crew Performance')
+      +   '<div style="font-size:13px;color:var(--text-light);margin-bottom:10px;">View crew leaderboards, productivity stats, and time-on-job metrics. Same data as the standalone /#crewperformance page.</div>'
+      +   '<button onclick="loadPage(\'crewperformance\');" class="btn btn-primary" style="font-size:12px;">Open Dashboard &rarr;</button>'
+      + cardClose();
 
     html += groupClose();
 
@@ -1384,17 +1382,16 @@ var SettingsPage = {
   },
 
   _collapseAll: function(collapse) {
+    // v426: rewrote to operate on <details> directly (no localStorage round-trip).
+    // Target every <details> on the Settings page that's NOT inside a meta-group
+    // header (those are the section accordions we want to leave alone).
     var content = document.querySelector('.content') || document.getElementById('content');
     if (!content) return;
-    var cards = content.querySelectorAll('div[data-bm-coll="1"]');
-    Array.prototype.forEach.call(cards, function(card) {
-      var h3 = card.querySelector('h3');
-      if (!h3) return;
-      var label = h3.textContent.trim().substring(0, 40);
-      var key = 'bm-settings-coll-' + label.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      localStorage.setItem(key, collapse ? '1' : '0');
+    var detailsList = content.querySelectorAll('details');
+    Array.prototype.forEach.call(detailsList, function(d) {
+      if (collapse) d.removeAttribute('open');
+      else d.setAttribute('open', '');
     });
-    loadPage('settings');
   },
 
   connectSupabase: function() {

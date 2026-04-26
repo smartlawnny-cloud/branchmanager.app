@@ -6,7 +6,16 @@ var TeamPage = {
   render: function() {
     var members = TeamPage.getMembers();
 
-    var html = '<div class="stat-grid">'
+    var html = '';
+
+    // v426: quick links inside Team tab — Crew Performance pulls from Team data
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+      + '<button onclick="loadPage(\'crewperformance\')" class="btn btn-outline" style="font-size:12px;">📊 Crew Performance</button>'
+      + '<button onclick="window._payrollTab=\'timesheets\';loadPage(\'payroll\')" class="btn btn-outline" style="font-size:12px;">⏱ Timesheets</button>'
+      + '<button onclick="window.open(\'onboarding/\',\'_blank\')" class="btn btn-outline" style="font-size:12px;">🎓 Onboarding</button>'
+      + '</div>';
+
+    html += '<div class="stat-grid">'
       + UI.statCard('Team Size', members.filter(function(m){return m.active;}).length.toString(), 'Active members', '', '')
       + UI.statCard('Hours This Week', TeamPage.weekHours().toFixed(1), 'All members', '', '')
       + '</div>';

@@ -1,5 +1,5 @@
 {
-  "version": 425,
+  "version": 426,
   "released": "2026-04-26",
-  "notes": "v425: drop duplicate Fleet map; add Show Fleet toggle to Dispatch map (single canonical map)"
+  "notes": "v426: Settings expand-all fix; Crew Performance card uses cardOpen helper; Team tab gets quick links to Crew Performance/Timesheets/Onboarding"
 }
