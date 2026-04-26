@@ -1,5 +1,5 @@
 {
   "version": 418,
   "released": "2026-04-25",
-  "notes": "v417: dashboard inbox urgency sort (red→amber→blue→green)"
+  "notes": "v418: replace peekskilltree.com URLs with branchmanager.app (white-label refactor)"
 }
