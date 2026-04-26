@@ -42,7 +42,7 @@ var SettingsPage = {
         +       'supabase secrets set SUPABASE_SERVICE_ROLE_KEY=ey...'
         +     '</div>'
         +     '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:16px;">⬜</span><span><a href="https://dashboard.stripe.com/webhooks/create" target="_blank" rel="noopener noreferrer" style="color:#a5f3e8;">Stripe → Webhooks → Add endpoint</a> → <code style="background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;">https://ltpivkqahvplapyagljt.supabase.co/functions/v1/stripe-webhook</code></span></div>'
-        +     '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:16px;">⬜</span><span>Stripe → Payment Link → After payment → Redirect to <code style="background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;">https://peekskilltree.com/branchmanager/paid.html</code></span></div>'
+        +     '<div style="display:flex;align-items:center;gap:10px;"><span style="font-size:16px;">⬜</span><span>Stripe → Payment Link → After payment → Redirect to <code style="background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;">https://branchmanager.app/paid.html</code></span></div>'
         +   '</div>'
         + '</details>'
         + '</div>';
@@ -463,7 +463,7 @@ var SettingsPage = {
       + '<div style="display:flex;flex-direction:column;gap:10px;">'
       + '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;">'
       + '<input type="checkbox" id="bf-enabled" style="width:18px;height:18px;"' + (bf.enabled ? ' checked' : '') + '>'
-      + '<div><strong style="font-size:13px;">Online Booking Enabled</strong><div style="font-size:11px;color:var(--text-light);">Show booking form at peekskilltree.com/branchmanager/book.html</div></div></label>'
+      + '<div><strong style="font-size:13px;">Online Booking Enabled</strong><div style="font-size:11px;color:var(--text-light);">Show booking form at branchmanager.app/book.html</div></div></label>'
       + '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;">'
       + '<input type="checkbox" id="bf-auto-response" style="width:18px;height:18px;"' + (bf.autoResponse ? ' checked' : '') + '>'
       + '<div><strong style="font-size:13px;">Auto-Response Email</strong><div style="font-size:11px;color:var(--text-light);">Send confirmation email when request is received</div></div></label>'
@@ -799,7 +799,7 @@ var SettingsPage = {
       + '<button onclick="var k=document.getElementById(\'stripe-link\').value.trim();if(!k){UI.toast(\'Paste your Stripe link first\',\'error\');return;}if(!/^https:\\/\\/buy\\.stripe\\.com\\//.test(k)){UI.toast(\'Must be a buy.stripe.com link\',\'error\');return;}localStorage.setItem(\'bm-stripe-base-link\',k);UI.toast(\'Stripe connected! ✅\');loadPage(\'settings\');" style="background:var(--green-dark);color:#fff;border:none;padding:10px 20px;border-radius:6px;font-weight:700;font-size:14px;cursor:pointer;">Save Link</button>'
       + (stripeOkNow ? '<button onclick="SettingsPage._removeKey(\'bm-stripe-base-link\',\'Stripe\')" style="background:none;border:1px solid var(--border);padding:10px 20px;border-radius:6px;font-size:13px;cursor:pointer;">Remove</button>' : '')
       + '</div>'
-      + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Create at <a href="https://dashboard.stripe.com/payment-links/create" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">Stripe → Payment Links → New</a>. Set "Customer pays what they want" with a reasonable default. Redirect after payment to <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px;">https://peekskilltree.com/branchmanager/paid.html</code></p>'
+      + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Create at <a href="https://dashboard.stripe.com/payment-links/create" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">Stripe → Payment Links → New</a>. Set "Customer pays what they want" with a reasonable default. Redirect after payment to <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px;">https://branchmanager.app/paid.html</code></p>'
       + '</div>';
 
     // ── Dialpad ──
@@ -903,7 +903,7 @@ var SettingsPage = {
       + '<strong>One-time Google Cloud setup (≈10 min):</strong><br>'
       + '1. Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" style="color:#4285F4;font-weight:600;">Google Cloud → Credentials</a><br>'
       + '2. Enable "Business Profile API" (may require Google approval, 2–7 days)<br>'
-      + '3. Create OAuth 2.0 Client (Web) — add redirect: <code style="background:#fff;padding:1px 4px;border-radius:3px;font-size:11px;">https://peekskilltree.com/branchmanager/</code><br>'
+      + '3. Create OAuth 2.0 Client (Web) — add redirect: <code style="background:#fff;padding:1px 4px;border-radius:3px;font-size:11px;">https://branchmanager.app/</code><br>'
       + '4. Paste the Client ID below'
       + '</div>'
       + '<div style="font-size:12px;font-weight:600;color:var(--text-light);margin-bottom:4px;">OAuth Client ID</div>'

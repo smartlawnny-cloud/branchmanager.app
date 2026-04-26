@@ -306,6 +306,6 @@ var FormBuilderPage = {
   },
 
   preview: function() {
-    window.open('https://peekskilltree.com/branchmanager/book.html', '_blank');
+    window.open('https://branchmanager.app/book.html', '_blank');
   }
 };

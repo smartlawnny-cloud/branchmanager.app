@@ -4,7 +4,7 @@
  * Also generates a standalone booking page at /branchmanager/book
  */
 var OnlineBooking = {
-  BOOKING_URL: 'https://peekskilltree.com/branchmanager/book.html',
+  BOOKING_URL: 'https://branchmanager.app/book.html',
 
   render: function() {
     var bookingUrl = OnlineBooking.BOOKING_URL;

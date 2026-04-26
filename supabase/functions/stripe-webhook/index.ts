@@ -130,7 +130,7 @@ serve(async (req: Request) => {
               subject: `💳 Payment received — Invoice #${invoiceNumber} — $${amountDollars.toFixed(2)}`,
               content: [{
                 type: 'text/plain',
-                value: `Invoice #${invoiceNumber} for ${inv.client_name} was just paid online.\n\nAmount: $${amountDollars.toFixed(2)}\nMethod: Stripe / Credit Card\nEmail: ${customerEmail}\n\nThe invoice has been automatically marked as paid in Branch Manager.\n\nhttps://peekskilltree.com/branchmanager/`
+                value: `Invoice #${invoiceNumber} for ${inv.client_name} was just paid online.\n\nAmount: $${amountDollars.toFixed(2)}\nMethod: Stripe / Credit Card\nEmail: ${customerEmail}\n\nThe invoice has been automatically marked as paid in Branch Manager.\n\nhttps://branchmanager.app/`
               }]
             })
           });

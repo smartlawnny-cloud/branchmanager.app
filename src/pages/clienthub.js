@@ -7,7 +7,7 @@
  * - Submit new requests
  * - See job history
  *
- * Access: peekskilltree.com/branchmanager/client.html?id=CLIENT_ID
+ * Access: branchmanager.app/client.html?id=CLIENT_ID
  * (In production, this will be a separate page with its own auth)
  * v3 — stats bar, real newRequest modal, Send Portal Link button, Email Portal Link in preview
  */

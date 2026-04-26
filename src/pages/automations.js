@@ -204,7 +204,7 @@ var AutomationsPage = {
       var email = q.sentTo || (client && client.email) || '';
       if (!email) { skipped++; return; }
       var firstName = (q.clientName || '').split(' ')[0] || 'there';
-      var approvalLink = 'https://peekskilltree.com/branchmanager/approve.html?id=' + q.id;
+      var approvalLink = 'https://branchmanager.app/approve.html?id=' + q.id;
 
       // Followup #1 — day 5-9
       if (config.quoteFollowup1 && config.quoteFollowup1.enabled
@@ -253,7 +253,7 @@ var AutomationsPage = {
       var email = inv.clientEmail || (client && client.email) || '';
       if (!email) { skipped++; return; }
       var firstName = (inv.clientName || '').split(' ')[0] || 'there';
-      var payLink = 'https://peekskilltree.com/branchmanager/pay.html?id=' + inv.id;
+      var payLink = 'https://branchmanager.app/pay.html?id=' + inv.id;
 
       // Followup #1 — 1-3 days overdue
       if (config.invoiceFollowup1 && config.invoiceFollowup1.enabled

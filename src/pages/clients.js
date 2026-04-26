@@ -1269,7 +1269,7 @@ var ClientsPage = {
       + '<td colspan="5" style="padding:10px 4px;text-align:right;font-size:14px;">Total Balance Due:</td>'
       + '<td style="padding:10px 4px;text-align:right;font-size:16px;color:' + (balance>0?'#c62828':'#2e7d32') + ';">' + UI.money(balance) + '</td>'
       + '</tr></tfoot></table>'
-      + (balance>0 ? '<div style="margin-top:12px;text-align:center;"><a href="https://peekskilltree.com/branchmanager/client.html?id=' + clientId + '" style="display:inline-block;background:#1a3c12;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">View Online & Pay →</a></div>' : '')
+      + (balance>0 ? '<div style="margin-top:12px;text-align:center;"><a href="https://branchmanager.app/client.html?id=' + clientId + '" style="display:inline-block;background:#1a3c12;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;">View Online & Pay →</a></div>' : '')
       + '</div>';
 
     UI.showModal('Account Statement — ' + client.name, html, {

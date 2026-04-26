@@ -139,7 +139,7 @@ var Templates = {
   // Fill template variables
   fill: function(template, data) {
     var text = template;
-    var base = (typeof location !== 'undefined') ? (location.origin + location.pathname.replace(/[^/]*$/, '')) : 'https://peekskilltree.com/branchmanager/';
+    var base = (typeof location !== 'undefined') ? (location.origin + location.pathname.replace(/[^/]*$/, '')) : 'https://branchmanager.app/';
     var vars = {
       '{{name}}': data.name || data.clientName || '',
       '{{company}}': data.company || '',

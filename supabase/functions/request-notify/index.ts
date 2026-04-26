@@ -131,12 +131,12 @@ serve(async (req: Request) => {
     });
 
     // 1. SMS to Doug
-    const smsBody = `🌳 New request!\n${name || '—'} · ${service || 'Tree service'}\n📍 ${address || '—'}\n📞 ${phone || '—'}\nOpen BM: peekskilltree.com/branchmanager/`;
+    const smsBody = `🌳 New request!\n${name || '—'} · ${service || 'Tree service'}\n📍 ${address || '—'}\n📞 ${phone || '—'}\nOpen BM: branchmanager.app/`;
     await sendSMS(NOTIFY_PHONE, smsBody);
 
     // 2. Email alert to team
     const teamSubject = `🌳 New request — ${service || 'Service'} — ${name}`;
-    const teamBody = `New service request submitted via website.\n\nName:    ${name || '—'}\nPhone:   ${phone || '—'}\nEmail:   ${email || '—'}\nAddress: ${address || '—'}\nService: ${service || '—'}\nDetails: ${details || '—'}\n\nView in Branch Manager:\nhttps://peekskilltree.com/branchmanager/`;
+    const teamBody = `New service request submitted via website.\n\nName:    ${name || '—'}\nPhone:   ${phone || '—'}\nEmail:   ${email || '—'}\nAddress: ${address || '—'}\nService: ${service || '—'}\nDetails: ${details || '—'}\n\nView in Branch Manager:\nhttps://branchmanager.app/`;
     await sendEmail('info@peekskilltree.com', 'Team', teamSubject, teamBody);
 
     // 3. Confirmation email to customer

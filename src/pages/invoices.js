@@ -490,10 +490,10 @@ var InvoicesPage = {
     // If ID is a UUID, use it directly; otherwise append invoice_number as fallback
     var isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (isUUID || !inv || !inv.invoiceNumber) {
-      return 'https://peekskilltree.com/branchmanager/pay.html?id=' + id;
+      return 'https://branchmanager.app/pay.html?id=' + id;
     }
     // Legacy non-UUID ID: use invoice_number so pay.html can find it
-    return 'https://peekskilltree.com/branchmanager/pay.html?id=' + encodeURIComponent(inv.invoiceNumber);
+    return 'https://branchmanager.app/pay.html?id=' + encodeURIComponent(inv.invoiceNumber);
   },
 
   _copyPayLink: function(id) {

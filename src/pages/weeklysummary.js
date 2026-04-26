@@ -842,7 +842,7 @@ var WeeklySummary = {
       + (staleQuotes.length > 0 ? '→ Follow up on ' + staleQuotes.length + ' stale quote' + (staleQuotes.length > 1 ? 's' : '') + '\n' : '')
       + (upcomingJobs.length > 0 ? '→ Send reminders for ' + upcomingJobs.length + ' upcoming job' + (upcomingJobs.length > 1 ? 's' : '') + '\n' : '')
       + '\n─────────────────────────────\n'
-      + 'Branch Manager · peekskilltree.com/branchmanager/';
+      + 'Branch Manager · branchmanager.app/';
 
     if (typeof Email !== 'undefined' && Email.isConfigured()) {
       Email.send(BM_CONFIG.email, subject, body).then(function() {

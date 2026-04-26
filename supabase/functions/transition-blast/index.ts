@@ -32,14 +32,14 @@ function buildEmail(firstName: string) {
 
 Just a quick note from Doug at Second Nature Tree — we've moved to a new client portal at:
 
-https://peekskilltree.com/branchmanager/
+https://branchmanager.app/
 
 Your history — past quotes, invoices, appointments, and property photos — is already there. Future quotes and invoices will come from this address and link you to the new portal directly.
 
-Older emails with "clienthub.getjobber.com" links will still work for a short transition period, but please use peekskilltree.com/branchmanager going forward.
+Older emails with "clienthub.getjobber.com" links will still work for a short transition period, but please use branchmanager.app going forward.
 
 To request new work, you can still call or text (914) 391-5233, or use the website form at:
-https://peekskilltree.com/branchmanager/book.html
+https://branchmanager.app/book.html
 
 Thanks for your continued trust.
 
@@ -57,11 +57,11 @@ peekskilltree.com`;
     <p>Hi ${firstName},</p>
     <p>Just a quick note from Doug — we've <strong>moved to a new client portal</strong>:</p>
     <p style="text-align:center;margin:18px 0;">
-      <a href="https://peekskilltree.com/branchmanager/" style="display:inline-block;background:#1a3c12;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Open my portal</a>
+      <a href="https://branchmanager.app/" style="display:inline-block;background:#1a3c12;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Open my portal</a>
     </p>
     <p>Your history — past quotes, invoices, appointments, and property photos — is already there. Future quotes and invoices will come from this address and link you in directly.</p>
     <p>Older emails with <code>clienthub.getjobber.com</code> links will still work for a short transition period, but please use the new portal going forward.</p>
-    <p>To request new work, you can still call or text us at <a href="tel:9143915233" style="color:#1a3c12;font-weight:600;">(914) 391-5233</a>, or use the <a href="https://peekskilltree.com/branchmanager/book.html" style="color:#1a3c12;">website form</a>.</p>
+    <p>To request new work, you can still call or text us at <a href="tel:9143915233" style="color:#1a3c12;font-weight:600;">(914) 391-5233</a>, or use the <a href="https://branchmanager.app/book.html" style="color:#1a3c12;">website form</a>.</p>
     <p>Thanks for your continued trust.</p>
     <p style="margin-top:20px;">— Doug &amp; Catherine<br>Second Nature Tree Service</p>
     <p style="font-size:11px;color:#999;border-top:1px solid #eee;padding-top:14px;margin-top:24px;">Licensed &amp; Insured · WC-32079 / PC-50644</p>

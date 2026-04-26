@@ -348,7 +348,7 @@ var JobsPage = {
     // Build the message with job details + clickable address
     var addr = j.property || '';
     var mapLink = addr ? 'https://maps.apple.com/?daddr=' + encodeURIComponent(addr) : '';
-    var jobLink = 'https://peekskilltree.com/branchmanager/#jobs';
+    var jobLink = 'https://branchmanager.app/#jobs';
 
     var msg = 'Job #' + (j.jobNumber || '') + ' — ' + (j.clientName || '') + '\n'
       + (j.description ? j.description + '\n' : '')

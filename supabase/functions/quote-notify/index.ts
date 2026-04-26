@@ -20,7 +20,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
-const APP_URL = 'https://peekskilltree.com/branchmanager/';
+const APP_URL = 'https://branchmanager.app/';
 
 async function sendEmail(to: string, _toName: string, subject: string, text: string, html?: string) {
   if (!RESEND_API_KEY) { console.warn('RESEND_API_KEY not set; skipping email'); return; }

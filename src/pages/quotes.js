@@ -1906,7 +1906,7 @@ var QuotesPage = {
       token = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 16);
       DB.quotes.update(id, { approvalToken: token });
     }
-    return 'https://peekskilltree.com/branchmanager/approve.html?id=' + id + '&token=' + token;
+    return 'https://branchmanager.app/approve.html?id=' + id + '&token=' + token;
   },
 
   _copyApprovalLink: function(id) {

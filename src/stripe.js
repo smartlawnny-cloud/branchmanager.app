@@ -149,7 +149,7 @@ var Stripe = {
       + '<li>Paste the URL above → Events: <code>checkout.session.completed</code></li>'
       + '<li>Copy the "Signing secret" (whsec_...) — paste in terminal:<br>'
       + '<code style="background:#dcfce7;padding:2px 4px;border-radius:3px;">supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...</code></li>'
-      + '<li>Set Payment Link success URL → <code>https://peekskilltree.com/branchmanager/paid.html</code></li>'
+      + '<li>Set Payment Link success URL → <code>https://branchmanager.app/paid.html</code></li>'
       + '</ol>'
       + '<div style="font-size:11px;color:#6b7280;">Also deploy the Edge Function: <code>supabase functions deploy stripe-webhook --no-verify-jwt</code></div>'
       + '</div>'

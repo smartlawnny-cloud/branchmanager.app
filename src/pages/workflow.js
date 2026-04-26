@@ -271,7 +271,7 @@ var Workflow = {
     var email = (client && client.email) || q.clientEmail || '';
     var firstName = (q.clientName || '').split(' ')[0] || 'there';
 
-    var approveLink = 'https://peekskilltree.com/branchmanager/approve.html?id=' + quoteId;
+    var approveLink = 'https://branchmanager.app/approve.html?id=' + quoteId;
     var subject = 'Your estimate from ' + Workflow._co().name + ' — Quote #' + (q.quoteNumber || '');
     var body = 'Hi ' + firstName + ',\n\n'
       + 'Thanks for having us out to take a look! Here\'s your estimate for the work we discussed.\n\n'
@@ -316,7 +316,7 @@ var Workflow = {
     // Build HTML email
     var q = DB.quotes.getById(quoteId) || {};
     var firstName = (q.clientName || '').split(' ')[0] || 'there';
-    var approveLink = 'https://peekskilltree.com/branchmanager/approve.html?id=' + quoteId;
+    var approveLink = 'https://branchmanager.app/approve.html?id=' + quoteId;
     var totalStr = (typeof UI !== 'undefined' && UI.money) ? UI.money(q.total) : ('$' + (q.total || '0'));
     var htmlBody = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
       + '<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;">'
@@ -386,7 +386,7 @@ var Workflow = {
     var email = (client && client.email) || inv.clientEmail || '';
     var firstName = (inv.clientName || '').split(' ')[0] || 'there';
 
-    var payLink = 'https://peekskilltree.com/branchmanager/pay.html?id=' + invoiceId;
+    var payLink = 'https://branchmanager.app/pay.html?id=' + invoiceId;
     var subject = 'Invoice #' + inv.invoiceNumber + ' from ' + Workflow._co().name + ' — ' + UI.money(inv.total);
     var body = 'Hi ' + firstName + ',\n\n'
       + 'Please find your invoice attached for the work completed at your property.\n\n'
@@ -431,7 +431,7 @@ var Workflow = {
     // Build HTML email
     var inv = DB.invoices.getById(invoiceId) || {};
     var firstName = (inv.clientName || '').split(' ')[0] || 'there';
-    var payLink = 'https://peekskilltree.com/branchmanager/pay.html?id=' + invoiceId;
+    var payLink = 'https://branchmanager.app/pay.html?id=' + invoiceId;
     var amountDue = (typeof UI !== 'undefined' && UI.money) ? UI.money(inv.balance || inv.total) : ('$' + (inv.balance || inv.total || '0'));
     var dueDateStr = (typeof UI !== 'undefined' && UI.dateShort) ? UI.dateShort(inv.dueDate) : (inv.dueDate || '');
     var htmlBody = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
