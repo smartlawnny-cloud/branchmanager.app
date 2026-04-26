@@ -120,7 +120,44 @@ Deno.serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ ok: true, matched_client: !!row.client_id }), {
+  // ── Auto-create a BM request for inbound voicemails or missed inbound calls.
+  // This surfaces phone leads in the Requests page without manual entry.
+  let requestId: string | null = null;
+  const isMissedInbound = row.direction === "inbound" && (
+    row.channel === "voicemail" ||
+    (row.channel === "call" && (row.status === "missed" || row.status === "no-answer" || row.status === "voicemail"))
+  );
+  if (isMissedInbound) {
+    const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5"; // Second Nature Tree
+    const callerName = data.from_name || data.contact_name || data.caller_name || "Phone caller";
+    const transcript = row.body || "";
+    const noteParts: string[] = [];
+    if (transcript) noteParts.push("Voicemail transcript:\n" + transcript);
+    if (row.recording_url) noteParts.push("Recording: " + row.recording_url);
+    noteParts.push(`Source: Dialpad ${row.channel} on ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`);
+    const reqRow: Record<string, unknown> = {
+      tenant_id: TENANT_ID,
+      client_id: row.client_id || null,
+      client_name: callerName,
+      client_phone: row.from_number,
+      title: row.channel === "voicemail" ? "Voicemail from " + callerName : "Missed call from " + callerName,
+      notes: noteParts.join("\n\n"),
+      status: "new",
+      source: "Phone (Dialpad)",
+    };
+    const { data: insData, error: insErr } = await sb
+      .from("requests")
+      .insert(reqRow)
+      .select("id")
+      .single();
+    if (insErr) {
+      console.warn("auto-request insert failed:", insErr.message);
+    } else {
+      requestId = insData?.id || null;
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true, matched_client: !!row.client_id, request_id: requestId }), {
     headers: { "content-type": "application/json" },
   });
 });
