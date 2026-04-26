@@ -51,6 +51,15 @@ var FleetPage = {
       return html;
     }
 
+    // ── Live map (shows vehicles with last_lat/last_lon)
+    var locatable = self._vehicles.filter(function(v) { return v.last_lat && v.last_lon; });
+    if (locatable.length || true) {
+      html += '<div id="fleet-map" style="height:360px;border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;background:var(--bg);"></div>';
+      html += '<div id="fleet-map-status" style="font-size:11px;color:var(--text-light);margin:-12px 0 14px 4px;">' + (locatable.length ? locatable.length + ' vehicle' + (locatable.length===1?'':'s') + ' on map' : 'No live positions yet — install Bouncie / Trak-4 trackers and configure webhook') + '</div>';
+      // Defer map init to next tick (after DOM render)
+      setTimeout(FleetPage._initMap, 60);
+    }
+
     // ── List view
     html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
     html += '<div class="data-table">';
@@ -179,6 +188,48 @@ var FleetPage = {
         { label: 'Close', action: 'close' },
         { label: 'Archive', action: 'FleetPage.archive(\'' + id + '\')' }
       ]
+    });
+  },
+
+  _map: null,
+  _markers: [],
+  _initMap: function() {
+    var el = document.getElementById('fleet-map');
+    if (!el || typeof maplibregl === 'undefined' || el._initialized) return;
+    el._initialized = true;
+    var locatable = FleetPage._vehicles.filter(function(v) { return v.last_lat && v.last_lon; });
+    var center = [-73.9212, 41.2901]; // Peekskill HQ default
+    if (locatable.length) center = [locatable[0].last_lon, locatable[0].last_lat];
+    FleetPage._map = new maplibregl.Map({
+      container: 'fleet-map',
+      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      center: center,
+      zoom: 11
+    });
+    FleetPage._map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    FleetPage._map.on('load', function() {
+      // HQ marker
+      new maplibregl.Marker({ color: '#1a3c12' })
+        .setLngLat([-73.9210, 41.2847])
+        .setPopup(new maplibregl.Popup().setHTML('<strong>🏠 HQ</strong>'))
+        .addTo(FleetPage._map);
+      // Vehicle markers
+      locatable.forEach(function(v) {
+        var status = FleetPage._statusOf(v);
+        var color = status.label === 'Driving' ? '#e07c24' : status.label === 'Parked' || status.label === 'Idle' ? '#2e7d32' : status.label === 'Offline' ? '#c62828' : '#1565c0';
+        var m = new maplibregl.Marker({ color: color })
+          .setLngLat([v.last_lon, v.last_lat])
+          .setPopup(new maplibregl.Popup().setHTML('<strong>' + UI.esc(v.name) + '</strong><br>' + status.label + (v.last_speed_mph != null ? ' · ' + Math.round(v.last_speed_mph) + ' mph' : '') + '<br>' + UI.timeAgo(v.last_seen_at)))
+          .addTo(FleetPage._map);
+        FleetPage._markers.push(m);
+      });
+      // Auto-fit if multiple
+      if (locatable.length > 1) {
+        var b = new maplibregl.LngLatBounds();
+        locatable.forEach(function(v) { b.extend([v.last_lon, v.last_lat]); });
+        b.extend([-73.9210, 41.2847]);
+        FleetPage._map.fitBounds(b, { padding: 40, maxZoom: 14 });
+      }
     });
   },
 
