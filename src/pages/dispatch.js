@@ -221,11 +221,18 @@ var DispatchPage = {
         + '</div></div>';
     }
 
-    // ═══ LIVE MAP — Crew/Truck Locations + Job Pins ═══
+    // ═══ LIVE MAP — Jobs + Crew + Fleet vehicles (Bouncie/Trak-4) ═══
+    var fleetOn = window._dispatchFleetLayer !== false; // default ON
     html += '<div id="dispatch-map-wrap" style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px;position:relative;">'
-      + '<div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);">'
+      + '<div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap;">'
       + '<span style="font-weight:700;font-size:14px;">📍 Live Map</span>'
-      + '<span id="dispatch-map-status" style="font-size:11px;color:var(--text-light);">Loading...</span></div>'
+      + '<div style="display:flex;gap:10px;align-items:center;">'
+      +   '<label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer;color:var(--text-light);">'
+      +     '<input type="checkbox" ' + (fleetOn ? 'checked' : '') + ' onchange="window._dispatchFleetLayer=this.checked;DispatchPage._refreshFleetMarkers();" style="cursor:pointer;">'
+      +     '🚛 Show Fleet'
+      +   '</label>'
+      +   '<span id="dispatch-map-status" style="font-size:11px;color:var(--text-light);">Loading...</span>'
+      + '</div></div>'
       + '<div id="dispatch-map" style="height:300px;width:100%;"></div></div>';
 
     // Weather at top
@@ -460,10 +467,67 @@ var DispatchPage = {
       // Load crew locations
       DispatchPage._loadCrewLocations();
 
-      // Refresh crew locations every 30 seconds
+      // Load fleet vehicles (Bouncie/Trak-4) if toggle enabled
+      DispatchPage._loadFleetLocations();
+
+      // Refresh crew + fleet every 30 seconds
       DispatchPage._refreshTimer = setInterval(function() {
         DispatchPage._loadCrewLocations();
+        DispatchPage._loadFleetLocations();
       }, 30000);
+    });
+  },
+
+  // ── Fleet vehicle layer (Bouncie OBD trucks, Trak-4 chipper/trailer) ──
+  _fleetMarkers: {},
+  _loadFleetLocations: function() {
+    if (window._dispatchFleetLayer === false) {
+      DispatchPage._refreshFleetMarkers();
+      return;
+    }
+    if (!window.SB || !SB.from || !DispatchPage._map) return;
+    SB.from('vehicles').select('id, name, last_lat, last_lon, last_seen_at, last_speed_mph, last_ignition, type').eq('active', true).then(function(r) {
+      if (r.error) { console.warn('fleet fetch:', r.error.message); return; }
+      DispatchPage._fleetData = r.data || [];
+      DispatchPage._refreshFleetMarkers();
+    });
+  },
+  _refreshFleetMarkers: function() {
+    if (!DispatchPage._map) return;
+    var show = window._dispatchFleetLayer !== false;
+    var data = DispatchPage._fleetData || [];
+    // Remove markers not in current set or if hidden
+    Object.keys(DispatchPage._fleetMarkers).forEach(function(id) {
+      var keep = show && data.some(function(v) { return v.id === id && v.last_lat && v.last_lon; });
+      if (!keep) {
+        try { DispatchPage._fleetMarkers[id].remove(); } catch(e) {}
+        delete DispatchPage._fleetMarkers[id];
+      }
+    });
+    if (!show) return;
+    data.forEach(function(v) {
+      if (!v.last_lat || !v.last_lon) return;
+      var ageMin = v.last_seen_at ? (Date.now() - new Date(v.last_seen_at).getTime()) / 60000 : 9999;
+      var color;
+      if (ageMin > 1440) color = '#c62828'; // offline
+      else if (ageMin > 60) color = '#a04400'; // stale
+      else if (v.last_ignition === false) color = '#2e7d32'; // parked
+      else if ((v.last_speed_mph || 0) > 1) color = '#e07c24'; // driving
+      else color = '#a37200'; // idle
+      var existing = DispatchPage._fleetMarkers[v.id];
+      if (existing) {
+        existing.setLngLat([v.last_lon, v.last_lat]);
+      } else {
+        var icon = v.type === 'chipper' ? '🪵' : v.type === 'trailer' ? '🚚' : '🚛';
+        var el = document.createElement('div');
+        el.style.cssText = 'width:30px;height:30px;border-radius:50%;background:' + color + ';color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);cursor:pointer;';
+        el.textContent = icon;
+        var m = new maplibregl.Marker({ element: el })
+          .setLngLat([v.last_lon, v.last_lat])
+          .setPopup(new maplibregl.Popup().setHTML('<strong>' + UI.esc(v.name || '—') + '</strong><br>' + (v.last_speed_mph != null ? Math.round(v.last_speed_mph) + ' mph · ' : '') + (v.last_seen_at ? UI.timeAgo(v.last_seen_at) : '')))
+          .addTo(DispatchPage._map);
+        DispatchPage._fleetMarkers[v.id] = m;
+      }
     });
   },
 

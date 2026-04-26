@@ -1,5 +1,5 @@
 {
-  "version": 424,
+  "version": 425,
   "released": "2026-04-26",
-  "notes": "v424: MapLibre live map on Fleet tab, vehicle markers color-coded by status"
+  "notes": "v425: drop duplicate Fleet map; add Show Fleet toggle to Dispatch map (single canonical map)"
 }

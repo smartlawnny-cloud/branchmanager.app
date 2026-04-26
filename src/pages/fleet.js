@@ -51,13 +51,13 @@ var FleetPage = {
       return html;
     }
 
-    // ── Live map (shows vehicles with last_lat/last_lon)
+    // v425: dropped duplicate map — Dispatch has the canonical MapLibre.
+    // "Show Fleet" toggle on Dispatch surfaces vehicle markers there.
     var locatable = self._vehicles.filter(function(v) { return v.last_lat && v.last_lon; });
-    if (locatable.length || true) {
-      html += '<div id="fleet-map" style="height:360px;border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;background:var(--bg);"></div>';
-      html += '<div id="fleet-map-status" style="font-size:11px;color:var(--text-light);margin:-12px 0 14px 4px;">' + (locatable.length ? locatable.length + ' vehicle' + (locatable.length===1?'':'s') + ' on map' : 'No live positions yet — install Bouncie / Trak-4 trackers and configure webhook') + '</div>';
-      // Defer map init to next tick (after DOM render)
-      setTimeout(FleetPage._initMap, 60);
+    if (locatable.length) {
+      html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:var(--text-light);">'
+        + locatable.length + ' vehicle' + (locatable.length===1?'':'s') + ' with live position. <a href="#" onclick="window._opsTab=\'dispatch\';loadPage(\'operations\');return false;" style="color:var(--accent);">Open on Dispatch map →</a>'
+        + '</div>';
     }
 
     // ── List view
