@@ -1,5 +1,5 @@
 {
-  "version": 420,
-  "released": "2026-04-25",
-  "notes": "v420: drop magnifying-glass emoji from new-quote client picker"
+  "version": 421,
+  "released": "2026-04-26",
+  "notes": "v421: Fleet module — Operations \u2192 Fleet tab; vehicles + vehicle_positions tables; bouncie-webhook edge fn"
 }
