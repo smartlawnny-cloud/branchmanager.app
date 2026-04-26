@@ -424,12 +424,9 @@ var QuotesPage = {
     } else {
       html += '<input type="hidden" id="q-clientId" value="">'
         + '<input type="hidden" id="q-property" value="">'
-        + '<div style="position:relative;">'
-        +   '<span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;color:var(--text-light);pointer-events:none;">🔍</span>'
-        +   '<input type="text" id="q-client-search" placeholder="Search client, or type a new name…" autocomplete="off" '
-        +     'oninput="QuotesPage._searchClient(this.value)" onfocus="QuotesPage._searchClient(this.value)" '
-        +     'style="width:100%;padding:12px 14px 12px 40px;border:2px solid var(--green-dark);border-radius:10px;font-size:15px;box-sizing:border-box;">'
-        + '</div>'
+        + '<input type="text" id="q-client-search" placeholder="Search client, or type a new name…" autocomplete="off" '
+        +   'oninput="QuotesPage._searchClient(this.value)" onfocus="QuotesPage._searchClient(this.value)" '
+        +   'style="width:100%;padding:12px 14px;border:2px solid var(--green-dark);border-radius:10px;font-size:15px;box-sizing:border-box;">'
         + '<div id="q-client-results" style="display:none;position:relative;z-index:10;margin-top:8px;"></div>';
     }
 
