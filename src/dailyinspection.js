@@ -98,7 +98,7 @@ var DailyInspection = {
       ]
     },
     {
-      id: 'chipper', label: 'Bandit Chipper', icon: '🪵', dot: false,
+      id: 'chipper_200xp', label: 'Bandit 200XP Chipper', icon: '🪵', dot: false,
       items: [
         ['Pre-start', [
           'Knives / blades — sharp, tight, no chips',
@@ -118,20 +118,22 @@ var DailyInspection = {
       ]
     },
     {
-      id: 'stump_grinder', label: 'Bandit Stump Grinder', icon: '⚙️', dot: false,
+      id: 'chipper_254', label: 'Bandit 254 Chipper', icon: '🪵', dot: false,
       items: [
         ['Pre-start', [
-          'Teeth — sharp, tight, correct pattern',
-          'Wheel hub bolts tight',
-          'Belts + hydraulic hoses',
-          'Engine oil + fuel + coolant',
-          'Safety shield + curtain intact',
-          'Tracks / wheels for mobility'
+          'Knives / blades — sharp, tight, no chips',
+          'Anvil gap set correctly',
+          'Feed wheel teeth + hydraulic hoses',
+          'Belts — no cracks, correct tension',
+          'Engine oil + fuel + hydraulic fluid',
+          'Feed control bar + E-stop function',
+          'Discharge chute clear + aimed correctly',
+          'Safety shields + curtains in place'
         ]],
         ['Startup + test', [
-          'Engine starts + idles',
-          'Wheel spin control works',
-          'E-stop works'
+          'Starts, idles smooth',
+          'Feed bar stops wheels within 2 seconds',
+          'Emergency kill works'
         ]]
       ]
     },

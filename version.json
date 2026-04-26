@@ -1,5 +1,5 @@
 {
-  "version": 421,
+  "version": 422,
   "released": "2026-04-26",
-  "notes": "v421: Fleet module — Operations \u2192 Fleet tab; vehicles + vehicle_positions tables; bouncie-webhook edge fn"
+  "notes": "v422: 2 chippers (Bandit 200XP, Bandit 254), no stump grinder; pre-trip + equipment lists updated"
 }
