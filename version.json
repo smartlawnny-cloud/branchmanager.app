@@ -1,5 +1,5 @@
 {
-  "version": 418,
+  "version": 419,
   "released": "2026-04-25",
-  "notes": "v418: replace peekskilltree.com URLs with branchmanager.app (white-label refactor)"
+  "notes": "v419: Team folded into Payroll (tabs); Operations moved up; Today\u2019s Jobs hoisted to top of Dashboard"
 }

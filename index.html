@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 418; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 419; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -848,7 +848,8 @@
       <button class="nav-item" data-page="jobs"><span class="icon"><i data-lucide="wrench" class="li"></i></span> Jobs <span class="badge" id="badge-jobs"></span></button>
       <!-- v388: Pre-Trip folded into Operations as a tab. Deep link via #pretrip still works. -->
       <button class="nav-item" data-page="invoices"><span class="icon"><i data-lucide="receipt" class="li"></i></span> Invoices <span class="badge" id="badge-invoices"></span></button>
-      <button class="nav-item" data-page="team"><span class="icon"><i data-lucide="hard-hat" class="li"></i></span> Team</button>
+      <!-- v419: Team folded into Payroll (tabs: Payroll / Team / Timesheets / My Pay). Operations moved up to where Team was. -->
+      <button class="nav-item" data-page="operations"><span class="icon"><i data-lucide="truck" class="li"></i></span> Operations</button>
 
       <div style="border-top:1px solid var(--sidebar-border);margin:8px 10px 4px;"></div>
       <button class="nav-item" data-page="reports"><span class="icon"><i data-lucide="pie-chart" class="li"></i></span> Reports</button>
@@ -856,9 +857,8 @@
       <button class="nav-item" data-page="socialbranch"><span class="icon"><i data-lucide="megaphone" class="li"></i></span> Marketing</button>
       <button class="nav-item" data-page="payroll"><span class="icon"><i data-lucide="wallet" class="li"></i></span> Payroll</button>
       <!-- v383: My Pay (employeecenter) merged under Payroll — link at bottom of payroll page. Deep link via #employeecenter still works. -->
-
+      <!-- v419: Operations moved up next to Invoices. -->
       <!-- v388: Chat & Tasks folded into Operations as a tab. Deep link via #taskreminders still works. -->
-      <button class="nav-item" data-page="operations"><span class="icon"><i data-lucide="truck" class="li"></i></span> Operations</button>
       <!-- Media Center merged into SocialBranch v376 — deep link still works (#mediacenter) -->
       <!-- v391: AI Assistant sidebar entry removed — accessible via the top-bar "AI" icon and the floating "Ask AI" pill (bottom-right). Deep link #ai still works. -->
       <button class="nav-item" data-page="tools"><span class="icon"><i data-lucide="wrench" class="li"></i></span> Tools</button>
@@ -938,7 +938,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v418.min.js"></script>
+<script defer src="dist/bm.bundle.v419.min.js"></script>
 
 
 
@@ -1243,19 +1243,32 @@ var ToolsHub = {
 };
 
 // ── Team Hub ──
-var TeamHub = {
+// v419: TeamHub merged into PayrollHub. Tabs: Payroll / Team / Timesheets / My Pay.
+// Deep links #team, #timesheets, #payroll, #employeecenter all route into PayrollHub.
+var PayrollHub = {
   render: function() {
     var tabs = [
-      ['members', 'Members'],
-      ['timesheets', 'Timesheets']
+      ['payroll', 'Payroll'],
+      ['members', 'Team'],
+      ['timesheets', 'Timesheets'],
+      ['mypay', 'My Pay']
     ];
-    var r = _renderHubTabs('_teamTab', tabs, 'members');
+    var r = _renderHubTabs('_payrollTab', tabs, 'payroll');
     var body = '';
     try {
-      if (r.tab === 'members') body = TeamPage.render();
+      if (r.tab === 'payroll') body = PayrollPage.render();
+      else if (r.tab === 'members') body = TeamPage.render();
       else if (r.tab === 'timesheets') body = TimeTrackPage.render();
+      else if (r.tab === 'mypay') body = (typeof EmployeeCenterPage !== 'undefined') ? EmployeeCenterPage.render() : '<div style="padding:16px;color:var(--text-light);">My Pay module not loaded.</div>';
     } catch (e) { body = '<div style="padding:16px;color:var(--red);">Error loading tab: ' + e.message + '</div>'; }
     return r.html + body;
+  }
+};
+// Back-compat for legacy deep links / search to "team" page
+var TeamHub = {
+  render: function() {
+    if (window._payrollTab !== 'members' && window._payrollTab !== 'timesheets') window._payrollTab = 'members';
+    return PayrollHub.render();
   }
 };
 
@@ -1357,7 +1370,7 @@ var pageRenderers = {
   workflow: function() { loadPage('dashboard'); return ''; },
   propertymap: function() { return PropertyMap.render(); },
   search: function() { return SearchPage.render(); },
-  payroll: function() { return PayrollPage.render(); },
+  payroll: function() { return PayrollHub.render(); },
   permissions: function() { return RBAC.render(); },
   estimator: function() { return Estimator.render(); },
   cardone: function() { return CardoneTools.render(); },
