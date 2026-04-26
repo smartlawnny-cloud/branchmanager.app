@@ -1,5 +1,5 @@
 {
-  "version": 422,
+  "version": 423,
   "released": "2026-04-26",
-  "notes": "v422: 2 chippers (Bandit 200XP, Bandit 254), no stump grinder; pre-trip + equipment lists updated"
+  "notes": "v423: Bouncie OBD events auto-create maintenance tasks (check engine, low battery, oil change milestones); Pre-Trip surfaces open items at top with Resolve action"
 }

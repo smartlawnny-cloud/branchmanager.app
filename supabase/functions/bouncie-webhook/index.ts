@@ -106,6 +106,63 @@ Deno.serve(async (req) => {
     }).eq("id", vehicleId);
   }
 
+  // ── Auto-create maintenance tasks based on Bouncie event types ──
+  // Idempotent via source_event_id (partial unique index).
+  async function maint(row: Record<string, unknown>) {
+    row.tenant_id = TENANT_ID;
+    row.vehicle_id = vehicleId;
+    row.source = "bouncie";
+    await sb.from("vehicle_maintenance").upsert(row, { onConflict: "source_event_id", ignoreDuplicates: true });
+  }
+
+  if (event === "mil" || event === "checkEngine" || d.mil === true) {
+    const code = d.dtc || d.code || d.troubleCode || "MIL";
+    await maint({
+      kind: "check_engine",
+      severity: "warning",
+      title: "Check Engine: " + code,
+      details: "Bouncie reported MIL on. " + (d.description || ""),
+      source_event_id: `${deviceId}-mil-${code}-${Date.now().toString().slice(0, -4)}0000`,
+      status: "open",
+    });
+  }
+
+  if (event === "battery" && d.battery != null && d.battery < 12.0) {
+    await maint({
+      kind: "battery_low",
+      severity: "warning",
+      title: "Battery low: " + Number(d.battery).toFixed(1) + "V",
+      details: "Bouncie reported vehicle battery below 12.0V — check / replace.",
+      current_value: d.battery,
+      source_event_id: `${deviceId}-batt-${Math.floor(Date.now() / 86400000)}`,
+      status: "open",
+    });
+  }
+
+  // Odometer milestones — every 5000 mi crossed since last event creates an oil-change task
+  const odo = d.odometer ?? d.stats?.odometer ?? null;
+  if (event === "tripEnd" && odo) {
+    const milestoneInterval = 5000;
+    const milestone = Math.floor(odo / milestoneInterval) * milestoneInterval;
+    if (milestone > 0) {
+      await maint({
+        kind: "scheduled_service",
+        severity: "info",
+        title: `Oil change due (${milestone} mi)`,
+        details: `Odometer crossed ${milestone} mi. Schedule oil + filter change.`,
+        threshold_miles: milestone,
+        current_value: odo,
+        source_event_id: `${deviceId}-odo-${milestone}`,
+        status: "open",
+      });
+    }
+  }
+
+  // Harsh-driving events (Bouncie sends as separate eventTypes)
+  if (event === "harshAccel" || event === "harshBrake" || event === "speedingStart") {
+    // not maintenance — log only via vehicle_positions raw column already.
+  }
+
   return new Response(JSON.stringify({ ok: true, event, vehicleId }), {
     headers: { "content-type": "application/json" },
   });

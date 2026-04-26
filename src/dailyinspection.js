@@ -185,10 +185,39 @@ var DailyInspection = {
   render: function() {
     var today = new Date().toISOString().split('T')[0];
 
+    // Kick maintenance fetch (async, will re-render when data arrives)
+    DailyInspection._fetchMaint();
+
     // Today's completions badge strip
     var completedToday = DailyInspection._vehicles.filter(function(v) { return DailyInspection.isCompleteForVehicle(v.id); });
 
-    var html = '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">';
+    var html = '';
+
+    // ── Maintenance alerts strip (pulled from vehicle_maintenance via Bouncie OBD) ──
+    var maint = DailyInspection._maintCache || [];
+    var openMaint = maint.filter(function(m) { return m.status === 'open'; });
+    if (openMaint.length) {
+      var warnCount = openMaint.filter(function(m) { return m.severity === 'warning' || m.severity === 'critical'; }).length;
+      html += '<div style="background:' + (warnCount ? '#fef2f2' : '#fffbeb') + ';border:1px solid ' + (warnCount ? '#fecaca' : '#fde68a') + ';border-radius:12px;padding:14px 16px;margin-bottom:14px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">'
+        +   '<div style="font-weight:700;font-size:13px;color:' + (warnCount ? '#991b1b' : '#92400e') + ';">⚠ ' + openMaint.length + ' open maintenance ' + (openMaint.length === 1 ? 'item' : 'items') + '</div>'
+        +   '<div style="font-size:11px;color:var(--text-light);">From Bouncie OBD events</div>'
+        + '</div>';
+      openMaint.slice(0, 5).forEach(function(m) {
+        var sevColor = m.severity === 'critical' ? '#991b1b' : m.severity === 'warning' ? '#b45309' : '#1e40af';
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid ' + (warnCount ? '#fecaca' : '#fde68a') + ';font-size:13px;">'
+          +   '<span style="background:' + sevColor + ';color:#fff;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;">' + UI.esc(m.severity || 'info') + '</span>'
+          +   '<div style="flex:1;min-width:0;">'
+          +     '<div style="font-weight:600;">' + UI.esc(m.title) + '</div>'
+          +     (m.details ? '<div style="font-size:11px;color:var(--text-light);">' + UI.esc(m.details) + '</div>' : '')
+          +   '</div>'
+          +   '<button onclick="DailyInspection.resolveMaint(\'' + m.id + '\')" style="background:transparent;border:1px solid var(--border);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">Resolve</button>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;">';
 
     // Header / summary
     html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'
@@ -341,5 +370,31 @@ var DailyInspection = {
   isComplete: function() {
     return DailyInspection._vehicles.every(function(v){ return DailyInspection.isCompleteForVehicle(v.id); });
   },
-  toggle: function() { /* legacy — no-op on new UI */ }
+  toggle: function() { /* legacy — no-op on new UI */ },
+
+  // ── Maintenance integration (vehicle_maintenance table populated by bouncie-webhook) ──
+  _maintCache: null,
+  _maintFetched: false,
+  _fetchMaint: function() {
+    if (DailyInspection._maintFetched) return;
+    DailyInspection._maintFetched = true;
+    if (!window.SB || !SB.from) return;
+    SB.from('vehicle_maintenance').select('id, vehicle_id, kind, severity, title, details, status, created_at').eq('status', 'open').order('created_at', { ascending: false }).limit(20).then(function(r) {
+      if (r.error) { console.warn('vehicle_maintenance fetch:', r.error.message); return; }
+      DailyInspection._maintCache = r.data || [];
+      // Re-render only if the user is still on the pre-trip tab
+      if (window._opsTab === 'pretrip' || window._currentPage === 'pretrip') {
+        loadPage(window._currentPage);
+      }
+    });
+  },
+  resolveMaint: function(id) {
+    if (!confirm('Mark this maintenance item as resolved? It will disappear from the alerts list.')) return;
+    SB.from('vehicle_maintenance').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', id).then(function(r) {
+      if (r.error) { UI.toast('Resolve failed: ' + r.error.message, 'error'); return; }
+      UI.toast('Resolved');
+      DailyInspection._maintFetched = false;
+      DailyInspection._fetchMaint();
+    });
+  }
 };
