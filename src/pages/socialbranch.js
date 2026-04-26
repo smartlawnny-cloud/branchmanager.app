@@ -1214,10 +1214,11 @@ var SocialBranch = {
       }
       html += '</div>';
 
-      // Action buttons
-      html += '<div style="display:flex;gap:8px;margin-top:18px;flex-wrap:wrap;">'
-        + '<button onclick="SocialBranch._bulkAiCaptionAll()" class="btn btn-primary" style="font-size:13px;display:inline-flex;align-items:center;gap:6px;">' + SocialBranch._netIcon('sparkles', 14) + 'Generate captions with AI</button>'
-        + '<button onclick="SocialBranch._bulkProceed(false)" style="background:var(--white);border:1px solid var(--border);padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;">Continue without captions</button>'
+      // v427: AI auto-runs on drop, no manual trigger needed. Single fallback button
+      // for cases where the auto-fire didn't kick (e.g. mid-render edge case).
+      html += '<div style="margin-top:18px;font-size:13px;color:var(--text-light);display:flex;align-items:center;gap:10px;">'
+        + '<span style="display:inline-flex;align-items:center;gap:6px;">' + SocialBranch._netIcon('sparkles', 14) + 'AI is generating captions + scheduling…</span>'
+        + '<button onclick="SocialBranch._bulkAiCaptionAll()" style="background:var(--white);border:1px solid var(--border);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;">Re-run AI</button>'
         + '</div>';
       html += '</div>';
     }
@@ -1378,8 +1379,10 @@ var SocialBranch = {
     });
     Promise.all(promises).then(function(items) {
       items.filter(Boolean).forEach(function(it) { b.files.push(it); });
-      UI.toast('Added ' + items.filter(Boolean).length + ' file' + (items.length === 1 ? '' : 's') + '.');
-      loadPage('socialbranch');
+      UI.toast('Added ' + items.filter(Boolean).length + ' file' + (items.length === 1 ? '' : 's') + ' — AI is captioning…');
+      // v427: AI takes over — straight to Step 2 review with auto-captions, defaults, and stagger.
+      // No intermediate button click required. Doug just uploads + audits.
+      SocialBranch._bulkAiCaptionAll();
     });
   },
 

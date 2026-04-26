@@ -1,5 +1,5 @@
 {
-  "version": 426,
+  "version": 427,
   "released": "2026-04-26",
-  "notes": "v426: Settings expand-all fix; Crew Performance card uses cardOpen helper; Team tab gets quick links to Crew Performance/Timesheets/Onboarding"
+  "notes": "v427: SocialBranch — AI auto-runs on bulk upload (drop \u2192 caption \u2192 review); Dark Mode toggle in avatar dropdown"
 }

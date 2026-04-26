@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 426; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 427; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -938,7 +938,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v426.min.js"></script>
+<script defer src="dist/bm.bundle.v427.min.js"></script>
 
 
 
@@ -1058,6 +1058,29 @@ document.querySelectorAll('.nav-item').forEach(function(btn) {
     loadPage(page);
   });
 });
+
+// v427: dark mode toggle (under DB avatar menu). data-theme="dark" toggles existing CSS rules.
+function toggleDarkMode() {
+  var on = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (on) document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', 'dark');
+  try { localStorage.setItem('bm-dark-mode', on ? '0' : '1'); } catch(e){}
+  var lbl = document.getElementById('dark-mode-state');
+  if (lbl) lbl.textContent = on ? '' : 'On';
+}
+// Apply saved preference on boot (also updates the menu label)
+(function applyDarkModeOnLoad(){
+  try {
+    if (localStorage.getItem('bm-dark-mode') === '1') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      // defer label update until DOM is ready
+      window.addEventListener('DOMContentLoaded', function(){
+        var lbl = document.getElementById('dark-mode-state');
+        if (lbl) lbl.textContent = 'On';
+      });
+    }
+  } catch(e){}
+})();
 
 function toggleSidebar() {
   var sb = document.getElementById('sidebar');
