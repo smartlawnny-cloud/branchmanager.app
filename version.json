@@ -1,5 +1,5 @@
 {
-  "version": 427,
+  "version": 428,
   "released": "2026-04-26",
-  "notes": "v427: SocialBranch — AI auto-runs on bulk upload (drop \u2192 caption \u2192 review); Dark Mode toggle in avatar dropdown"
+  "notes": "v428: removed time clock widget from Dispatch (lives in Payroll > Timesheets + Crew View)"
 }

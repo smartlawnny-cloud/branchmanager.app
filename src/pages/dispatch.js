@@ -240,10 +240,8 @@ var DispatchPage = {
       html += Weather.renderWidget();
     }
 
-    // Time clock
-    if (typeof TimeTrackPage !== 'undefined') {
-      html += TimeTrackPage.renderClockWidget();
-    }
+    // v428: Time clock removed from Dispatch — accessible at Payroll > Timesheets
+    // and Crew View. Dispatch is for routing today's jobs, not punch-clock.
 
     // Job route list
     html += '<div style="position:relative;">';
