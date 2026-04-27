@@ -790,15 +790,30 @@ var SettingsPage = {
         emoji: '💳',
         iconBg: '#635BFF',
         okText: '✅ Connected — clients can pay invoices online',
-        warnText: '⚠️ Not connected — paste your Stripe payment link'
-      })
-      + '<div style="margin-bottom:8px;"><input type="text" id="stripe-link" value="' + stripeLink + '" placeholder="https://buy.stripe.com/xxxxxxxxxx" style="width:100%;padding:10px;border:2px solid ' + (stripeOkNow ? 'var(--green-light)' : 'var(--border)') + ';border-radius:8px;font-size:14px;box-sizing:border-box;"></div>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-      + '<button onclick="var k=document.getElementById(\'stripe-link\').value.trim();if(!k){UI.toast(\'Paste your Stripe link first\',\'error\');return;}if(!/^https:\\/\\/buy\\.stripe\\.com\\//.test(k)){UI.toast(\'Must be a buy.stripe.com link\',\'error\');return;}localStorage.setItem(\'bm-stripe-base-link\',k);UI.toast(\'Stripe connected! ✅\');loadPage(\'settings\');" style="background:var(--green-dark);color:#fff;border:none;padding:10px 20px;border-radius:6px;font-weight:700;font-size:14px;cursor:pointer;">Save Link</button>'
-      + (stripeOkNow ? '<button onclick="SettingsPage._removeKey(\'bm-stripe-base-link\',\'Stripe\')" style="background:none;border:1px solid var(--border);padding:10px 20px;border-radius:6px;font-size:13px;cursor:pointer;">Remove</button>' : '')
-      + '</div>'
-      + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Create at <a href="https://dashboard.stripe.com/payment-links/create" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">Stripe → Payment Links → New</a>. Set "Customer pays what they want" with a reasonable default. Redirect after payment to <code style="background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px;">https://branchmanager.app/paid.html</code></p>'
-      + '</div>';
+        warnText: '⚠️ Not connected — create a Payment Link below'
+      });
+    if (stripeOkNow) {
+      html += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:3px;">Active Payment Link</div>'
+        + '<div style="font-size:11px;color:var(--text-light);word-break:break-all;font-family:monospace;">' + stripeLink + '</div>'
+        + '</div>'
+        + '<button onclick="SettingsPage._removeKey(\'bm-stripe-base-link\',\'Stripe\')" style="background:none;border:1px solid var(--border);padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;">Remove & re-create</button>';
+    } else {
+      // Auto-create — preferred path
+      html += '<div style="background:#f3f0ff;border:1px solid #d6cbff;border-radius:8px;padding:14px 16px;margin-bottom:10px;">'
+        + '<div style="font-size:13px;font-weight:700;color:#4c1d95;margin-bottom:4px;">⚡ Auto-create (recommended)</div>'
+        + '<div style="font-size:12px;color:var(--text-light);margin-bottom:10px;line-height:1.5;">Paste your Stripe <strong>secret key</strong> once — BM creates the Payment Link via Stripe API. Key is used for one call, never stored.</div>'
+        + '<input type="password" id="stripe-sk" placeholder="sk_live_..." autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:6px;box-sizing:border-box;">'
+        + '<div style="font-size:11px;color:var(--text-light);margin-bottom:10px;">Get it: <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">dashboard.stripe.com/apikeys</a> → reveal "Secret key"</div>'
+        + '<button onclick="Stripe.autoCreateLink()" style="background:#635bff;color:#fff;border:none;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">Create Payment Link automatically</button>'
+        + '</div>'
+        + '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--text-light);">Or paste an existing link manually ▾</summary>'
+        + '<div style="margin-top:8px;display:flex;gap:8px;">'
+        + '<input type="text" id="stripe-base-link" placeholder="https://buy.stripe.com/..." style="flex:1;padding:9px;border:1px solid var(--border);border-radius:6px;font-size:13px;">'
+        + '<button onclick="var k=document.getElementById(\'stripe-base-link\').value.trim();if(!k){UI.toast(\'Paste a link first\',\'error\');return;}if(!/^https:\\/\\/buy\\.stripe\\.com\\//.test(k)){UI.toast(\'Must be a buy.stripe.com link\',\'error\');return;}localStorage.setItem(\'bm-stripe-base-link\',k);if(typeof Stripe!==\'undefined\'&&Stripe._pushBaseLinkToTenant)Stripe._pushBaseLinkToTenant(k);UI.toast(\'Stripe connected ✅\');loadPage(\'settings\');" style="background:var(--green-dark);color:#fff;border:none;padding:9px 16px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">Save</button>'
+        + '</div></details>';
+    }
+    html += '</div>';
 
     // ── Dialpad ──
     var dialpadKey = localStorage.getItem('bm-dialpad-key') || '';
