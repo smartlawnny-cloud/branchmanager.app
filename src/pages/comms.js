@@ -91,7 +91,47 @@ var CommsLog = {
 
   getAll: function(clientId) {
     var key = 'bm-comms-' + clientId;
-    try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+    var local = [];
+    try { local = JSON.parse(localStorage.getItem(key)) || []; } catch(e) {}
+    // Merge Supabase 'communications' rows that the Dialpad webhook populated
+    // (inbound SMS, calls, voicemails). Cached in window._bmCommsCache to avoid
+    // re-fetching on every render — refreshed by CommsLog.refreshCloud().
+    var cloud = (window._bmCommsCache && window._bmCommsCache[clientId]) || [];
+    if (!cloud.length) {
+      // Kick off a fetch in background; next render will include it.
+      CommsLog._refreshCloudFor(clientId);
+    }
+    var merged = local.concat(cloud);
+    // De-dupe by id and sort newest first
+    var seen = {};
+    var deduped = merged.filter(function(c) { if (!c || !c.id || seen[c.id]) return false; seen[c.id] = 1; return true; });
+    deduped.sort(function(a, b) { return new Date(b.date || b.created_at) - new Date(a.date || a.created_at); });
+    return deduped;
+  },
+
+  // Lazy-load Dialpad-sourced comms from Supabase, cache by client.
+  _refreshCloudFor: function(clientId) {
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return;
+    if (CommsLog._cloudFetchInFlight && CommsLog._cloudFetchInFlight[clientId]) return;
+    CommsLog._cloudFetchInFlight = CommsLog._cloudFetchInFlight || {};
+    CommsLog._cloudFetchInFlight[clientId] = true;
+    SupabaseDB.client.from('communications').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(100).then(function(res) {
+      delete CommsLog._cloudFetchInFlight[clientId];
+      if (res.error || !res.data) return;
+      window._bmCommsCache = window._bmCommsCache || {};
+      window._bmCommsCache[clientId] = res.data.map(function(r) {
+        return {
+          id: r.id,
+          clientId: r.client_id,
+          type: r.channel === 'sms' ? 'text' : (r.channel || 'note'),
+          direction: r.direction,
+          notes: r.body || (r.channel === 'call' ? '(' + (r.status || 'call') + (r.duration_seconds ? ', ' + r.duration_seconds + 's' : '') + ')' : ''),
+          date: r.created_at,
+          user: 'Dialpad',
+          source: 'dialpad'
+        };
+      });
+    });
   },
 
   // Get recent comms across all clients
