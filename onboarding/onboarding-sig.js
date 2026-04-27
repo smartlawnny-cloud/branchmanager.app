@@ -41,6 +41,35 @@ var OnboardingSig = {
     return emp;
   },
 
+  // ── Auto-fill any name-ish input on the page (no per-file mapping needed) ──
+  // For docs that just need the employee's name in their signature input,
+  // call OnboardingSig.autoFillAll() once — it sweeps inputs with id/name/
+  // placeholder matching name|signature|employee and fills with fullName.
+  // Idempotent: skips fields that already have a value.
+  autoFillAll: function() {
+    var emp = OnboardingSig.getEmployee();
+    if (!emp || !emp.fullName) return null;
+    var filled = 0;
+    var inputs = document.querySelectorAll('input[type=text], input:not([type]), input[type=email]');
+    inputs.forEach(function(el) {
+      if (el.value && el.value.trim()) return;
+      if (el.readOnly || el.disabled) return;
+      var hay = ((el.id || '') + ' ' + (el.name || '') + ' ' + (el.placeholder || '')).toLowerCase();
+      if (/(^|[^a-z])(sig|name|employee|fullname|signature|signed)/i.test(hay)) {
+        if (/email/i.test(hay) && emp.email) { el.value = emp.email; filled++; }
+        else { el.value = emp.fullName; filled++; }
+      }
+    });
+    // Date fields → today's date
+    var dateInputs = document.querySelectorAll('input[type=date]');
+    var todayIso = new Date().toISOString().slice(0,10);
+    dateInputs.forEach(function(el) {
+      if (!el.value) { el.value = todayIso; filled++; }
+    });
+    if (filled) OnboardingSig.showBanner(emp.fullName);
+    return { filled: filled, employee: emp };
+  },
+
   // ── Create a signature pad inside a container ──
   createPad: function(containerId, options) {
     options = options || {};
