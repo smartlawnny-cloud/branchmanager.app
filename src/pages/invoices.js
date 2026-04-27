@@ -781,22 +781,37 @@ var InvoicesPage = {
     // Main content area
     html += '<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;margin-top:20px;" class="detail-grid"><div>';
 
-    // Line items
-    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;">'
-      + '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">'
-      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin:0;">Products / Services</h4></div>';
+    // Line items — Jobber-style: clean rows with subtle dividers, right-aligned totals stack
+    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:16px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '<h4 style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:0;font-weight:700;">Products / Services</h4>'
+      + '<button type="button" onclick="InvoicesPage.showForm(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);cursor:pointer;font-size:13px;padding:4px 8px;display:inline-flex;align-items:center;gap:4px;" title="Edit line items">✏️</button>'
+      + '</div>';
     if (inv.lineItems && inv.lineItems.length) {
-      html += '<table class="data-table" style="border:none;border-radius:0;"><thead><tr><th>Service</th><th>Description</th><th>Qty</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Amount</th></tr></thead><tbody>';
+      // Header row
+      html += '<div style="display:grid;grid-template-columns:1.5fr 2fr 60px 90px 90px;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">'
+        + '<div>Service</div><div>Description</div><div>Qty</div><div style="text-align:right;">Rate</div><div style="text-align:right;">Amount</div>'
+        + '</div>';
+      // Rows
       inv.lineItems.forEach(function(item) {
-        html += '<tr><td style="font-weight:600;">' + (item.service || 'Custom') + '</td><td style="color:var(--text-light);">' + (item.description || '') + '</td><td>' + (item.qty || 1) + '</td><td style="text-align:right;">' + UI.money(item.rate) + '</td><td style="text-align:right;font-weight:600;">' + UI.money(item.amount || (item.qty||1) * item.rate) + '</td></tr>';
+        var amt = item.amount || (item.qty||1) * item.rate;
+        html += '<div style="display:grid;grid-template-columns:1.5fr 2fr 60px 90px 90px;gap:12px;padding:14px 0;border-bottom:1px solid var(--border);font-size:14px;align-items:start;">'
+          + '<div style="font-weight:700;color:#1a3c12;">' + UI.esc(item.service || 'Custom') + '</div>'
+          + '<div style="color:var(--text-light);line-height:1.5;">' + UI.esc(item.description || '') + '</div>'
+          + '<div>' + (item.qty || 1) + '</div>'
+          + '<div style="text-align:right;">' + UI.money(item.rate) + '</div>'
+          + '<div style="text-align:right;font-weight:600;">' + UI.money(amt) + '</div>'
+          + '</div>';
       });
-      if (inv.taxRate) {
-        var invSubDisplay = inv.subtotal || (inv.total - (inv.taxAmount || 0));
-        html += '<tr><td colspan="4" style="text-align:right;color:var(--text-light);">Subtotal</td><td style="text-align:right;">' + UI.money(invSubDisplay) + '</td></tr>';
-        html += '<tr><td colspan="4" style="text-align:right;color:var(--text-light);">Tax (' + inv.taxRate + '%)</td><td style="text-align:right;">' + UI.money(inv.taxAmount || 0) + '</td></tr>';
-      }
-      html += '<tr style="background:var(--green-bg);"><td colspan="4" style="text-align:right;font-weight:700;">Total</td><td style="text-align:right;font-weight:800;font-size:15px;color:var(--accent);">' + UI.money(inv.total) + '</td></tr>';
-      html += '</tbody></table>';
+      // Right-aligned totals stack
+      var invSubDisplay = inv.subtotal || (inv.total - (inv.taxAmount || 0));
+      html += '<div style="display:flex;justify-content:flex-end;margin-top:12px;">'
+        + '<div style="min-width:280px;font-size:14px;">'
+        + '<div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--text-light);"><span>Subtotal</span><span>' + UI.money(invSubDisplay) + '</span></div>'
+        + (inv.taxRate ? '<div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--text-light);"><span>Tax (' + inv.taxRate + '%)</span><span>' + UI.money(inv.taxAmount || 0) + '</span></div>' : '')
+        + '<div style="display:flex;justify-content:space-between;padding:10px 0;border-top:2px solid var(--border);margin-top:4px;font-weight:800;font-size:16px;color:#1a3c12;"><span>Total</span><span>' + UI.money(inv.total) + '</span></div>'
+        + (inv.balance > 0 && inv.balance !== inv.total ? '<div style="display:flex;justify-content:space-between;padding:6px 0;color:#dc3545;font-weight:700;"><span>Balance</span><span>' + UI.money(inv.balance) + '</span></div>' : '')
+        + '</div></div>';
     } else {
       html += '<div style="padding:20px;text-align:center;color:var(--text-light);font-size:13px;">No line items</div>';
     }
@@ -809,10 +824,26 @@ var InvoicesPage = {
     else { html += '<div style="color:var(--text-light);font-size:13px;">No payments recorded</div>'; }
     html += '</div></div>';
 
-    // Right sidebar — Jobber-style: Notes + Status only.
+    // Right sidebar — Jobber-style: Online payments + Notes + Status.
     // Payment recording is handled by the green "Collect Payment" button at the top.
     // Stripe link is configured once in Settings (base link), no per-invoice override needed.
     html += '<div>';
+
+    // Online payments info (read-only — links to Settings to change)
+    if (typeof Stripe !== 'undefined' && inv.status !== 'paid') {
+      var stripeOk = Stripe.isConnected && Stripe.isConnected();
+      html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
+        + '<h4 style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px;font-weight:700;">Online payments</h4>'
+        + '<div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;">'
+        +   '<span style="width:8px;height:8px;border-radius:50%;background:' + (stripeOk ? '#2e7d32' : '#9ca3af') + ';"></span>'
+        +   '<span style="color:' + (stripeOk ? '#1a3c12' : 'var(--text-light)') + ';font-weight:600;">' + (stripeOk ? 'Card payments enabled' : 'Stripe not connected') + '</span>'
+        + '</div>'
+        + (stripeOk && inv.balance > 0
+            ? (function(){ var f = Stripe.calcFees(inv.balance || inv.total); return '<div style="font-size:11px;color:var(--text-light);margin-top:6px;line-height:1.6;">Card fee: $' + f.card.toFixed(2) + ' &middot; ACH fee: $' + f.ach.toFixed(2) + '</div>'; })()
+            : '')
+        + '<button type="button" onclick="loadPage(\'settings\')" style="margin-top:10px;background:none;border:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Manage in Settings</button>'
+        + '</div>';
+    }
 
     // Notes (internal — not shown to client)
     var notesKey = 'bm-invoice-notes-' + id;
