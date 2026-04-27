@@ -64,10 +64,14 @@ var SettingsPage = {
     // Replaces ~7 hand-rolled <details> blocks with the same shell + chevron.
     // Pass {open:true} to default-expand; otherwise it opens on click.
     function cardOpen(title, opts) {
-      var open = opts && opts.open;
+      opts = opts || {};
+      var open = opts.open;
+      var iconHtml = opts.icon
+        ? '<i data-lucide="' + opts.icon + '" class="li li-hdr" style="margin-right:8px;vertical-align:-3px;"></i>'
+        : '';
       return '<details ' + (open ? 'open' : '') + ' style="background:var(--white);border-radius:12px;padding:0;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
         +   '<summary style="padding:14px 18px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700;">'
-        +     '<span>' + title + '</span>'
+        +     '<span>' + iconHtml + title + '</span>'
         +     '<span style="font-size:11px;color:var(--text-light);font-weight:500;">▾</span>'
         +   '</summary>'
         +   '<div style="padding:0 18px 18px;">';
@@ -409,13 +413,8 @@ var SettingsPage = {
     // ═══ /GROUP: Business Info ═══
     html += '</div></details>';
 
-    // ═══ GROUP: Quote & Invoice Defaults (collapsible) ═══
-    html += '<details style="background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
-      + '<summary style="padding:14px 18px;cursor:pointer;font-size:15px;font-weight:700;color:var(--text);list-style:none;display:flex;justify-content:space-between;align-items:center;">'
-      +   '<span><i data-lucide="file-text" class="li li-hdr"></i> Quote & Invoice Defaults</span>'
-      +   '<span style="font-size:11px;color:var(--text-light);font-weight:500;">tap to expand</span>'
-      + '</summary>'
-      + '<div style="padding:16px 20px;border-top:1px solid var(--border);">';
+    // ═══ Quote & Invoice Defaults (collapsible — uses cardOpen for visual parity) ═══
+    html += cardOpen('Quote & Invoice Defaults', { icon: 'file-text' });
 
     // ── Notifications moved to USER meta-group (top of page) ──
 
@@ -621,16 +620,11 @@ var SettingsPage = {
       + '</div>'
       + '</div></details>';
 
-    // ═══ /GROUP: Quote & Invoice Defaults ═══
-    html += '</div></details>';
+    // ═══ /Quote & Invoice Defaults ═══
+    html += cardClose();
 
-    // ═══ GROUP: Services & Products (collapsible) ═══
-    html += '<details style="background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
-      + '<summary style="padding:14px 18px;cursor:pointer;font-size:15px;font-weight:700;color:var(--text);list-style:none;display:flex;justify-content:space-between;align-items:center;">'
-      +   '<span><i data-lucide="wrench" class="li li-hdr"></i> Services & Products</span>'
-      +   '<span style="font-size:11px;color:var(--text-light);font-weight:500;">tap to expand</span>'
-      + '</summary>'
-      + '<div style="padding:16px 20px;border-top:1px solid var(--border);">';
+    // ═══ Services & Products (collapsible — uses cardOpen for visual parity) ═══
+    html += cardOpen('Services & Products', { icon: 'wrench' });
 
     // Connected Apps status removed — duplicated the "🔌 API Keys & Integrations" section below.
 
@@ -662,16 +656,11 @@ var SettingsPage = {
       + '<div class="stat-card"><div class="stat-label">Quotes</div><div class="stat-value">' + DB.quotes.count() + '</div></div>'
       + '</div></div></details>';
 
-    // ═══ /GROUP: Services & Products (Data Summary included) ═══
-    html += '</div></details>';
+    // ═══ /Services & Products ═══
+    html += cardClose();
 
-    // ═══ GROUP: Templates & Automation (moved up into BUSINESS meta-group) ═══
-    html += '<details style="background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
-      + '<summary style="padding:14px 18px;cursor:pointer;font-size:15px;font-weight:700;color:var(--text);list-style:none;display:flex;justify-content:space-between;align-items:center;">'
-      +   '<span><i data-lucide="file-edit" class="li li-hdr"></i> Templates &amp; Automation</span>'
-      +   '<span style="font-size:11px;color:var(--text-light);font-weight:500;">tap to expand</span>'
-      + '</summary>'
-      + '<div style="padding:16px 20px;border-top:1px solid var(--border);">';
+    // ═══ Templates & Automation (collapsible — uses cardOpen for visual parity) ═══
+    html += cardOpen('Templates & Automation', { icon: 'file-edit' });
 
     var _taRows = [
       { page: 'onlinebooking',   icon: '🌐', title: 'Online Booking',    desc: 'Configure your public booking form and widget' },
@@ -691,13 +680,11 @@ var SettingsPage = {
         + '</div>';
     });
 
-    // ═══ /GROUP: Templates & Automation ═══
-    html += '</div></details>';
+    // ═══ /Templates & Automation ═══
+    html += cardClose();
 
-    // ═══ close BUSINESS meta-group ═══
-    // v426: Crew Performance — refactored to use cardOpen helper so it matches
-    // the rest of Business cards visually + collapses uniformly with Expand All.
-    html += cardOpen('Crew Performance')
+    // Crew Performance — uses cardOpen with icon for visual parity
+    html += cardOpen('Crew Performance', { icon: 'users' })
       +   '<div style="font-size:13px;color:var(--text-light);margin-bottom:10px;">View crew leaderboards, productivity stats, and time-on-job metrics. Same data as the standalone /#crewperformance page.</div>'
       +   '<button onclick="loadPage(\'crewperformance\');" class="btn btn-primary" style="font-size:12px;">Open Dashboard &rarr;</button>'
       + cardClose();
@@ -1281,18 +1268,16 @@ var SettingsPage = {
     // ═══ close ADVANCED meta-group ═══
     html += groupClose();
 
-    // About — collapsed by default
-    html += '<details style="background:var(--white);border-radius:12px;padding:0;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
-      + '<summary style="padding:14px 18px;cursor:pointer;list-style:none;font-size:14px;font-weight:700;display:flex;justify-content:space-between;align-items:center;">'
-      +   '<span>About Branch Manager</span><span style="font-size:11px;color:var(--text-light);font-weight:500;">▾</span>'
-      + '</summary>'
-      + '<div style="padding:0 18px 16px;font-size:13px;color:var(--text-light);line-height:1.8;">'
-      +   '<div><strong>Version:</strong> v' + (typeof BUNDLED_VERSION !== 'undefined' ? BUNDLED_VERSION : '?') + '</div>'
-      +   '<div><strong>Stack:</strong> Vanilla JS + Supabase + Stripe + MapLibre</div>'
-      +   '<div><strong>Storage:</strong> localStorage + Supabase cloud sync</div>'
-      +   '<div><strong>PWA:</strong> Installable, offline capable</div>'
-      +   '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;">Built for ' + BM_CONFIG.companyName + '. Replaces previous system ($50-130/mo) with a $0/mo custom solution.</div>'
-      + '</div></details>';
+    // About — uses cardOpen for visual parity with the rest
+    html += cardOpen('About Branch Manager', { icon: 'info' })
+      +   '<div style="font-size:13px;color:var(--text-light);line-height:1.8;">'
+      +     '<div><strong>Version:</strong> v' + (typeof BUNDLED_VERSION !== 'undefined' ? BUNDLED_VERSION : '?') + '</div>'
+      +     '<div><strong>Stack:</strong> Vanilla JS + Supabase + Stripe + MapLibre</div>'
+      +     '<div><strong>Storage:</strong> localStorage + Supabase cloud sync</div>'
+      +     '<div><strong>PWA:</strong> Installable, offline capable</div>'
+      +     '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;">Built for ' + BM_CONFIG.companyName + '. Replaces previous system ($50-130/mo) with a $0/mo custom solution.</div>'
+      +   '</div>'
+      + cardClose();
 
     html += '</div>';
     return html;
