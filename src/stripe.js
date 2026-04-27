@@ -128,12 +128,23 @@ var Stripe = {
       + '</div>'
       // Publishable key
       + UI.formField('Stripe Publishable Key', 'text', 'stripe-pk', pk, { placeholder: 'pk_live_...' })
-      // Base payment link — THE KEY FEATURE
-      + '<div style="background:#f3f0ff;border:1px solid #d6cbff;border-radius:8px;padding:12px 14px;margin-bottom:12px;">'
-      + '<div style="font-size:13px;font-weight:700;color:#4c1d95;margin-bottom:6px;">⚡ Base Payment Link (one-time setup)</div>'
-      + '<div style="font-size:12px;color:var(--green-dark);margin-bottom:10px;">Create ONE Stripe Payment Link → Product: any service, Price: <strong>$0.01/unit</strong>, enable <strong>"Let customers adjust quantity"</strong>. Paste it below and every invoice auto-generates the correct amount.</div>'
+      // Base payment link — auto-create OR paste manually
+      + '<div style="background:#f3f0ff;border:1px solid #d6cbff;border-radius:8px;padding:14px 16px;margin-bottom:12px;">'
+      + '<div style="font-size:13px;font-weight:700;color:#4c1d95;margin-bottom:8px;">⚡ Base Payment Link (one-time setup)</div>'
+      + (baseLink
+          ? '<div style="background:#fff;border:1px solid #c8e6c9;border-radius:7px;padding:10px 12px;margin-bottom:10px;">'
+            + '<div style="font-size:12px;font-weight:600;color:#059669;margin-bottom:3px;">✅ Configured</div>'
+            + '<div style="font-size:11px;color:var(--text-light);word-break:break-all;font-family:monospace;">' + baseLink + '</div>'
+            + '</div>'
+          : '<div style="font-size:12px;color:var(--text-light);margin-bottom:10px;line-height:1.5;">One Payment Link drives every invoice (each invoice prefills its own amount). Click the button below — BM will create it via Stripe API in seconds. Or paste an existing link manually.</div>'
+            + '<div style="background:#fff;border-radius:7px;padding:10px 12px;margin-bottom:8px;">'
+            + '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">🚀 Create automatically</div>'
+            + '<input type="password" id="stripe-sk" placeholder="sk_live_... (Stripe secret key, used once, not stored)" autocomplete="off" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:6px;box-sizing:border-box;">'
+            + '<div style="font-size:10px;color:var(--text-light);margin-bottom:8px;">Get it: <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">dashboard.stripe.com/apikeys</a> → reveal "Secret key"</div>'
+            + '<button type="button" onclick="Stripe.autoCreateLink()" style="background:#635bff;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;width:100%;">Create Payment Link automatically</button>'
+            + '</div>'
+            + '<div style="text-align:center;font-size:10px;color:var(--text-light);margin:8px 0;text-transform:uppercase;letter-spacing:.06em;">Or paste manually</div>')
       + UI.formField('Base Payment Link URL', 'text', 'stripe-base-link', baseLink, { placeholder: 'https://buy.stripe.com/...' })
-      + (baseLink ? '<div style="font-size:11px;color:#059669;margin-top:-8px;">✅ Configured — all invoices will use this link with pre-filled amounts</div>' : '')
       + '</div>'
       // Webhook auto-mark-paid section
       + '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;margin-bottom:12px;">'
@@ -161,6 +172,40 @@ var Stripe = {
       + '</div>'
       + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Publishable key from <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer" style="color:var(--green-dark);">dashboard.stripe.com/apikeys</a></p>'
       + '</div>';
+  },
+
+  autoCreateLink: function() {
+    var skEl = document.getElementById('stripe-sk');
+    var sk = skEl ? skEl.value.trim() : '';
+    if (!sk || !sk.startsWith('sk_')) {
+      UI.toast('Paste your Stripe secret key (starts with sk_)', 'error');
+      if (skEl) skEl.focus();
+      return;
+    }
+    UI.toast('Creating Payment Link with Stripe…');
+    var SUPA_URL = 'https://ltpivkqahvplapyagljt.supabase.co';
+    fetch(SUPA_URL + '/functions/v1/stripe-create-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secretKey: sk,
+        successUrl: 'https://branchmanager.app/paid.html',
+        productName: 'Service Invoice'
+      })
+    }).then(function(r) { return r.json(); }).then(function(res) {
+      if (skEl) skEl.value = '';  // wipe sk from DOM regardless
+      if (!res || !res.ok || !res.url) {
+        UI.toast('Stripe error: ' + ((res && res.error) || 'unknown'), 'error');
+        return;
+      }
+      // Save link via the normal save path so localStorage + tenants.config stay in sync
+      var linkInput = document.getElementById('stripe-base-link');
+      if (linkInput) linkInput.value = res.url;
+      Stripe.saveSettings();
+      UI.toast('✓ Payment Link created and saved');
+    }).catch(function(e) {
+      UI.toast('Network error: ' + e.message, 'error');
+    });
   },
 
   saveSettings: function() {
