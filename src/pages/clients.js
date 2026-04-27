@@ -677,9 +677,28 @@ var ClientsPage = {
 
     // Optimistic UI — toast first, one page render, Supabase sync in background
     UI.toast(id ? 'Client updated ✓' : 'Client created ✓');
-    if (id) DB.clients.update(id, data);
-    else DB.clients.create(data);
+    if (id) {
+      DB.clients.update(id, data);
+      // Propagate denormalized snapshot fields to related invoices/quotes/jobs
+      // so phone/email/name edits don't go stale on already-issued docs.
+      ClientsPage._propagate(id, data);
+    } else {
+      DB.clients.create(data);
+    }
     loadPage('clients');
+  },
+
+  // Push name/phone/email changes to all invoices, quotes, and jobs that
+  // snapshot this client. Without this, editing a client's phone from the
+  // invoice page only updates the client record — the invoice keeps the old
+  // value baked in. (Address is intentionally NOT propagated: invoice.property
+  // is the *job site*, not the billing address — they can legitimately differ.)
+  _propagate: function(clientId, data) {
+    var snap = { clientName: data.name, clientPhone: data.phone, clientEmail: data.email };
+    ['invoices','quotes','jobs'].forEach(function(coll) {
+      var rows = DB[coll].getAll().filter(function(r){ return r.clientId === clientId; });
+      rows.forEach(function(r){ DB[coll].update(r.id, snap); });
+    });
   },
 
   remove: function(id) {
