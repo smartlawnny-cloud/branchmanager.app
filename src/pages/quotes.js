@@ -1872,12 +1872,28 @@ var QuotesPage = {
     else { html += '<div style="color:var(--text-light);font-size:13px;">No photos</div>'; }
     html += '</div>'
 
-      // Notes + Actions
+      // Notes + Status + Actions
       + '<div>'
+      // Internal notes — editable textarea, autosaves on blur (parity with invoice detail)
       + '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
-      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Internal Notes</h4>'
-      + (q.notes ? '<div style="font-size:13px;line-height:1.6;">' + UI.esc(q.notes) + '</div>' : '<div style="color:var(--text-light);font-size:13px;">No notes</div>')
+      + '<h4 style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px;font-weight:700;">Internal Notes</h4>'
+      + '<textarea id="quote-notes-' + id + '" placeholder="Notes only you see\u2026" style="width:100%;min-height:90px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;" onblur="QuotesPage._saveNotes(\'' + id + '\',this.value)">' + UI.esc(q.notes || '') + '</textarea>'
       + '</div>'
+      // Update Status chips (parity with invoice detail)
+      + '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
+      + '<h4 style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px;font-weight:700;">Update Status</h4>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + (function() {
+          var statusBtns = [['draft','Draft'],['sent','Sent'],['awaiting','Awaiting'],['approved','Approved'],['converted','Converted'],['declined','Declined']];
+          return statusBtns.map(function(sb) {
+            var isActive = q.status === sb[0];
+            return '<button onclick="QuotesPage.setStatus(\'' + id + '\',\'' + sb[0] + '\')" style="font-size:11px;padding:5px 12px;border-radius:6px;border:1px solid '
+              + (isActive ? '#2e7d32' : 'var(--border)') + ';background:' + (isActive ? '#2e7d32' : 'var(--white)') + ';color:' + (isActive ? '#fff' : 'var(--text)') + ';cursor:pointer;font-weight:' + (isActive ? '700' : '500') + ';">'
+              + sb[1] + '</button>';
+          }).join('');
+        })()
+      + '</div></div>'
+      // Action buttons
       + '<div style="display:flex;flex-direction:column;gap:6px;">'
       + '<button class="btn btn-outline" style="width:100%;justify-content:center;font-size:12px;" onclick="PDF.generateQuote(\'' + id + '\')">📄 Download PDF</button>'
       + (q.property ? '<button class="btn btn-outline" style="width:100%;justify-content:center;font-size:12px;" onclick="PropertyMap.show(\'' + (q.property || '').replace(/'/g, "\\'") + '\')">📐 Equipment Layout</button>' : '')
@@ -3036,6 +3052,12 @@ var QuotesPage = {
     DB.quotes.update(quoteId, { videoUrl: null });
     UI.toast('Video removed');
     QuotesPage.showDetail(quoteId);
+  },
+
+  _saveNotes: function(id, val) {
+    var trimmed = (val || '').trim();
+    DB.quotes.update(id, { notes: trimmed });
+    UI.toast('Notes saved');
   },
 
   _archiveQuote: function(quoteId) {
