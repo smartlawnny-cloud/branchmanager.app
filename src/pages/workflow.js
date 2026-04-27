@@ -511,12 +511,18 @@ var Workflow = {
     var inv = DB.invoices.getById(invoiceId);
     if (!inv) return;
     var balance = inv.balance || inv.total || 0;
+    var hasEmail = !!(inv.clientEmail || (inv.clientId && DB.clients.getById(inv.clientId) && DB.clients.getById(inv.clientId).email));
 
-    var html = '<div style="text-align:center;padding:8px 0;">'
-      + '<div style="font-size:48px;margin-bottom:12px;">💵</div>'
-      + '<h3 style="font-size:18px;margin-bottom:4px;">Record Payment</h3>'
-      + '<p style="color:var(--text-light);font-size:14px;margin-bottom:20px;">Invoice #' + inv.invoiceNumber + ' — ' + UI.money(balance) + ' due</p>'
+    // Two-path top: send payment link OR record payment manually
+    var html = '<div style="text-align:center;padding:4px 0 12px;">'
+      + '<h3 style="font-size:18px;margin:0 0 4px;">Collect Payment</h3>'
+      + '<p style="color:var(--text-light);font-size:14px;margin:0;">Invoice #' + inv.invoiceNumber + ' — ' + UI.money(balance) + ' due</p>'
       + '</div>'
+      // Send-link shortcut
+      + (hasEmail
+          ? '<button type="button" onclick="UI.closeModal();InvoicesPage._sendInvoiceEmail(\'' + invoiceId + '\')" style="width:100%;background:#635bff;color:#fff;border:none;padding:14px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;">💳 Email payment link to client</button>'
+          : '<div style="padding:10px 12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;font-size:12px;color:#7c5e00;margin-bottom:8px;">No email on file — add one to send a payment link.</div>')
+      + '<div style="text-align:center;font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 10px;">Or record payment manually</div>'
       + '<div style="text-align:left;margin-bottom:16px;">'
       + '<label style="font-size:12px;font-weight:600;color:var(--text-light);">Amount Received</label>'
       + '<input type="number" id="mp-amount" value="' + balance.toFixed(2) + '" step="0.01" min="0.01" style="width:100%;padding:12px;border:2px solid var(--border);border-radius:8px;font-size:18px;font-weight:700;margin-top:4px;text-align:center;">'
