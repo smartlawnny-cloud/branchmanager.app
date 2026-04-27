@@ -818,9 +818,9 @@ var InvoicesPage = {
     html += '</div>';
 
     // Payment history
-    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;">'
-      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Payment History</h4>';
-    if (typeof Payments !== 'undefined') { html += Payments.renderForInvoice(id); }
+    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:20px 24px;">'
+      + '<h4 style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:0 0 12px;font-weight:700;">Payment History</h4>';
+    if (typeof Payments !== 'undefined') { html += Payments.renderForInvoice(id, { hideHeader: true, hideRecordForm: true }); }
     else { html += '<div style="color:var(--text-light);font-size:13px;">No payments recorded</div>'; }
     html += '</div></div>';
 

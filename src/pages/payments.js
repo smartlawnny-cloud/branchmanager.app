@@ -406,7 +406,8 @@ var Payments = {
   },
 
   // Render payment history for an invoice
-  renderForInvoice: function(invoiceId) {
+  renderForInvoice: function(invoiceId, options) {
+    options = options || {};
     var payments = Payments.getAll(invoiceId);
     var inv = DB.invoices.getById(invoiceId);
     if (!inv) return '';
@@ -414,8 +415,10 @@ var Payments = {
     var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
     var remaining = (inv.total || 0) - totalPaid;
 
-    var html = '<div style="margin-top:16px;">'
-      + '<h4 style="font-size:14px;margin-bottom:8px;">Payment History</h4>';
+    var html = '<div>';
+    if (!options.hideHeader) {
+      html += '<h4 style="font-size:14px;margin-bottom:8px;">Payment History</h4>';
+    }
 
     // Progress bar
     var pctPaid = inv.total > 0 ? Math.min(100, Math.round(totalPaid / inv.total * 100)) : 0;
@@ -443,8 +446,8 @@ var Payments = {
       });
     }
 
-    // Add payment form
-    if (remaining > 0) {
+    // Add payment form (suppressed when caller has its own Collect Payment CTA)
+    if (remaining > 0 && !options.hideRecordForm) {
       html += '<div style="margin-top:12px;padding:12px;background:var(--bg);border-radius:8px;">'
         + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Record Payment</div>'
         + '<div style="display:flex;gap:6px;align-items:end;">'
