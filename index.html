@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 449; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 450; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -827,6 +827,8 @@
   /* ── Filter buttons ── */
   .client-filter.active { background:var(--green-dark) !important; color:var(--white) !important; border-color:var(--green-dark) !important; }
 </style>
+<!-- Stripe.js for embedded Collect Payment (Elements card form) -->
+<script src="https://js.stripe.com/v3/" async></script>
 </head>
 <body>
 
@@ -938,7 +940,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v449.min.js"></script>
+<script defer src="dist/bm.bundle.v450.min.js"></script>
 
 
 
@@ -1334,6 +1336,7 @@ var pageRenderers = {
     return html;
   },
   invoices: function() { return InvoicesPage.render(); },
+  collectpayment: function() { CollectPaymentPage.render(); return ''; },
   insights: function() { return InsightsPage.render(); },
   reviews: function() { return ReviewsPage.render(); },
   socialbranch: function() { return SocialBranch.render(); },

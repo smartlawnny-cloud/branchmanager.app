@@ -784,7 +784,14 @@ var SettingsPage = {
         + '<div style="font-size:11px;color:#166534;font-weight:700;margin-bottom:3px;">Active Payment Link</div>'
         + '<div style="font-size:11px;color:var(--text-light);word-break:break-all;font-family:monospace;">' + stripeLink + '</div>'
         + '</div>'
-        + '<button onclick="SettingsPage._removeKey(\'bm-stripe-base-link\',\'Stripe\')" style="background:none;border:1px solid var(--border);padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;">Remove & re-create</button>';
+        + '<button onclick="SettingsPage._removeKey(\'bm-stripe-base-link\',\'Stripe\')" style="background:none;border:1px solid var(--border);padding:8px 16px;border-radius:6px;font-size:13px;cursor:pointer;">Remove & re-create</button>'
+        // Embedded payments — save secret key separately for inline card form
+        + '<details style="margin-top:14px;"><summary style="cursor:pointer;font-size:12px;color:var(--text-light);font-weight:600;">⚡ Enable embedded card payments (Collect Payment page) ▾</summary>'
+        + '<div style="margin-top:10px;padding:12px;background:#f3f0ff;border:1px solid #d6cbff;border-radius:8px;">'
+        +   '<div style="font-size:12px;color:var(--text-light);margin-bottom:8px;line-height:1.5;">For the in-app Collect Payment page (Stripe Elements), paste your Stripe <strong>secret key</strong> once. Stored encrypted at rest in Supabase, never exposed to clients.</div>'
+        +   '<input type="password" id="stripe-sk-save" placeholder="sk_live_..." autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:monospace;margin-bottom:6px;box-sizing:border-box;">'
+        +   '<button onclick="Stripe.saveSecretKey()" style="background:#635bff;color:#fff;border:none;padding:9px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;width:100%;">Save & verify with Stripe</button>'
+        + '</div></details>';
     } else {
       // Auto-create — preferred path
       html += '<div style="background:#f3f0ff;border:1px solid #d6cbff;border-radius:8px;padding:14px 16px;margin-bottom:10px;">'

@@ -75,6 +75,37 @@ serve(async (req: Request) => {
 
     console.log(`Payment received: ${clientRef} — $${(amountPaid/100).toFixed(2)}`);
 
+    // Multi-invoice charge from stripe-charge edge fn — uses PaymentIntent
+    // metadata.invoice_ids (UUID list) instead of session.client_reference_id.
+    const metaInvoiceIds = (session.metadata && session.metadata.invoice_ids) || '';
+    if (metaInvoiceIds) {
+      const ids = metaInvoiceIds.split(',').map((s: string) => s.trim()).filter(Boolean);
+      if (ids.length) {
+        // Split paid amount evenly across invoices? No — pay in full each
+        // selected invoice (BM passes only invoices being fully paid).
+        const { data: invs, error } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, balance, total, client_name')
+          .in('id', ids);
+        if (error) { console.error('Multi-invoice fetch error:', error); }
+        else {
+          for (const inv of (invs || [])) {
+            await supabase.from('invoices').update({
+              status: 'paid',
+              balance: 0,
+              paid_date: new Date().toISOString(),
+              amount_paid: inv.total,
+              payment_method: 'stripe',
+              stripe_payment_id: paymentIntentId,
+              updated_at: new Date().toISOString()
+            }).eq('id', inv.id);
+            console.log(`✅ Invoice #${inv.invoice_number} (${inv.client_name}) marked PAID via multi-invoice charge`);
+          }
+        }
+        return new Response('OK', { status: 200 });
+      }
+    }
+
     if (clientRef && clientRef.startsWith('INV-')) {
       // Find invoice by invoice number
       const invoiceNumber = parseInt(clientRef.replace('INV-', ''));

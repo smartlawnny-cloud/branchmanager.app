@@ -30,10 +30,11 @@ var InvoicesPage = {
     }
     var activeTab = self._activeTab || 'invoices';
 
-    // Tab bar
-    var html = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;">'
+    // Tab bar + green Collect Payment shortcut on the right
+    var html = '<div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;align-items:center;">'
       + '<button onclick="InvoicesPage.switchTab(\'invoices\')" style="padding:10px 20px;font-size:14px;font-weight:' + (activeTab==='invoices'?'700':'500') + ';border:none;background:none;cursor:pointer;color:' + (activeTab==='invoices'?'var(--accent)':'var(--text-light)') + ';border-bottom:2px solid ' + (activeTab==='invoices'?'var(--accent)':'transparent') + ';margin-bottom:-2px;">Invoices</button>'
       + '<button onclick="InvoicesPage.switchTab(\'payments\')" style="padding:10px 20px;font-size:14px;font-weight:' + (activeTab==='payments'?'700':'500') + ';border:none;background:none;cursor:pointer;color:' + (activeTab==='payments'?'var(--accent)':'var(--text-light)') + ';border-bottom:2px solid ' + (activeTab==='payments'?'var(--accent)':'transparent') + ';margin-bottom:-2px;">Payments</button>'
+      + '<div style="margin-left:auto;padding-bottom:6px;"><button onclick="loadPage(\'collectpayment\')" style="background:#2e7d32;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">$ Collect Payment</button></div>'
       + '</div>';
 
     if (activeTab === 'payments') {

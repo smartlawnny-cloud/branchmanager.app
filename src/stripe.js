@@ -174,6 +174,28 @@ var Stripe = {
       + '</div>';
   },
 
+  saveSecretKey: function() {
+    var el = document.getElementById('stripe-sk-save');
+    var sk = el ? el.value.trim() : '';
+    if (!sk || !sk.startsWith('sk_')) {
+      UI.toast('Paste your Stripe secret key (starts with sk_)', 'error');
+      if (el) el.focus();
+      return;
+    }
+    var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
+    if (!tid) { UI.toast('No tenant — sign in?', 'error'); return; }
+    UI.toast('Verifying with Stripe…');
+    fetch('https://ltpivkqahvplapyagljt.supabase.co/functions/v1/save-stripe-secret', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId: tid, secretKey: sk, verify: true })
+    }).then(function(r) { return r.json(); }).then(function(res) {
+      if (el) el.value = '';
+      if (!res || !res.ok) { UI.toast('Save failed: ' + ((res && res.error) || 'unknown'), 'error'); return; }
+      UI.toast('✓ Stripe secret saved — embedded payments enabled');
+    }).catch(function(e) { UI.toast('Network error: ' + e.message, 'error'); });
+  },
+
   autoCreateLink: function() {
     var skEl = document.getElementById('stripe-sk');
     var sk = skEl ? skEl.value.trim() : '';
