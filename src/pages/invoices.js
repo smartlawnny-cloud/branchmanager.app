@@ -655,12 +655,11 @@ var InvoicesPage = {
 
     if (typeof Email !== 'undefined') {
       Email.send(email, subject, body, { htmlBody: htmlBody }).then(function(result) {
-        if (result && result.ok) {
+        // Email.send returns {success:true,...} on success — Email itself toasts the user
+        if (result && result.success) {
           DB.invoices.update(id, { status: 'sent', sentAt: new Date().toISOString() });
-          UI.toast('Invoice sent to ' + email + ' ✓');
-        } else {
-          UI.toast('Email error: ' + (result && result.error ? result.error : 'unknown'), 'error');
         }
+        // Email.send already toasts on failure (with hint + mailto fallback) — don't double-toast
         InvoicesPage.showDetail(id);
       });
     } else {
@@ -684,58 +683,74 @@ var InvoicesPage = {
     var clientEmail = inv.clientEmail || (client ? client.email : '');
     var clientAddr = inv.property || (client ? client.address : '');
 
-    var html = '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px;">'
-      // Colored status bar
-      + '<div style="height:4px;background:' + statusColor + ';margin:-24px -24px 16px -24px;border-radius:12px 12px 0 0;"></div>'
-      // Status + actions row — single row on desktop, stacks gracefully on mobile
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">'
-      + '<button class="btn btn-outline" onclick="loadPage(\'invoices\')" style="padding:6px 12px;font-size:12px;flex-shrink:0;">← Back</button>'
-      + UI.statusBadge(inv.status)
-      + '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
-      + '<button class="btn btn-outline" onclick="PDF.generateInvoice(\'' + id + '\')" style="font-size:12px;">📄 PDF</button>'
-      + (inv.status !== 'paid' ? '<button class="btn btn-outline" onclick="InvoicesPage._copyPayLink(\'' + id + '\')" style="font-size:12px;">🔗 Pay Link</button>' : '')
-      + (inv.status !== 'paid' ? '<button class="btn btn-outline" onclick="InvoicesPage._sendInvoiceEmail(\'' + id + '\')" style="font-size:12px;">📧 Send</button>' : '')
-      + (inv.status !== 'paid' ? '<button class="btn btn-primary" onclick="if(typeof Workflow!==\'undefined\')Workflow.showMarkPaid(\'' + id + '\');else InvoicesPage._quickPay(\'' + id + '\');" style="font-size:12px;font-weight:700;">💵 Mark Paid</button>' : '<span style="font-size:12px;color:var(--green-dark);font-weight:700;">✓ Paid ' + UI.money(inv.total) + '</span>')
-      + '<div style="position:relative;display:inline-block;">'
-      + '<button onclick="var d=this.nextElementSibling;document.querySelectorAll(\'.more-dd\').forEach(function(x){x.style.display=\'none\'});d.style.display=d.style.display===\'block\'?\'none\':\'block\';" class="btn btn-outline" style="font-size:13px;padding:6px 10px;">•••</button>'
-      + '<div class="more-dd" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:8px;padding:4px 0;z-index:200;min-width:180px;box-shadow:0 4px 16px rgba(0,0,0,.12);">'
-      + '<button onclick="InvoicesPage._sendInvoiceEmail(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">📧 Send Invoice Email</button>'
-      + '<button onclick="InvoicesPage._copyPayLink(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">🔗 Copy Pay Link</button>'
-      + '<button onclick="PDF.generateInvoice(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">📄 Download PDF</button>'
-      + '<button onclick="InvoicesPage.showForm(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">✏️ Edit Invoice</button>'
-      + '<div style="height:1px;background:var(--border);margin:4px 0;"></div>'
-      + '<button onclick="InvoicesPage._archiveInvoice(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">Archive</button>'
-      + '<button onclick="InvoicesPage.setStatus(\'' + id + '\',\'cancelled\')" style="display:block;width:100%;text-align:left;padding:8px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:#dc3545;">✗ Cancel Invoice</button>'
-      + '</div></div>'
-      + '</div></div>'
-      // Title
-      + '<h2 style="font-size:24px;font-weight:700;margin-bottom:4px;">Invoice #' + (inv.invoiceNumber||'') + ' — ' + UI.esc(inv.clientName || 'Client') + '</h2>'
-      + '<div style="font-size:14px;color:var(--text-light);margin-bottom:20px;">' + (inv.subject ? UI.esc(inv.subject) + ' · ' : '') + (inv.dueDate ? 'Due ' + UI.dateShort(inv.dueDate) : 'No due date set') + '</div>'
+    // v433: Jobber-style invoice detail — single clean card, status pill, big title,
+    // one primary "Collect Payment" CTA, all secondary actions tucked under "More".
+    var statusLabel = (inv.status || 'sent').replace(/_/g,' ');
+    var isPastDue = inv.status !== 'paid' && inv.status !== 'cancelled' && inv.dueDate && new Date(inv.dueDate) < new Date();
+    var displayStatus = isPastDue ? 'Past due' : statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1);
+    var displayStatusColor = isPastDue ? '#dc3545' : statusColor;
 
-      // Two-column: Client card + metadata
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" class="detail-grid">'
-      // Client card
-      + '<div style="background:var(--bg);border-radius:8px;padding:16px;">'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
-      + '<div style="width:10px;height:10px;border-radius:50%;background:' + statusColor + ';"></div>'
-      + '<span style="font-weight:700;font-size:15px;">' + UI.esc(inv.clientName || '—') + '</span></div>'
-      + (clientAddr ? '<div style="font-size:13px;color:var(--text-light);margin-bottom:8px;">📍 ' + UI.esc(clientAddr) + '</div>' : '')
-      + (clientPhone ? '<a href="tel:' + clientPhone.replace(/\D/g,'') + '" style="display:block;font-size:13px;color:var(--accent);margin-bottom:4px;">📞 ' + UI.phone(clientPhone) + '</a>' : '')
-      + (clientEmail ? '<a href="mailto:' + clientEmail + '" style="display:block;font-size:13px;color:var(--accent);">✉️ ' + clientEmail + '</a>' : '')
+    var html = ''
+      // Top-of-page action bar (back, status pill, more, Collect Payment)
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;">'
+      +   '<div style="display:flex;align-items:center;gap:10px;">'
+      +     '<button type="button" class="btn btn-outline" onclick="loadPage(\'invoices\')" style="padding:6px 12px;font-size:13px;">← Invoices</button>'
+      +     '<span style="display:inline-flex;align-items:center;gap:6px;background:' + displayStatusColor + '15;color:' + displayStatusColor + ';padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;">'
+      +       '<span style="width:7px;height:7px;border-radius:50%;background:' + displayStatusColor + ';"></span>' + displayStatus
+      +     '</span>'
+      +   '</div>'
+      +   '<div style="display:flex;gap:8px;align-items:center;">'
+      +     '<div style="position:relative;display:inline-block;">'
+      +       '<button type="button" onclick="var d=this.nextElementSibling;document.querySelectorAll(\'.more-dd\').forEach(function(x){x.style.display=\'none\'});d.style.display=d.style.display===\'block\'?\'none\':\'block\';" class="btn btn-outline" style="font-size:13px;padding:8px 14px;display:flex;align-items:center;gap:6px;">••• More</button>'
+      +       '<div class="more-dd" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px 0;z-index:200;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.12);">'
+      +         '<button type="button" onclick="InvoicesPage._sendInvoiceEmail(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">Send invoice</button>'
+      +         '<button type="button" onclick="InvoicesPage._copyPayLink(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">Copy pay link</button>'
+      +         '<button type="button" onclick="PDF.generateInvoice(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">Download PDF</button>'
+      +         '<button type="button" onclick="InvoicesPage.showForm(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">Edit invoice</button>'
+      +         '<div style="height:1px;background:var(--border);margin:4px 0;"></div>'
+      +         '<button type="button" onclick="InvoicesPage._archiveInvoice(\'' + id + '\')" style="display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">Archive</button>'
+      +         '<button type="button" onclick="InvoicesPage.setStatus(\'' + id + '\',\'cancelled\')" style="display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:#dc3545;">Cancel invoice</button>'
+      +       '</div>'
+      +     '</div>'
+      +     (inv.status !== 'paid'
+        ? '<button type="button" class="btn btn-primary" onclick="if(typeof Workflow!==\'undefined\')Workflow.showMarkPaid(\'' + id + '\');else InvoicesPage._quickPay(\'' + id + '\');" style="font-size:14px;font-weight:700;padding:9px 18px;background:#2e7d32;color:#fff;border:none;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;box-shadow:0 1px 3px rgba(0,0,0,.1);">$ Collect Payment</button>'
+        : '<span style="font-size:13px;color:var(--green-dark);font-weight:700;display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;padding:8px 14px;border-radius:8px;">✓ Paid</span>')
+      +   '</div>'
       + '</div>'
-      // Metadata table
-      + '<div style="background:var(--bg);border-radius:8px;padding:16px;">'
-      + '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
-      + '<tr><td style="padding:4px 0;color:var(--text-light);">Invoice #</td><td style="padding:4px 0;text-align:right;font-weight:600;">' + (inv.invoiceNumber || '—') + '</td></tr>'
-      + '<tr><td style="padding:4px 0;color:var(--text-light);">Issued</td><td style="padding:4px 0;text-align:right;">' + UI.dateShort(inv.issuedDate || inv.createdAt) + '</td></tr>'
-      + '<tr><td style="padding:4px 0;color:var(--text-light);">Due</td><td style="padding:4px 0;text-align:right;">' + UI.dateShort(inv.dueDate) + '</td></tr>'
-      + (inv.subtotal ? '<tr><td style="padding:4px 0;color:var(--text-light);">Subtotal</td><td style="padding:4px 0;text-align:right;">' + UI.money(inv.subtotal) + '</td></tr>' : '')
-      + (inv.taxRate ? '<tr><td style="padding:4px 0;color:var(--text-light);">Tax (' + inv.taxRate + '%)</td><td style="padding:4px 0;text-align:right;">' + UI.money(inv.taxAmount || 0) + '</td></tr>' : '')
-      + '<tr><td style="padding:4px 0;color:var(--text-light);">Total</td><td style="padding:4px 0;text-align:right;font-weight:700;">' + UI.money(inv.total) + '</td></tr>'
-      + '<tr><td style="padding:4px 0;color:var(--text-light);">Paid</td><td style="padding:4px 0;text-align:right;font-weight:700;color:var(--accent);">' + UI.money((inv.total||0) - (inv.balance||0)) + '</td></tr>'
-      + '<tr style="border-top:1px solid var(--border);"><td style="padding:6px 0;color:var(--text-light);font-weight:700;">Balance</td><td style="padding:6px 0;text-align:right;font-weight:800;font-size:15px;color:' + (inv.balance > 0 ? 'var(--red)' : 'var(--accent)') + ';">' + UI.money(inv.balance || 0) + '</td></tr>'
-      + '</table></div>'
-      + '</div></div>';
+
+      // Single big white card — title + body
+      + '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);">'
+      // Title (subject), like Jobber's "For Services Rendered"
+      + '<h1 style="font-size:28px;font-weight:800;margin:0 0 24px;letter-spacing:-0.4px;">' + UI.esc(inv.subject || 'Invoice') + '</h1>'
+
+      // Two-column body: client (left) | metadata (right)
+      + '<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:32px;align-items:start;" class="detail-grid">'
+
+      // LEFT: client card
+      + '<div style="background:var(--bg);border-radius:10px;padding:18px;">'
+      +   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+      +     '<span style="width:8px;height:8px;border-radius:50%;background:#2e7d32;"></span>'
+      +     '<span style="font-weight:700;font-size:16px;">' + UI.esc(inv.clientName || '—') + '</span>'
+      +   '</div>'
+      +   (clientAddr ? '<div style="font-size:13px;color:var(--text-light);margin:8px 0;line-height:1.5;">' + UI.esc(clientAddr) + '</div>' : '')
+      +   (clientPhone ? '<div style="margin-top:6px;"><a href="tel:' + clientPhone.replace(/\D/g,'') + '" style="font-size:13px;color:var(--accent);text-decoration:none;">' + UI.phone(clientPhone) + '</a></div>' : '')
+      +   (clientEmail ? '<div style="margin-top:4px;"><a href="mailto:' + clientEmail + '" style="font-size:13px;color:var(--accent);text-decoration:none;">' + clientEmail + '</a></div>' : '')
+      + '</div>'
+
+      // RIGHT: metadata key-value
+      + '<div>'
+      +   '<div style="display:grid;grid-template-columns:140px 1fr;row-gap:14px;column-gap:16px;font-size:14px;">'
+      +     '<div style="color:var(--text-light);">Invoice #</div><div style="font-weight:600;">' + (inv.invoiceNumber || '—') + '</div>'
+      +     (inv.jobId ? '<div style="color:var(--text-light);">Invoice for</div><div><a href="#" onclick="JobsPage.showDetail(\'' + inv.jobId + '\');return false;" style="color:var(--accent);text-decoration:none;font-weight:600;">Job #' + (inv.jobNumber || '') + '</a></div>' : '')
+      +     '<div style="color:var(--text-light);">Issued</div><div>' + UI.dateShort(inv.issuedDate || inv.createdAt) + '</div>'
+      +     '<div style="color:var(--text-light);">Due date</div><div>' + (inv.dueDate ? UI.dateShort(inv.dueDate) : 'Due on receipt') + '</div>'
+      +     '<div style="color:var(--text-light);">Total</div><div style="font-weight:700;">' + UI.money(inv.total) + '</div>'
+      +     '<div style="color:var(--text-light);">Paid</div><div style="font-weight:700;color:var(--green-dark);">' + UI.money((inv.total||0) - (inv.balance||0)) + '</div>'
+      +     '<div style="color:var(--text-light);font-weight:700;border-top:1px solid var(--border);padding-top:10px;">Balance</div><div style="font-weight:800;font-size:16px;color:' + (inv.balance > 0 ? '#dc3545' : '#2e7d32') + ';border-top:1px solid var(--border);padding-top:10px;">' + UI.money(inv.balance || 0) + '</div>'
+      +   '</div>'
+      + '</div>'
+      + '</div>' // end two-column
+      + '</div>'; // end big card
 
     // Main content area
     html += '<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;margin-top:20px;" class="detail-grid"><div>';
