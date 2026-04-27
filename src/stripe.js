@@ -176,8 +176,30 @@ var Stripe = {
       else localStorage.removeItem('bm-stripe-base-link');
     }
 
+    // Also push base_link to tenants.config so pay.html (running in CUSTOMER's
+    // browser, no access to Doug's localStorage) can read it. Without this the
+    // public Pay page will show "Online payment not set up yet" forever.
+    Stripe._pushBaseLinkToTenant(baseLink);
+
     UI.toast('Stripe settings saved ✓');
     loadPage('settings');
+  },
+
+  _pushBaseLinkToTenant: function(baseLink) {
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return;
+    var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
+    if (!tid) return;
+    // Read existing config, merge, write back. jsonb update without a stored
+    // proc requires read-modify-write client-side.
+    SupabaseDB.client.from('tenants').select('config').eq('id', tid).single().then(function(res) {
+      if (res.error) { console.warn('[Stripe] tenant fetch failed:', res.error.message); return; }
+      var cfg = (res.data && res.data.config) || {};
+      if (baseLink) cfg.stripe_base_link = baseLink;
+      else delete cfg.stripe_base_link;
+      SupabaseDB.client.from('tenants').update({ config: cfg }).eq('id', tid).then(function(res2) {
+        if (res2.error) console.warn('[Stripe] tenant update failed:', res2.error.message);
+      });
+    });
   },
 
   saveKey: function() { Stripe.saveSettings(); },

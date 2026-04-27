@@ -172,7 +172,11 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
     }).join('');
 
     var isCustomActive = state.tipPct === -1;
-    var stripeLink = inv.stripe_payment_url || inv.stripePaymentUrl || '';
+    // Per-invoice override → tenant config (multi-tenant safe) → localStorage
+    // (only useful when the link is opened in Doug's own browser — customers
+    // never have it). The tenant fetch happens after invoice load; see fetch
+    // chain at the bottom of this file.
+    var stripeLink = inv.stripe_payment_url || inv.stripePaymentUrl || state.tenantBaseLink || '';
     if (!stripeLink) { try { stripeLink = localStorage.getItem('bm-stripe-base-link') || ''; } catch(e) {} }
 
     el.innerHTML = '<div class="card">'
@@ -287,13 +291,31 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
   } else {
     var hdrs = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
 
+    // After invoice loads, also fetch tenant config so the Stripe base link
+    // (set by Doug in BM Settings, written to tenants.config.stripe_base_link)
+    // is available to the customer's browser. Without this fetch the Pay
+    // button stays disabled with "Online payment not set up yet".
+    function loadTenantConfig() {
+      var inv = state.invoice;
+      if (!inv || !inv.tenant_id) { render(); return; }
+      fetch(SUPABASE_URL + '/rest/v1/tenants?id=eq.' + encodeURIComponent(inv.tenant_id) + '&select=config&limit=1', { headers: hdrs })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data && data[0] && data[0].config && data[0].config.stripe_base_link) {
+            state.tenantBaseLink = data[0].config.stripe_base_link;
+          }
+        })
+        .catch(function() { /* fall through — render without base link */ })
+        .finally(function() { render(); });
+    }
+
     // Primary: lookup by UUID id
     fetch(SUPABASE_URL + '/rest/v1/invoices?id=eq.' + encodeURIComponent(invId) + '&select=*&limit=1', { headers: hdrs })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data && data[0]) {
         state.invoice = data[0];
-        render();
+        loadTenantConfig();
         return;
       }
       // Fallback 1: try by invoice_number if invId is numeric
@@ -303,17 +325,12 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
           .then(function(r2) { return r2.json(); })
           .then(function(data2) {
             state.invoice = (data2 && data2[0]) ? data2[0] : null;
-            render();
+            loadTenantConfig();
           });
       }
-      // Fallback 2: try ilike on id (for 'bm-...' style legacy IDs)
-      return fetch(SUPABASE_URL + '/rest/v1/invoices?select=*&limit=1', {
-        headers: Object.assign({}, hdrs, { 'Range': '0-0' })
-      }).then(function() {
-        // Just show not found
-        state.invoice = null;
-        render();
-      });
+      // Fallback 2: not found
+      state.invoice = null;
+      render();
     })
     .catch(function() {
       state.invoice = null;
