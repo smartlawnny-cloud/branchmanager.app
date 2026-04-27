@@ -410,8 +410,8 @@ var SettingsPage = {
 
       + '</div></details>';
 
-    // ═══ /GROUP: Business Info ═══
-    html += '</div></details>';
+    // (Removed orphan </div></details> from old "Business Info" inner wrapper —
+    // it was closing the BUSINESS meta-group prematurely after the v446 refactor.)
 
     // ═══ Quote & Invoice Defaults (collapsible — uses cardOpen for visual parity) ═══
     html += cardOpen('Quote & Invoice Defaults', { icon: 'file-text' });
@@ -426,7 +426,7 @@ var SettingsPage = {
       showLineItemPrices: localStorage.getItem('bm-show-line-prices') !== 'false',
       companyLogo: localStorage.getItem('bm-company-logo') || ''
     };
-    html += cardOpen('Quote & Invoice Defaults')
+    html += cardOpen('Default Quote & Invoice Settings', { open: true })
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Payment Terms</label>'
       + '<select id="qd-terms" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;">'
