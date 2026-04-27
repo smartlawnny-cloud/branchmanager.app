@@ -831,12 +831,13 @@ var InvoicesPage = {
 
     // Online payments info (read-only — links to Settings to change)
     if (typeof Stripe !== 'undefined' && inv.status !== 'paid') {
-      var stripeOk = Stripe.isConnected && Stripe.isConnected();
+      var hasBase = !!(Stripe.getBaseLink && Stripe.getBaseLink());
+      var stripeOk = !!(Stripe.isConnected && Stripe.isConnected()) && hasBase;
       html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
         + '<h4 style="font-size:12px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:0 0 10px;font-weight:700;">Online payments</h4>'
         + '<div style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px;">'
         +   '<span style="width:8px;height:8px;border-radius:50%;background:' + (stripeOk ? '#2e7d32' : '#9ca3af') + ';"></span>'
-        +   '<span style="color:' + (stripeOk ? '#1a3c12' : 'var(--text-light)') + ';font-weight:600;">' + (stripeOk ? 'Card payments enabled' : 'Stripe not connected') + '</span>'
+        +   '<span style="color:' + (stripeOk ? '#1a3c12' : 'var(--text-light)') + ';font-weight:600;">' + (stripeOk ? 'Card + ACH enabled' : (hasBase ? 'Stripe key missing' : 'Stripe not connected')) + '</span>'
         + '</div>'
         + (stripeOk && inv.balance > 0
             ? (function(){ var f = Stripe.calcFees(inv.balance || inv.total); return '<div style="font-size:11px;color:var(--text-light);margin-top:6px;line-height:1.6;">Card fee: $' + f.card.toFixed(2) + ' &middot; ACH fee: $' + f.ach.toFixed(2) + '</div>'; })()
