@@ -107,7 +107,24 @@ serve(async (req: Request) => {
   try {
     const data = await req.json();
     const { name, phone, email, address, service, details, source } = data;
-    const firstName = (name || '').split(' ')[0] || 'Someone';
+
+    // Basic spam-gate. Without this, anyone with the function URL can spam
+    // junk into the requests table + trigger SMS/email cost (Twilio + Resend).
+    // Real submissions from book.html always carry a name plus at least one
+    // contact channel, so reject anything missing both.
+    const nameClean = (name || '').toString().trim();
+    const phoneDigits = (phone || '').toString().replace(/\D/g, '');
+    const emailClean = (email || '').toString().trim();
+    const hasName = nameClean.length >= 2 && /[a-z]/i.test(nameClean);
+    const hasContact = phoneDigits.length >= 10 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean);
+    if (!hasName || !hasContact) {
+      return new Response(JSON.stringify({ ok: false, error: 'Missing or invalid name/contact' }), {
+        status: 400,
+        headers: { ...CORS, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const firstName = nameClean.split(' ')[0] || 'Someone';
 
     // 0. Persist to `requests` table FIRST (service-role bypasses RLS).
     //    Column map — real schema: client_name, client_phone, email, property,
