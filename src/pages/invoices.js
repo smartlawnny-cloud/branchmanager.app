@@ -809,52 +809,23 @@ var InvoicesPage = {
     else { html += '<div style="color:var(--text-light);font-size:13px;">No payments recorded</div>'; }
     html += '</div></div>';
 
-    // Right sidebar
+    // Right sidebar — Jobber-style: Notes + Status only.
+    // Payment recording is handled by the green "Collect Payment" button at the top.
+    // Stripe link is configured once in Settings (base link), no per-invoice override needed.
     html += '<div>';
-    // Record Payment
-    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
-      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Record Payment</h4>';
-    if (inv.status !== 'paid') {
-      if (typeof Workflow !== 'undefined') {
-        html += Workflow.invoiceActions(id);
-      } else if (typeof Stripe !== 'undefined') {
-        html += Stripe.paymentButton(id);
-      }
-      if (typeof Stripe !== 'undefined' && inv.balance > 0) {
-        var fees = Stripe.calcFees(inv.balance || inv.total);
-        html += '<div style="margin-top:10px;font-size:12px;color:var(--text-light);display:flex;gap:16px;flex-wrap:wrap;">'
-          + '<span>Card fee: $' + fees.card.toFixed(2) + '</span>'
-          + '<span>ACH fee: $' + fees.ach.toFixed(2) + '</span></div>';
-      }
-    } else {
-      html += '<div style="text-align:center;padding:12px;color:var(--accent);font-weight:600;">Fully Paid</div>';
-    }
-    html += '</div>';
 
-    // Stripe Payment Link
-    if (inv.status !== 'paid') {
-      html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
-        + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">💳 Stripe Payment Link</h4>'
-        + (inv.stripePaymentUrl
-          ? '<div style="background:var(--green-bg);border:1px solid var(--green-border,#c8e6c9);border-radius:7px;padding:10px 12px;margin-bottom:8px;">'
-            + '<div style="font-size:12px;font-weight:600;color:var(--green-dark,#2e7d32);margin-bottom:4px;">✅ Stripe link connected</div>'
-            + '<div style="font-size:11px;color:var(--text-light);word-break:break-all;">' + UI.esc(inv.stripePaymentUrl) + '</div>'
-            + '</div>'
-            + '<div style="display:flex;gap:6px;">'
-            + '<button class="btn btn-outline" style="font-size:11px;flex:1;" onclick="InvoicesPage._copyStripeLink(\'' + id + '\')">Copy Link</button>'
-            + '<button class="btn btn-outline" style="font-size:11px;flex:1;" onclick="InvoicesPage._saveStripeUrl(\'' + id + '\',\'\')">Remove</button>'
-            + '</div>'
-          : '<div style="display:flex;gap:6px;margin-bottom:6px;">'
-            + '<input type="text" id="stripe-url-' + id + '" placeholder="https://buy.stripe.com/..." style="flex:1;padding:7px 10px;border:2px solid var(--border);border-radius:6px;font-size:12px;">'
-            + '<button class="btn btn-primary" style="font-size:11px;white-space:nowrap;" onclick="InvoicesPage._saveStripeUrl(\'' + id + '\',document.getElementById(\'stripe-url-' + id + '\').value.trim())">Save</button>'
-            + '</div>'
-            + '<div style="font-size:11px;color:var(--text-light);">Get one: <a href="https://dashboard.stripe.com/payment-links" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">dashboard.stripe.com → Payment Links</a></div>')
-        + '</div>';
-    }
+    // Notes (internal — not shown to client)
+    var notesKey = 'bm-invoice-notes-' + id;
+    var savedNotes = '';
+    try { savedNotes = localStorage.getItem(notesKey) || ''; } catch(e) {}
+    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">'
+      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px;">Internal Notes</h4>'
+      + '<textarea id="inv-notes-' + id + '" placeholder="Notes only you see…" style="width:100%;min-height:90px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box;" onblur="try{localStorage.setItem(\'' + notesKey + '\',this.value);UI.toast(\'Notes saved\')}catch(e){}">' + UI.esc(savedNotes) + '</textarea>'
+      + '</div>';
 
     // Status workflow
     html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;">'
-      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Update Status</h4>'
+      + '<h4 style="font-size:13px;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px;">Update Status</h4>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
     var invStatusBtns = [['draft','Draft'],['sent','Sent'],['partial','Partial'],['paid','Paid'],['overdue','Overdue'],['cancelled','Cancelled']];
     invStatusBtns.forEach(function(sb) {
