@@ -259,8 +259,8 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       var balance = parseFloat(inv.balance || inv.total || 0);
       var grandTotal = balance + state.tip;
 
-      // Get payment link: invoice-specific → localStorage base link → URL param
-      var stripeLink = inv.stripe_payment_url || inv.stripePaymentUrl || '';
+      // Get payment link: invoice-specific → tenant config → localStorage → URL param
+      var stripeLink = inv.stripe_payment_url || inv.stripePaymentUrl || state.tenantBaseLink || '';
 
       // Fall back to base link stored in localStorage (same domain as main app)
       if (!stripeLink) {
@@ -281,7 +281,12 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       // with "Let customers adjust quantity" enabled.
       var cents = Math.round(grandTotal * 100);
       var sep = stripeLink.indexOf('?') >= 0 ? '&' : '?';
-      window.location.href = stripeLink + sep + 'prefilled_quantity=' + cents;
+      // client_reference_id lets the stripe-webhook find this invoice by
+      // number when checkout.session.completed fires. Without it the webhook
+      // has no way to know which row to mark paid.
+      var invNum = inv.invoice_number || inv.invoiceNumber || '';
+      var ref = invNum ? '&client_reference_id=INV-' + encodeURIComponent(invNum) : '';
+      window.location.href = stripeLink + sep + 'prefilled_quantity=' + cents + ref;
     }
   };
 
