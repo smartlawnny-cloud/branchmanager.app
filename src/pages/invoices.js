@@ -727,15 +727,41 @@ var InvoicesPage = {
       + '<div style="display:grid;grid-template-columns:1fr 1.2fr;gap:32px;align-items:start;" class="detail-grid">'
 
       // LEFT: client card
-      + '<div style="background:var(--bg);border-radius:10px;padding:18px;">'
-      +   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
-      +     '<span style="width:8px;height:8px;border-radius:50%;background:#2e7d32;"></span>'
-      +     '<span style="font-weight:700;font-size:16px;">' + UI.esc(inv.clientName || '—') + '</span>'
-      +   '</div>'
-      +   (clientAddr ? '<div style="font-size:13px;color:var(--text-light);margin:8px 0;line-height:1.5;">' + UI.esc(clientAddr) + '</div>' : '')
-      +   (clientPhone ? '<div style="margin-top:6px;"><a href="tel:' + clientPhone.replace(/\D/g,'') + '" style="font-size:13px;color:var(--accent);text-decoration:none;">' + UI.phone(clientPhone) + '</a></div>' : '')
-      +   (clientEmail ? '<div style="margin-top:4px;"><a href="mailto:' + clientEmail + '" style="font-size:13px;color:var(--accent);text-decoration:none;">' + clientEmail + '</a></div>' : '')
-      + '</div>'
+      + (function() {
+        var billing = (client && client.address) ? client.address : clientAddr;
+        var property = inv.property || '';
+        var sameAddr = !property || (billing && property.trim() === (billing||'').trim());
+        var cid = inv.clientId || '';
+        return '<div style="background:var(--bg);border-radius:10px;padding:20px;position:relative;">'
+        +   '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;">'
+        +     '<div style="display:flex;align-items:center;gap:8px;">'
+        +       '<span style="font-weight:800;font-size:17px;color:#1a3c12;">' + UI.esc(inv.clientName || '—') + '</span>'
+        +       '<span style="width:8px;height:8px;border-radius:50%;background:#2e7d32;"></span>'
+        +     '</div>'
+        +     (cid
+              ? '<div style="position:relative;">'
+                + '<button type="button" onclick="var d=this.nextElementSibling;document.querySelectorAll(\'.client-dd\').forEach(function(x){x.style.display=\'none\'});d.style.display=d.style.display===\'block\'?\'none\':\'block\';event.stopPropagation();" style="background:var(--white);border:1px solid var(--border);border-radius:8px;width:36px;height:32px;cursor:pointer;font-size:14px;color:var(--text);display:inline-flex;align-items:center;justify-content:center;">•••</button>'
+                + '<div class="client-dd" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px 0;z-index:200;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.12);">'
+                +   '<button type="button" onclick="ClientsPage.showDetail(\'' + cid + '\')" style="display:block;width:100%;text-align:left;padding:10px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">👁  View client profile</button>'
+                +   '<button type="button" onclick="ClientsPage.showForm(\'' + cid + '\')" style="display:block;width:100%;text-align:left;padding:10px 14px;font-size:13px;background:none;border:none;cursor:pointer;color:var(--text);">✏️  Edit client details</button>'
+                + '</div>'
+                + '</div>'
+              : '')
+        +   '</div>'
+        +   (billing
+              ? '<div style="margin-bottom:14px;">'
+                + '<div style="font-size:12px;color:var(--text-light);margin-bottom:2px;">Billing Address</div>'
+                + '<div style="font-size:14px;color:var(--text);line-height:1.5;">' + UI.esc(billing) + '</div>'
+                + '</div>'
+              : '')
+        +   '<div style="margin-bottom:14px;">'
+        +     '<div style="font-size:12px;color:var(--text-light);margin-bottom:2px;">Property Address</div>'
+        +     '<div style="font-size:14px;color:var(--text);line-height:1.5;">' + (sameAddr ? '<span style="color:var(--text-light);font-style:italic;">(Same as billing address)</span>' : UI.esc(property)) + '</div>'
+        +   '</div>'
+        +   (clientPhone ? '<div style="margin-bottom:4px;"><a href="tel:' + clientPhone.replace(/\D/g,'') + '" style="font-size:14px;color:var(--text);text-decoration:none;">' + UI.phone(clientPhone) + '</a></div>' : '')
+        +   (clientEmail ? '<div><a href="mailto:' + clientEmail + '" style="font-size:14px;color:var(--green-dark);text-decoration:underline;">' + UI.esc(clientEmail) + '</a></div>' : '')
+        + '</div>';
+      })()
 
       // RIGHT: metadata key-value
       + '<div>'
