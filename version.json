@@ -1,5 +1,5 @@
 {
-  "version": 431,
+  "version": 432,
   "released": "2026-04-27",
-  "notes": "v431: Invoice form buttons type=\"button\" — back/cancel no longer accidentally submit the form"
+  "notes": "v432: drop Venmo + Zelle from payment methods, invoices, PDFs, emails"
 }

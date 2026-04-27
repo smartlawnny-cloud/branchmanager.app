@@ -263,7 +263,7 @@ var AutomationsPage = {
         var sub1 = 'Invoice #' + inv.invoiceNumber + ' is past due — ' + UI.money(inv.balance || inv.total);
         var body1 = 'Hi ' + firstName + ',\n\nThis is a friendly reminder that Invoice #' + inv.invoiceNumber + ' for ' + UI.money(inv.balance || inv.total) + ' was due on ' + UI.dateShort(inv.dueDate) + '.\n\n'
           + '👉 Pay online:\n' + payLink + '\n\n'
-          + 'We accept credit card, Venmo, Zelle, check, or cash. If you have any questions, please call ' + AutomationsPage._co().phone + '.\n\n'
+          + 'We accept credit card, check, or cash. If you have any questions, please call ' + AutomationsPage._co().phone + '.\n\n'
           + 'Thanks,\nDoug Brown\n' + AutomationsPage._co().name;
         if (typeof Email !== 'undefined') Email.send(email, sub1, body1);
         DB.invoices.update(inv.id, { followup1SentAt: new Date().toISOString(), status: 'overdue' });

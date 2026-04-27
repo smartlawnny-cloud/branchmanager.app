@@ -90,7 +90,7 @@ var Templates = {
       trigger: 'Invoice sent to client',
       channel: 'email',
       subject: 'Invoice #{{invoiceNumber}} from {{companyName}} — {{amount}}',
-      body: 'Hi {{name}},\n\nThanks for choosing {{companyName}}! Attached is your invoice for the completed work.\n\nInvoice #{{invoiceNumber}}\nAmount: {{amount}}\nDue: {{date}}\n\nPayment methods:\n• Check: Payable to "{{companyName}}"\n• Venmo: @SecondNatureTree\n• Zelle: {{companyEmail}}\n• Card: [Payment link included when Stripe is connected]\n\nThank you for your business!\n\n{{ownerName}}\n{{companyName}}\n{{companyPhone}}'
+      body: 'Hi {{name}},\n\nThanks for choosing {{companyName}}! Attached is your invoice for the completed work.\n\nInvoice #{{invoiceNumber}}\nAmount: {{amount}}\nDue: {{date}}\n\nPayment methods:\n• Check: Payable to "{{companyName}}"\n• Card: [Payment link included when Stripe is connected]\n\nThank you for your business!\n\n{{ownerName}}\n{{companyName}}\n{{companyPhone}}'
     },
 
     // ── Invoice Follow-Up (1 day overdue) ──

@@ -252,8 +252,6 @@ var PDFGen = {
       + '<h4>Payment Options</h4>'
       + '<div class="pay-grid">'
       + '<div class="pay-method"><strong>Check</strong><span>Payable to:<br>' + PDFGen.COMPANY.name + '</span></div>'
-      + '<div class="pay-method"><strong>Venmo</strong><span>@SecondNatureTree</span></div>'
-      + '<div class="pay-method"><strong>Zelle</strong><span>info@peekskilltree.com</span></div>'
       + '<div class="pay-method"><strong>Credit Card</strong><span>Pay online via<br>emailed link</span></div>'
       + '</div>'
       + '</div>';

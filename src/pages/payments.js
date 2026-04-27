@@ -204,7 +204,7 @@ var Payments = {
     html += '</div>';
 
     // === Payment method breakdown (BM advantage) ===
-    var methods = ['cash','check','venmo','zelle','card','stripe','deposit','other'];
+    var methods = ['cash','check','card','stripe','deposit','other'];
     var methodTotals = {};
     methods.forEach(function(m) { methodTotals[m] = 0; });
     var allTimeTotal = allPayments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
@@ -214,7 +214,7 @@ var Payments = {
       methodTotals[m] += (p.amount || 0);
     });
     var methodMax = Math.max.apply(null, methods.map(function(m) { return methodTotals[m] || 0; })) || 1;
-    var methodIcons = { cash: '💵', check: '📝', venmo: '📱', zelle: '⚡', card: '💳', stripe: '🔵', deposit: '🏦', other: '💰' };
+    var methodIcons = { cash: '💵', check: '📝', card: '💳', stripe: '🔵', deposit: '🏦', other: '💰' };
 
     html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin-bottom:16px;">'
       + '<h4 style="font-size:15px;margin-bottom:12px;font-weight:700;">Payment Method Breakdown</h4>'
@@ -246,7 +246,7 @@ var Payments = {
       { val: '3months', label: 'Last 3 Mo' },
       { val: 'all', label: 'All Time' }
     ];
-    var methodFilters = ['all','cash','check','venmo','zelle','card','stripe','deposit','other'];
+    var methodFilters = ['all','cash','check','card','stripe','deposit','other'];
 
     var filterBtnStyle = function(active) {
       return 'padding:6px 12px;border-radius:6px;border:1.5px solid ' + (active ? 'var(--green-dark)' : 'var(--border)') + ';background:' + (active ? 'var(--green-dark)' : 'var(--white)') + ';color:' + (active ? '#fff' : 'var(--text)') + ';cursor:pointer;font-size:13px;font-weight:600;';
@@ -290,9 +290,9 @@ var Payments = {
       return '<div class="empty-state"><div class="empty-icon">💵</div><h3>No payments match this filter</h3><p>Try a different date range or payment method.</p><button class="btn btn-primary" style="margin-top:16px;" onclick="loadPage(\'invoices\')">Go to Invoices</button></div>';
     }
 
-    var methodIcons = { cash: '💵', check: '📝', venmo: '📱', zelle: '⚡', card: '💳', stripe: '🔵', deposit: '🏦', other: '💰' };
-    var methodLabels = { cash: 'Cash', check: 'Check', venmo: 'Venmo', zelle: 'Zelle', card: 'Card', stripe: 'Stripe', deposit: 'Deposit', other: 'Other' };
-    var manualMethods = { cash: true, check: true, venmo: true, zelle: true, other: true };
+    var methodIcons = { cash: '💵', check: '📝', card: '💳', stripe: '🔵', deposit: '🏦', other: '💰' };
+    var methodLabels = { cash: 'Cash', check: 'Check', card: 'Card', stripe: 'Stripe', deposit: 'Deposit', other: 'Other' };
+    var manualMethods = { cash: true, check: true, other: true };
     var html = '';
 
     filtered.slice(0, 150).forEach(function(p) {
@@ -430,7 +430,7 @@ var Payments = {
     // Payment list
     if (payments.length) {
       payments.forEach(function(p) {
-        var methodIcons = { cash: '💵', check: '📝', venmo: '📱', zelle: '⚡', card: '💳', stripe: '🔵', deposit: '🏦', other: '💰' };
+        var methodIcons = { cash: '💵', check: '📝', card: '💳', stripe: '🔵', deposit: '🏦', other: '💰' };
         html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">'
           + '<div><span>' + (methodIcons[p.method] || '💰') + '</span> '
           + '<span style="text-transform:capitalize;font-weight:600;">' + (p.method || 'payment') + '</span>'
@@ -450,7 +450,7 @@ var Payments = {
         + '<div style="display:flex;gap:6px;align-items:end;">'
         + '<div style="flex:1;"><input type="number" id="pay-amount-' + invoiceId + '" value="' + remaining.toFixed(2) + '" step="0.01" style="width:100%;padding:8px;border:2px solid var(--border);border-radius:6px;font-size:14px;font-weight:700;"></div>'
         + '<select id="pay-method-' + invoiceId + '" style="padding:8px;border:2px solid var(--border);border-radius:6px;font-size:13px;">'
-        + '<option value="cash">💵 Cash</option><option value="check">📝 Check</option><option value="venmo">Venmo</option><option value="zelle">Zelle</option><option value="card">💳 Card</option><option value="deposit">🏦 Deposit</option></select>'
+        + '<option value="cash">💵 Cash</option><option value="check">📝 Check</option><option value="card">💳 Card</option><option value="deposit">🏦 Deposit</option></select>'
         + '<input type="text" id="pay-note-' + invoiceId + '" placeholder="Note (check #, etc)" style="flex:1;padding:8px;border:2px solid var(--border);border-radius:6px;font-size:13px;">'
         + '<button onclick="Payments.record(\'' + invoiceId + '\')" style="background:var(--green-dark);color:#fff;border:none;padding:8px 14px;border-radius:6px;font-weight:600;cursor:pointer;white-space:nowrap;">Record</button>'
         + '</div></div>';

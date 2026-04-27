@@ -244,9 +244,7 @@ var Workflow = {
 
     // Payment methods
     html += '<button onclick="Workflow.markPaid(\'' + invoiceId + '\',\'cash\');loadPage(\'invoices\');" style="background:var(--green-dark);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">💵 Cash</button>'
-      + '<button onclick="Workflow.markPaid(\'' + invoiceId + '\',\'check\');loadPage(\'invoices\');" style="background:var(--green-dark);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">📝 Check</button>'
-      + '<button onclick="Workflow.markPaid(\'' + invoiceId + '\',\'venmo\');loadPage(\'invoices\');" style="background:#008CFF;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">Venmo</button>'
-      + '<button onclick="Workflow.markPaid(\'' + invoiceId + '\',\'zelle\');loadPage(\'invoices\');" style="background:#6D1ED4;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">Zelle</button>';
+      + '<button onclick="Workflow.markPaid(\'' + invoiceId + '\',\'check\');loadPage(\'invoices\');" style="background:var(--green-dark);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">📝 Check</button>';
 
     // Stripe (if connected)
     if (typeof Stripe !== 'undefined' && Stripe.paymentButton) {
@@ -393,7 +391,7 @@ var Workflow = {
       + '🧾 Invoice #' + inv.invoiceNumber + '\n'
       + '💰 Amount Due: ' + UI.money(inv.balance || inv.total) + '\n'
       + '📅 Due: ' + UI.dateShort(inv.dueDate) + '\n\n'
-      + '💳 Pay Online (card, Venmo, Zelle):\n' + payLink + '\n\n'
+      + '💳 Pay Online (card):\n' + payLink + '\n\n'
       + 'Or pay by check payable to ' + Workflow._co().name + '.\n\n'
       + 'Thank you for choosing ' + Workflow._co().name + '!\n\n'
       + 'Doug Brown\n' + Workflow._co().phone + '\n' + Workflow._co().email;
@@ -526,7 +524,7 @@ var Workflow = {
       + '<div style="text-align:left;margin-bottom:8px;">'
       + '<label style="font-size:12px;font-weight:600;color:var(--text-light);margin-bottom:8px;display:block;">Payment Method</label>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">';
-    ['Cash', 'Check', 'Venmo', 'Zelle', 'Card', 'Other'].forEach(function(m, i) {
+    ['Cash', 'Check', 'Card', 'Other'].forEach(function(m, i) {
       html += '<button type="button" class="mp-method-btn" data-method="' + m.toLowerCase() + '" '
         + 'onclick="document.querySelectorAll(\'.mp-method-btn\').forEach(function(b){b.style.background=\'var(--bg)\';b.style.color=\'var(--text)\';b.style.borderColor=\'var(--border)\'});this.style.background=\'var(--green-dark)\';this.style.color=\'#fff\';this.style.borderColor=\'var(--green-dark)\';document.getElementById(\'mp-method-val\').value=this.dataset.method;" '
         + 'style="padding:10px 8px;background:' + (i === 0 ? 'var(--green-dark);color:#fff' : 'var(--bg);color:var(--text)') + ';border:2px solid ' + (i === 0 ? 'var(--green-dark)' : 'var(--border)') + ';border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">'
