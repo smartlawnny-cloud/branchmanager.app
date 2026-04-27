@@ -875,8 +875,12 @@ var InvoicesPage = {
 
     var today = new Date();
     var todayStr = today.toISOString().split('T')[0];
+    // v430: default to "Due on receipt" (issue date = due date). Settings.bm-invoice-default-net-days
+    // overrides if user explicitly set net 15 / 30 / etc.
+    var netDays = parseInt(localStorage.getItem('bm-invoice-default-net-days') || '0', 10);
+    if (isNaN(netDays) || netDays < 0) netDays = 0;
     var due = new Date(today);
-    due.setDate(due.getDate() + 30);
+    due.setDate(due.getDate() + netDays);
     var dueStr = due.toISOString().split('T')[0];
 
     var html = '<form id="inv-form" onsubmit="InvoicesPage.save(event, \'' + (invoiceId || '') + '\')">';
@@ -888,7 +892,10 @@ var InvoicesPage = {
         + '<div class="form-group"><label>Client</label><div style="padding:8px 12px;background:var(--bg);border-radius:8px;font-weight:600;">' + UI.esc(inv.clientName || (client ? client.name : '')) + '</div></div>';
     } else {
       var clientOptions = allClients.map(function(c) { return { value: c.id, label: c.name + (c.address ? ' — ' + c.address : '') }; });
-      html += UI.formField('Client *', 'select', 'inv-clientId', '', { options: [{ value: '', label: 'Select a client...' }].concat(clientOptions) });
+      html += UI.formField('Client *', 'select', 'inv-clientId', '', {
+        options: [{ value: '', label: 'Select a client...' }].concat(clientOptions),
+        onchange: 'InvoicesPage._autoFillFromClient()'
+      });
     }
 
     html += UI.formField('Property Address', 'text', 'inv-property', inv.property || (inv.clientId && DB.clients.getById(inv.clientId) ? DB.clients.getById(inv.clientId).address : ''), { placeholder: 'Property address' });
@@ -1030,6 +1037,16 @@ var InvoicesPage = {
     if (!form) return;
     form.dataset.saveStatus = status;
     form.requestSubmit();
+  },
+
+  // v430: auto-fill property from client.address when client picker changes
+  _autoFillFromClient: function() {
+    var sel = document.getElementById('inv-clientId');
+    var prop = document.getElementById('inv-property');
+    if (!sel || !prop) return;
+    var c = DB.clients.getById(sel.value);
+    if (!c) return;
+    if (!prop.value || prop.value.trim() === '') prop.value = c.address || '';
   },
 
   save: function(e, invoiceId) {

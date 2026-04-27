@@ -1,5 +1,5 @@
 {
-  "version": 429,
-  "released": "2026-04-26",
-  "notes": "v429: SocialBranch Competitors tab — type company name + city, AI auto-discovers FB/IG/GMB/YouTube/TikTok/website"
+  "version": 430,
+  "released": "2026-04-27",
+  "notes": "v430: New Invoice — auto-fill Property from selected client; default Due Date = today (due on receipt) unless settings net-days override"
 }

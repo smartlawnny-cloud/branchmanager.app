@@ -168,7 +168,7 @@ var UI = (function() {
     if (type === 'textarea') {
       html += '<textarea id="' + id + '" rows="' + (options.rows || 3) + '" placeholder="' + esc(options.placeholder || '') + '">' + esc(value || '') + '</textarea>';
     } else if (type === 'select') {
-      html += '<select id="' + id + '">';
+      html += '<select id="' + id + '"' + (options.onchange ? ' onchange="' + esc(options.onchange) + '"' : '') + '>';
       (options.options || []).forEach(function(o) {
         var val = typeof o === 'object' ? o.value : o;
         var label = typeof o === 'object' ? o.label : o;
@@ -176,7 +176,7 @@ var UI = (function() {
       });
       html += '</select>';
     } else {
-      html += '<input type="' + type + '" id="' + id + '" value="' + esc(value || '') + '" placeholder="' + esc(options.placeholder || '') + '"' + (options.required ? ' required' : '') + '>';
+      html += '<input type="' + type + '" id="' + id + '" value="' + esc(value || '') + '" placeholder="' + esc(options.placeholder || '') + '"' + (options.required ? ' required' : '') + (options.onchange ? ' onchange="' + esc(options.onchange) + '"' : '') + '>';
     }
     html += '</div>';
     return html;
