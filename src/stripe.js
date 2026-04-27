@@ -190,7 +190,8 @@ var Stripe = {
       body: JSON.stringify({
         secretKey: sk,
         successUrl: 'https://branchmanager.app/paid.html',
-        productName: 'Service Invoice'
+        productName: 'Service Invoice',
+        tenantId: (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null
       })
     }).then(function(r) { return r.json(); }).then(function(res) {
       if (skEl) skEl.value = '';  // wipe sk from DOM regardless
