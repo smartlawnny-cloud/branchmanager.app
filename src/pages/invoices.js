@@ -948,17 +948,17 @@ var InvoicesPage = {
     // Render as full page (not modal)
     var pageHtml = '<div style="max-width:680px;margin:0 auto;padding-bottom:80px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
-      + '<button class="btn btn-outline" onclick="loadPage(\'invoices\')" style="font-size:13px;">\u2190 Back to Invoices</button>'
+      + '<button type="button" class="btn btn-outline" onclick="loadPage(\'invoices\')" style="font-size:13px;">\u2190 Back to Invoices</button>'
       + '<div style="display:flex;gap:8px;">'
-      + '<button class="btn btn-outline" onclick="InvoicesPage.saveAs(\'draft\')">Save Draft</button>'
-      + '<button class="btn btn-primary" onclick="InvoicesPage.saveAs(\'sent\')">Save & Send</button>'
+      + '<button type="button" class="btn btn-outline" onclick="InvoicesPage.saveAs(\'draft\')">Save Draft</button>'
+      + '<button type="button" class="btn btn-primary" onclick="InvoicesPage.saveAs(\'sent\')">Save & Send</button>'
       + '</div></div>'
       + '<h2 style="font-size:20px;margin-bottom:16px;">' + (invoiceId ? 'Edit Invoice #' + inv.invoiceNumber : 'New Invoice') + '</h2>'
       + html
       + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">'
-      + '<button class="btn btn-outline" onclick="loadPage(\'invoices\')">Cancel</button>'
-      + '<button class="btn btn-outline" onclick="InvoicesPage.saveAs(\'draft\')">Save Draft</button>'
-      + '<button class="btn btn-primary" onclick="InvoicesPage.saveAs(\'sent\')">Save & Send</button>'
+      + '<button type="button" class="btn btn-outline" onclick="loadPage(\'invoices\')">Cancel</button>'
+      + '<button type="button" class="btn btn-outline" onclick="InvoicesPage.saveAs(\'draft\')">Save Draft</button>'
+      + '<button type="button" class="btn btn-primary" onclick="InvoicesPage.saveAs(\'sent\')">Save & Send</button>'
       + '</div></div>';
 
     var content = document.getElementById('pageContent');

@@ -1,5 +1,5 @@
 {
-  "version": 430,
+  "version": 431,
   "released": "2026-04-27",
-  "notes": "v430: New Invoice — auto-fill Property from selected client; default Due Date = today (due on receipt) unless settings net-days override"
+  "notes": "v431: Invoice form buttons type=\"button\" — back/cancel no longer accidentally submit the form"
 }
