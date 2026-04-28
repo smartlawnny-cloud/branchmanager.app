@@ -683,7 +683,30 @@ var SettingsPage = {
     // ═══ /Templates & Automation ═══
     html += cardClose();
 
-    // Crew Performance — uses cardOpen with icon for visual parity
+    // Customer Portal management — bulk send invites + per-client status
+    var _allClientsForPortal = DB.clients.getAll();
+    var _withEmail = _allClientsForPortal.filter(function(c){ return c.email && c.email.indexOf('@') > 0; });
+    var _autoInvite = localStorage.getItem('bm-portal-auto-invite') === '1';
+    html += cardOpen('Customer Portal', { icon: 'lock' })
+      +   '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">'
+      +     '<div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;"><div style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Total Clients</div><div style="font-size:18px;font-weight:800;margin-top:3px;">' + _allClientsForPortal.length + '</div></div>'
+      +     '<div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;"><div style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">With Email</div><div style="font-size:18px;font-weight:800;margin-top:3px;color:var(--green-dark);">' + _withEmail.length + '</div></div>'
+      +     '<div style="background:var(--bg);border-radius:8px;padding:12px;text-align:center;"><div style="font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Missing Email</div><div style="font-size:18px;font-weight:800;margin-top:3px;color:' + (_allClientsForPortal.length - _withEmail.length > 0 ? '#dc2626' : 'var(--text-light)') + ';">' + (_allClientsForPortal.length - _withEmail.length) + '</div></div>'
+      +   '</div>'
+      +   '<div style="font-size:13px;color:var(--text-light);margin-bottom:12px;line-height:1.5;">Customers sign in passwordless at <strong style="color:var(--accent);">branchmanager.app/portal/</strong> to view their invoices, quotes, jobs, and photos. They get a one-tap email magic link \u2014 no password.</div>'
+      +   '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">'
+      +     '<a href="https://branchmanager.app/portal/" target="_blank" rel="noopener noreferrer" class="btn btn-outline" style="font-size:12px;">\ud83d\udd17 Open portal in new tab \u2192</a>'
+      +     '<button onclick="SettingsPage._copyPortalLink()" class="btn btn-outline" style="font-size:12px;">\ud83d\udccb Copy portal link</button>'
+      +   '</div>'
+      +   '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--text-light);font-weight:600;">\u26a1 Bulk-send portal invites \u25be</summary>'
+      +     '<div style="margin-top:10px;padding:12px;background:#f3f0ff;border:1px solid #d6cbff;border-radius:8px;">'
+      +       '<div style="font-size:12px;color:var(--text-light);margin-bottom:10px;line-height:1.5;">Email a magic-link invite to <strong>all ' + _withEmail.length + ' clients</strong> with an email on file. Each gets a one-time sign-in link valid for 1 hour. Throttled at 1 per second so Supabase doesn\'t rate-limit.</div>'
+      +       '<button onclick="SettingsPage._bulkSendInvites()" style="background:#7c3aed;color:#fff;border:none;padding:9px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">Send invites to all ' + _withEmail.length + ' clients</button>'
+      +     '</div>'
+      +   '</details>'
+      + cardClose();
+
+    // Crew Performance \u2014 uses cardOpen with icon for visual parity
     html += cardOpen('Crew Performance', { icon: 'users' })
       +   '<div style="font-size:13px;color:var(--text-light);margin-bottom:10px;">View crew leaderboards, productivity stats, and time-on-job metrics. Same data as the standalone /#crewperformance page.</div>'
       +   '<button onclick="loadPage(\'crewperformance\');" class="btn btn-primary" style="font-size:12px;">Open Dashboard &rarr;</button>'
@@ -1982,6 +2005,40 @@ var SettingsPage = {
     }).catch(function(err) {
       if (resultEl) resultEl.innerHTML = '<span style="color:#dc3545;font-weight:600;">❌ Network error: ' + UI.esc(err.message || String(err)) + '</span>';
     });
+  },
+
+  _copyPortalLink: function() {
+    var url = 'https://branchmanager.app/portal/';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(function() { UI.toast('Portal link copied'); });
+    } else {
+      prompt('Copy this:', url);
+    }
+  },
+
+  _bulkSendInvites: function() {
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) { UI.toast('Supabase not ready', 'error'); return; }
+    var clients = DB.clients.getAll().filter(function(c) { return c.email && /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(c.email); });
+    if (!clients.length) { UI.toast('No clients with email on file', 'error'); return; }
+    if (!confirm('Send portal sign-in links to ' + clients.length + ' clients? They\'ll each get an email with a one-tap link to view their account.')) return;
+    UI.toast('Sending — this will take ~' + clients.length + ' seconds…');
+    var sent = 0, failed = 0, idx = 0;
+    function next() {
+      if (idx >= clients.length) {
+        UI.toast('Done — sent ' + sent + ', failed ' + failed);
+        return;
+      }
+      var c = clients[idx++];
+      SupabaseDB.client.auth.signInWithOtp({
+        email: c.email,
+        options: { emailRedirectTo: 'https://branchmanager.app/portal/dashboard.html' }
+      }).then(function(res) {
+        if (res.error) failed++; else sent++;
+        // Throttle ~1 sec between to dodge Supabase auth rate limit
+        setTimeout(next, 1100);
+      }).catch(function() { failed++; setTimeout(next, 1100); });
+    }
+    next();
   },
 
   _removeKey: function(storageKey, label) {

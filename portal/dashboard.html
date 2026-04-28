@@ -212,6 +212,7 @@
           +   '<div class="left">'
           +     '<div class="title">Invoice #' + esc(inv.invoice_number || '—') + (isPastDue ? '<span class="pill past">Past due</span>' : '<span class="pill sent">' + esc(inv.status||'sent') + '</span>') + '</div>'
           +     '<div class="meta">' + esc(inv.subject || 'Tree service') + (inv.due_date ? ' &middot; Due ' + dateShort(inv.due_date) : '') + '</div>'
+          +     '<div style="margin-top:4px;"><a href="invoice-print.html?id=' + encodeURIComponent(inv.id) + '" style="font-size:11px;color:#6b7280;text-decoration:underline;">📄 View / save PDF</a></div>'
           +   '</div>'
           +   '<div style="text-align:right;">'
           +     '<div class="amt due">' + fmt(bal) + '</div>'
