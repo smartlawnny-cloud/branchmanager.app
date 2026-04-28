@@ -1,5 +1,5 @@
 {
-  "version": 454,
+  "version": 455,
   "released": "2026-04-28",
-  "notes": "v432: drop Venmo + Zelle from payment methods, invoices, PDFs, emails"
+  "notes": "v455: fix quote line-item amount/subtotal stuck at $0; fix Cloud save failed (clients) duplicate-key toast (race between db.js upsert + supacloud insert — both upsert now)"
 }

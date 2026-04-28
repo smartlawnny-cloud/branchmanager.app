@@ -112,7 +112,10 @@ var CloudSync = {
         var cloudRecord = CloudSync._toSnake(result);
         // tenant_id already stamped by db.js create() — no double-check needed
         // ID is already a UUID — no need to overwrite
-        sb.from(table).insert(cloudRecord).then(function(res) {
+        // Upsert (not insert): db.js's _pushToCloud also writes via upsert, so a
+        // plain insert here races and throws "duplicate key (clients_pkey)" when
+        // _pushToCloud's upsert lands first. Same idempotent shape on both paths.
+        sb.from(table).upsert(cloudRecord, { onConflict: 'id' }).then(function(res) {
           if (res.error) {
             console.warn('Cloud create error (' + table + '):', res.error.message, res.error.code);
             CloudSync._markUnsynced();

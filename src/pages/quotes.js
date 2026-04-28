@@ -731,18 +731,18 @@ var QuotesPage = {
       notes: (document.getElementById('q-notes') || {}).value || '',
       lineItems: []
     };
-    document.querySelectorAll('.quote-item-row').forEach(function(row) {
+    document.querySelectorAll('.q-item-wrap').forEach(function(wrap) {
+      var photoRow = wrap.querySelector('.quote-item-row');
       var photos = [];
-      if (row.dataset.photos) { try { photos = JSON.parse(row.dataset.photos); } catch(e){} }
-      else if (row.dataset.photo) { photos = [row.dataset.photo]; }
-      var wrap = row.closest('.q-item-wrap');
+      if (photoRow && photoRow.dataset.photos) { try { photos = JSON.parse(photoRow.dataset.photos); } catch(e){} }
+      else if (photoRow && photoRow.dataset.photo) { photos = [photoRow.dataset.photo]; }
       data.lineItems.push({
-        species: (wrap && wrap.querySelector('.q-item-species') || {}).value || '',
-        location: (wrap && wrap.querySelector('.q-item-location') || {}).value || '',
-        service: (row.querySelector('.q-item-service') || {}).value || '',
-        description: (row.querySelector('.q-item-desc') || {}).value || '',
-        qty: (row.querySelector('.q-item-qty') || {}).value || '1',
-        rate: (row.querySelector('.q-item-rate') || {}).value || '',
+        species: (wrap.querySelector('.q-item-species') || {}).value || '',
+        location: (wrap.querySelector('.q-item-location') || {}).value || '',
+        service: (wrap.querySelector('.q-item-service') || {}).value || '',
+        description: (wrap.querySelector('.q-item-desc') || {}).value || '',
+        qty: (wrap.querySelector('.q-item-qty') || {}).value || '1',
+        rate: (wrap.querySelector('.q-item-rate') || {}).value || '',
         photos: photos,
         photo: photos[0] || ''
       });
@@ -1590,12 +1590,15 @@ var QuotesPage = {
 
   calcTotal: function() {
     var subtotal = 0;
-    document.querySelectorAll('.quote-item-row').forEach(function(row) {
-      var qty = parseFloat(row.querySelector('.q-item-qty').value) || 0;
-      var rate = parseFloat(row.querySelector('.q-item-rate').value) || 0;
+    document.querySelectorAll('.q-item-wrap').forEach(function(wrap) {
+      var qtyEl = wrap.querySelector('.q-item-qty');
+      var rateEl = wrap.querySelector('.q-item-rate');
+      if (!qtyEl || !rateEl) return;
+      var qty = parseFloat(qtyEl.value) || 0;
+      var rate = parseFloat(rateEl.value) || 0;
       var lineTotal = qty * rate;
       subtotal += lineTotal;
-      var amountEl = row.querySelector('.q-item-amount');
+      var amountEl = wrap.querySelector('.q-item-amount');
       if (amountEl) amountEl.textContent = UI.money(lineTotal);
     });
     var taxRateEl = document.getElementById('q-tax-rate');
@@ -1671,18 +1674,23 @@ var QuotesPage = {
 
     var items = [];
     var subtotal = 0;
-    document.querySelectorAll('.quote-item-row').forEach(function(row) {
-      var service = row.querySelector('.q-item-service').value;
-      var desc = row.querySelector('.q-item-desc').value;
-      var qty = parseFloat(row.querySelector('.q-item-qty').value) || 0;
-      var rate = parseFloat(row.querySelector('.q-item-rate').value) || 0;
+    document.querySelectorAll('.q-item-wrap').forEach(function(wrap) {
+      var serviceEl = wrap.querySelector('.q-item-service');
+      var descEl = wrap.querySelector('.q-item-desc');
+      var qtyEl = wrap.querySelector('.q-item-qty');
+      var rateEl = wrap.querySelector('.q-item-rate');
+      if (!qtyEl || !rateEl) return;
+      var service = serviceEl ? serviceEl.value : '';
+      var desc = descEl ? descEl.value : '';
+      var qty = parseFloat(qtyEl.value) || 0;
+      var rate = parseFloat(rateEl.value) || 0;
       if (service || desc || rate) {
+        var photoRow = wrap.querySelector('.quote-item-row');
         var photos = [];
-        if (row.dataset.photos) { try { photos = JSON.parse(row.dataset.photos); } catch(e){} }
-        else if (row.dataset.photo) { photos = [row.dataset.photo]; }
-        var wrap = row.closest('.q-item-wrap');
-        var species = (wrap && wrap.querySelector('.q-item-species') || {}).value || '';
-        var location = (wrap && wrap.querySelector('.q-item-location') || {}).value || '';
+        if (photoRow && photoRow.dataset.photos) { try { photos = JSON.parse(photoRow.dataset.photos); } catch(e){} }
+        else if (photoRow && photoRow.dataset.photo) { photos = [photoRow.dataset.photo]; }
+        var species = (wrap.querySelector('.q-item-species') || {}).value || '';
+        var location = (wrap.querySelector('.q-item-location') || {}).value || '';
         items.push({ species: species, location: location, service: service, description: desc, qty: qty, rate: rate, amount: qty * rate, photos: photos, photo: photos[0] || '' });
         subtotal += qty * rate;
       }
