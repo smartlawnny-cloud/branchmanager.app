@@ -170,14 +170,16 @@
     }
 
     // Fetch all client-scoped data (RLS gates)
-    const [invRes, qRes, jobRes] = await Promise.all([
+    const [invRes, qRes, jobRes, photoRes] = await Promise.all([
       sb.from('invoices').select('*').order('created_at', { ascending: false }),
       sb.from('quotes').select('*').order('created_at', { ascending: false }),
-      sb.from('jobs').select('*').order('scheduled_date', { ascending: false }).limit(20)
+      sb.from('jobs').select('*').order('scheduled_date', { ascending: false }).limit(20),
+      sb.from('photos').select('*').eq('record_type', 'job').order('created_at', { ascending: false }).limit(120)
     ]);
     const invoices = invRes.data || [];
     const quotes = qRes.data || [];
     const jobs = jobRes.data || [];
+    const photos = photoRes.data || [];
 
     const unpaid = invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled' && i.status !== 'archived');
     const balance = unpaid.reduce((s,i) => s + (parseFloat(i.balance) || parseFloat(i.total) || 0), 0);
@@ -264,6 +266,32 @@
       });
     }
     html += '</div></div>';
+
+    // Photo galleries — grouped by job
+    if (photos.length) {
+      const byJob = {};
+      photos.forEach(p => { if (!byJob[p.record_id]) byJob[p.record_id] = []; byJob[p.record_id].push(p); });
+      const jobMap = {};
+      jobs.forEach(j => { jobMap[j.id] = j; });
+      const groupedJobs = Object.keys(byJob)
+        .map(jid => ({ job: jobMap[jid], photos: byJob[jid] }))
+        .filter(g => g.job)
+        .sort((a, b) => (b.job.scheduled_date || b.job.created_at || '').localeCompare(a.job.scheduled_date || a.job.created_at || ''));
+
+      html += '<div class="card"><div class="card-h"><h3>Photos from your jobs</h3><span class="count">' + photos.length + '</span></div><div class="card-body" style="padding:14px 18px;">';
+      groupedJobs.forEach(g => {
+        const jLabel = (g.job.description || g.job.property || 'Job') + (g.job.scheduled_date ? ' · ' + dateShort(g.job.scheduled_date) : '');
+        html += '<div style="margin-bottom:18px;">'
+          +   '<div style="font-size:13px;font-weight:700;color:#1a3c12;margin-bottom:8px;">' + esc(jLabel) + '</div>'
+          +   '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;">'
+          +     g.photos.map(p =>
+                  '<a href="' + esc(p.url) + '" target="_blank" rel="noopener" style="display:block;aspect-ratio:1;background:#eef2ee url(\'' + esc(p.url) + '\') center/cover no-repeat;border-radius:8px;overflow:hidden;text-decoration:none;border:1px solid #e5e7eb;"></a>'
+                ).join('')
+          +   '</div>'
+          + '</div>';
+      });
+      html += '</div></div>';
+    }
 
     html += '<div class="footer">'
       +   'Second Nature Tree Service &middot; Peekskill, NY<br>'
