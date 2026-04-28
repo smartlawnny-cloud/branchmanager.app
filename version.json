@@ -1,5 +1,5 @@
 {
-  "version": 452,
+  "version": 453,
   "released": "2026-04-28",
   "notes": "v432: drop Venmo + Zelle from payment methods, invoices, PDFs, emails"
 }
