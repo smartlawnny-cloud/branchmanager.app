@@ -834,6 +834,7 @@ var ClientsPage = {
       +   '<button class="btn btn-primary" style="font-size:13px;padding:10px;" onclick="QuotesPage.showForm(null,\'' + id + '\')">+ Quote</button>'
       +   '<button class="btn btn-primary" style="font-size:13px;padding:10px;" onclick="JobsPage.showForm(null,\'' + id + '\')">+ Job</button>'
       +   '<button class="btn btn-primary" style="font-size:13px;padding:10px;" onclick="InvoicesPage.showForm(null,\'' + id + '\')">+ Invoice</button>'
+      +   (c.email ? '<button class="btn" style="background:#7c3aed;color:#fff;font-size:13px;padding:10px;" onclick="ClientsPage._sendPortalInvite(\'' + id + '\')">🔗 Portal Invite</button>' : '')
       + '</div>'
 
       // ── 3 KPIs ──
@@ -1345,6 +1346,42 @@ var ClientsPage = {
   // ── Notes + review checkbox (added v371) ────────────────────────────────
   // Both fields live on the clients table (`notes` text + `needs_review` bool)
   // so they sync via SupabaseDB just like every other client field.
+  // Send a customer-portal magic-link invite. Uses Supabase Auth signInWithOtp
+  // — same mechanism the portal login page uses, just initiated by Doug. Works
+  // because anon role is allowed to fire OTP emails for any address (Supabase
+  // Auth handles rate limiting + the existing email template re-skinned for BM).
+  _sendPortalInvite: function(id) {
+    var c = DB.clients.getById(id);
+    if (!c || !c.email) { UI.toast('Client has no email on file', 'error'); return; }
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) { UI.toast('Supabase client not ready', 'error'); return; }
+    UI.toast('Sending portal invite to ' + c.email + '…');
+    SupabaseDB.client.auth.signInWithOtp({
+      email: c.email,
+      options: { emailRedirectTo: 'https://branchmanager.app/portal/dashboard.html' }
+    }).then(function(res) {
+      if (res.error) {
+        UI.toast('Invite failed: ' + res.error.message, 'error');
+        return;
+      }
+      UI.toast('✓ Invite sent to ' + c.email);
+      // Log to comms so it shows up on the timeline
+      try {
+        var key = 'bm-comms-' + id;
+        var all = JSON.parse(localStorage.getItem(key) || '[]');
+        all.unshift({
+          id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+          clientId: id,
+          type: 'email',
+          direction: 'outbound',
+          notes: 'Portal sign-in link sent (magic link to ' + c.email + ')',
+          date: new Date().toISOString(),
+          user: 'Doug'
+        });
+        localStorage.setItem(key, JSON.stringify(all));
+      } catch(e) {}
+    });
+  },
+
   _saveNotes: function(id, val) {
     var c = DB.clients.getById(id);
     if (!c) return;
