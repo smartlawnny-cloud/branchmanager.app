@@ -1,5 +1,5 @@
 {
-  "version": 469,
+  "version": 470,
   "released": "2026-04-28",
-  "notes": "Settings fixes: auditAI uses SupabaseDB client, syncNow uses CloudSync, Resend counted in integrations"
+  "notes": "Perf: skip hidden badge counts on nav, memoize DB._get, single-pass client stats, scope lucide"
 }

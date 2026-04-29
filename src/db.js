@@ -15,10 +15,28 @@ var DB = (function() {
     settings: 'bm-settings'
   };
 
+  // In-memory parse cache: avoids repeated JSON.parse for the same data within a render cycle.
+  // Cache is invalidated on every _set (write). CloudSync bulk-writes go through _set too after
+  // v469 — if another path writes directly to localStorage, bump _cacheVer manually.
+  var _parseCache = {};
+  var _parseCacheVer = {};
+  var _cacheVer = {};
+
   function _get(key) {
-    try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+    var ver = _cacheVer[key] || 0;
+    if (_parseCacheVer[key] === ver && _parseCache[key] !== undefined) return _parseCache[key];
+    try {
+      _parseCache[key] = JSON.parse(localStorage.getItem(key)) || [];
+    } catch(e) {
+      _parseCache[key] = [];
+    }
+    _parseCacheVer[key] = ver;
+    return _parseCache[key];
   }
   function _set(key, data) {
+    _cacheVer[key] = (_cacheVer[key] || 0) + 1;
+    _parseCache[key] = data;        // update cache immediately so subsequent reads in same tick are free
+    _parseCacheVer[key] = _cacheVer[key];
     try {
       localStorage.setItem(key, JSON.stringify(data));
     } catch(e) {

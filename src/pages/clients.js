@@ -56,16 +56,20 @@ var ClientsPage = {
     var stats = DB.dashboard.getStats();
     var clients = self._getFiltered();
 
-    // Stats row — 4-cell bordered grid (matches Jobs page shape)
+    // Stats row — single-pass through all clients (was 6 separate .filter() passes)
     var now = new Date();
     var ago30 = new Date(); ago30.setDate(ago30.getDate()-30);
+    var curYear = now.getFullYear();
     var allClients = DB.clients.getAll();
-    var activeCount = allClients.filter(function(c){ return c.status==='active'; }).length;
-    var leadCount = allClients.filter(function(c){ return c.status==='lead'; }).length;
-    var noEmailCount = allClients.filter(function(c){ return c.status!=='archived' && !c.email; }).length;
-    var newLeads30 = allClients.filter(function(c){ return c.status==='lead' && new Date(c.createdAt)>=ago30; }).length;
-    var newClients30 = allClients.filter(function(c){ return c.status==='active' && new Date(c.createdAt)>=ago30; }).length;
-    var ytdClients = allClients.filter(function(c){ return new Date(c.createdAt).getFullYear()===now.getFullYear(); }).length;
+    var activeCount = 0, leadCount = 0, noEmailCount = 0, newLeads30 = 0, newClients30 = 0, ytdClients = 0;
+    for (var _si = 0; _si < allClients.length; _si++) {
+      var _c = allClients[_si];
+      var _st = _c.status; var _ca = _c.createdAt ? new Date(_c.createdAt) : null;
+      if (_st === 'active') { activeCount++; if (_ca && _ca >= ago30) newClients30++; }
+      else if (_st === 'lead') { leadCount++; if (_ca && _ca >= ago30) newLeads30++; }
+      if (_st !== 'archived' && !_c.email) noEmailCount++;
+      if (_ca && _ca.getFullYear() === curYear) ytdClients++;
+    }
 
     var html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px;background:var(--white);" class="stat-row">'
       // Overview — colored-dot mini-rows that filter the list

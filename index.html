@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 469; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 470; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -941,7 +941,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v469.min.js"></script>
+<script defer src="dist/bm.bundle.v470.min.js"></script>
 
 
 
@@ -1487,28 +1487,9 @@ function loadPage(page) {
   var actionBtn = document.getElementById('pageAction');
   if (actionBtn) actionBtn.style.cssText = 'display:none !important;';
 
-  // Update sidebar badges
-  var newReqs = DB.requests.countNew();
-  document.getElementById('badge-requests').textContent = newReqs > 0 ? newReqs : '';
-  document.getElementById('badge-clients').textContent = '';
-  // Quotes awaiting response
-  var awaitingQuotes = DB.quotes.count(function(q) { return q.status === 'sent' || q.status === 'awaiting'; });
-  var qBadge = document.getElementById('badge-quotes');
-  if (qBadge) qBadge.textContent = awaitingQuotes > 0 ? awaitingQuotes : '';
-  // Active jobs
-  var activeJobs = DB.jobs.count(function(j) { return j.status === 'scheduled' || j.status === 'in_progress'; });
-  var jBadge = document.getElementById('badge-jobs');
-  if (jBadge) jBadge.textContent = activeJobs > 0 ? activeJobs : '';
-  // Unpaid invoices
-  var unpaidInv = DB.invoices.count(function(i) { return i.status !== 'paid' && i.status !== 'cancelled' && i.balance > 0; });
-  var iBadge = document.getElementById('badge-invoices');
-  if (iBadge) iBadge.textContent = unpaidInv > 0 ? unpaidInv : '';
-  // Media center unreviewed badge
-  var mediaBadgeEl = document.getElementById('badge-mediacenter');
-  if (mediaBadgeEl && typeof MediaCenter !== 'undefined') {
-    var unreviewedCount = MediaCenter.getUnreviewedCount();
-    mediaBadgeEl.textContent = unreviewedCount > 0 ? unreviewedCount : '';
-  }
+  // Nav-item badges are CSS display:none (felt noisy per user).
+  // Skipping the 4×JSON.parse badge count calls on every page nav.
+  // Re-enable here if badges are ever unhidden.
 
   var content = document.getElementById('pageContent');
   var renderer = pageRenderers[page];
@@ -1518,8 +1499,8 @@ function loadPage(page) {
     content.innerHTML = '<div class="empty-state"><div class="empty-icon" style="font-size:32px;color:var(--text-light);">—</div><h3>Page Not Available</h3><p>' + config.title + ' is not configured yet.</p></div>';
   }
 
-  // Render Lucide icons added by page renderers
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // Render Lucide icons added by page renderers — only if new <i data-lucide> exist in content
+  if (typeof lucide !== 'undefined' && content.querySelector('i[data-lucide]')) lucide.createIcons();
 
   // Post-render hooks
   // Dispatch map fires either as its own page OR as the active tab inside Operations hub
