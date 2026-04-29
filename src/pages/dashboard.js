@@ -82,11 +82,13 @@ var DashboardPage = {
 
     // Greeting moved to top of page (above MOTT)
 
-    // Smart Daily Briefing
-    var briefingDismissed = localStorage.getItem('bm-briefing-dismissed');
+    // Smart Daily Briefing — built early but rendered LATER, after Today's Jobs.
+    // Per Doug's request: only show when no jobs today OR all today's jobs done,
+    // and each insight individually dismissible via per-item X. Dismissed IDs
+    // live in localStorage keyed by date so they reset at midnight rollover.
     var briefingDateStr = now.getFullYear() + '-' + (now.getMonth() + 1 < 10 ? '0' : '') + (now.getMonth() + 1) + '-' + (now.getDate() < 10 ? '0' : '') + now.getDate();
-    if (briefingDismissed !== briefingDateStr) {
-      var briefingInsights = [];
+    var briefingInsights = [];
+    {
       var bOverdue = allInvoices.filter(function(i) { return i.status !== 'paid' && i.balance > 0 && i.dueDate && new Date(i.dueDate) < now; });
       var bOverdueTotal = bOverdue.reduce(function(s, i) { return s + (i.balance || 0); }, 0);
       if (bOverdue.length > 0) {
@@ -167,26 +169,20 @@ var DashboardPage = {
         });
       }
 
-      // Limit to 5 insights max
-      var bShow = briefingInsights.slice(0, 5);
-      if (bShow.length > 0) {
-        html += '<div id="daily-briefing" style="background:linear-gradient(135deg,#14331a 0%,#1e5428 50%,#1a3c12 100%);border-radius:12px;padding:20px;color:#fff;margin-bottom:20px;">'
-          + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
-          + '<div style="display:flex;align-items:center;gap:8px;">'
-          + '<span style="font-size:18px;color:#8fe89f;">✦</span>'
-          + '<h3 style="font-size:16px;font-weight:700;margin:0;">Daily Briefing</h3></div>'
-          + '<a href="#" onclick="DashboardPage.dismissBriefing();return false;" style="font-size:12px;color:rgba(255,255,255,.5);text-decoration:none;">Dismiss</a>'
-          + '</div>';
-        bShow.forEach(function(insight, idx) {
-          var borderTop = idx > 0 ? 'border-top:1px solid rgba(255,255,255,.1);' : '';
-          html += '<div onclick="' + insight.action + '" style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;' + borderTop + '">'
-            + '<span style="font-size:16px;flex-shrink:0;">' + insight.icon + '</span>'
-            + '<span style="font-size:13px;line-height:1.4;opacity:.95;">' + insight.text + '</span>'
-            + '<span style="margin-left:auto;font-size:14px;opacity:.4;flex-shrink:0;">›</span>'
-            + '</div>';
-        });
-        html += '</div>';
-      }
+      // Stable per-insight IDs (hash of icon + text). Used to track which
+      // individual insights are dismissed for today.
+      briefingInsights.forEach(function(b) {
+        var key = (b.icon || '') + '|' + (b.text || '');
+        var h = 0; for (var i = 0; i < key.length; i++) h = ((h << 5) - h + key.charCodeAt(i)) | 0;
+        b.id = 'bf' + Math.abs(h).toString(36);
+      });
+      // Filter against per-item dismissals stored as { "YYYY-MM-DD": ["bfABC", ...] }
+      var dismissedMap = {};
+      try { dismissedMap = JSON.parse(localStorage.getItem('bm-briefing-dismissed-items') || '{}'); } catch(e) {}
+      var dismissedToday = dismissedMap[briefingDateStr] || [];
+      briefingInsights = briefingInsights.filter(function(b) { return dismissedToday.indexOf(b.id) === -1; });
+      // Cap at 5
+      briefingInsights = briefingInsights.slice(0, 5);
     }
 
     // Jobber-style Workflow cards (2x2 grid)
@@ -240,6 +236,43 @@ var DashboardPage = {
           + (j.startTime ? '<div style="font-size:12px;color:var(--text-light);flex-shrink:0;">' + j.startTime + '</div>' : '')
           + '<span style="background:' + sb + ';color:' + sc + ';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;flex-shrink:0;">' + (j.status||'').replace('_',' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) + '</span>'
           + '<div style="font-size:13px;font-weight:700;flex-shrink:0;">' + UI.money(j.total||0) + '</div>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+
+    // ── Daily Briefing Tasks ── (after Today's Jobs, only when no jobs OR all done)
+    // Per Doug: don't surface this when crew is in the middle of the day's work.
+    // Show only when there's no active work to focus on, so the tasks list
+    // becomes "what to do with this time" rather than noise during operations.
+    var __briefingShouldShow = briefingInsights.length > 0
+      && (__todayJobs.length === 0 || __todayDone === __todayJobs.length);
+    if (__briefingShouldShow) {
+      html += '<div id="daily-briefing" style="background:linear-gradient(135deg,#14331a 0%,#1e5428 50%,#1a3c12 100%);border-radius:12px;padding:20px;color:#fff;margin-bottom:20px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+        +   '<div style="display:flex;align-items:center;gap:8px;">'
+        +     '<span style="font-size:18px;color:#8fe89f;">✦</span>'
+        +     '<h3 style="font-size:16px;font-weight:700;margin:0;">'
+        +       (__todayJobs.length === 0 ? 'Tasks for Today' : 'Day\'s Work Complete — Tasks')
+        +     '</h3>'
+        +   '</div>'
+        +   '<a href="#" onclick="DashboardPage.dismissAllInsights();return false;" style="font-size:12px;color:rgba(255,255,255,.5);text-decoration:none;">Dismiss All</a>'
+        + '</div>';
+      briefingInsights.forEach(function(insight, idx) {
+        var borderTop = idx > 0 ? 'border-top:1px solid rgba(255,255,255,.1);' : '';
+        // Each row: clickable area for the action + separate X button.
+        // stopPropagation on the X so it doesn't also fire the action onclick.
+        html += '<div data-bf-id="' + insight.id + '" style="display:flex;align-items:center;gap:10px;padding:10px 0;' + borderTop + '">'
+          +   '<div onclick="' + insight.action + '" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">'
+          +     '<span style="font-size:16px;flex-shrink:0;">' + insight.icon + '</span>'
+          +     '<span style="font-size:13px;line-height:1.4;opacity:.95;flex:1;min-width:0;">' + insight.text + '</span>'
+          +     '<span style="font-size:14px;opacity:.4;flex-shrink:0;">›</span>'
+          +   '</div>'
+          +   '<button onclick="event.stopPropagation();DashboardPage.dismissInsight(\'' + insight.id + '\');" '
+          +     'aria-label="Dismiss task" '
+          +     'style="background:none;border:none;color:rgba(255,255,255,.45);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px;flex-shrink:0;border-radius:4px;" '
+          +     'onmouseover="this.style.background=\'rgba(255,255,255,.1)\';this.style.color=\'#fff\';" '
+          +     'onmouseout="this.style.background=\'none\';this.style.color=\'rgba(255,255,255,.45)\';">×</button>'
           + '</div>';
       });
       html += '</div>';
@@ -642,13 +675,52 @@ var DashboardPage = {
     }
   },
 
-  dismissBriefing: function() {
-    var now = new Date();
-    var dateStr = now.getFullYear() + '-' + (now.getMonth() + 1 < 10 ? '0' : '') + (now.getMonth() + 1) + '-' + (now.getDate() < 10 ? '0' : '') + now.getDate();
-    localStorage.setItem('bm-briefing-dismissed', dateStr);
+  // ── Briefing task dismissal ──
+  // Per-day map keyed by date so dismissals reset at midnight rollover.
+  // Storage shape: { "2026-04-28": ["bfABC", "bfXYZ"] }
+  _briefingDateStr: function() {
+    var n = new Date();
+    return n.getFullYear() + '-' + (n.getMonth() + 1 < 10 ? '0' : '') + (n.getMonth() + 1) + '-' + (n.getDate() < 10 ? '0' : '') + n.getDate();
+  },
+  _readDismissed: function() {
+    try { return JSON.parse(localStorage.getItem('bm-briefing-dismissed-items') || '{}'); } catch(e) { return {}; }
+  },
+  _writeDismissed: function(map) {
+    try { localStorage.setItem('bm-briefing-dismissed-items', JSON.stringify(map)); } catch(e) {}
+  },
+
+  // Dismiss one task by ID — slides the row out, then collapses the whole
+  // briefing if no rows remain.
+  dismissInsight: function(id) {
+    var dateKey = DashboardPage._briefingDateStr();
+    var map = DashboardPage._readDismissed();
+    if (!map[dateKey]) map[dateKey] = [];
+    if (map[dateKey].indexOf(id) === -1) map[dateKey].push(id);
+    DashboardPage._writeDismissed(map);
+    var row = document.querySelector('[data-bf-id="' + id + '"]');
+    if (row) row.remove();
+    var briefing = document.getElementById('daily-briefing');
+    if (briefing && !briefing.querySelector('[data-bf-id]')) briefing.remove();
+  },
+
+  // Dismiss every visible task in one shot.
+  dismissAllInsights: function() {
+    var dateKey = DashboardPage._briefingDateStr();
+    var map = DashboardPage._readDismissed();
+    var rows = document.querySelectorAll('#daily-briefing [data-bf-id]');
+    if (!map[dateKey]) map[dateKey] = [];
+    rows.forEach(function(r) {
+      var id = r.getAttribute('data-bf-id');
+      if (id && map[dateKey].indexOf(id) === -1) map[dateKey].push(id);
+    });
+    DashboardPage._writeDismissed(map);
     var el = document.getElementById('daily-briefing');
     if (el) el.remove();
   },
+
+  // Legacy alias — earlier inline onclicks in older bundle versions called
+  // DashboardPage.dismissBriefing(). Keep it working for backward compat.
+  dismissBriefing: function() { DashboardPage.dismissAllInsights(); },
 
   // Vehicle Inspection
   _toggleInspection: function() {

@@ -1,5 +1,5 @@
 {
-  "version": 458,
+  "version": 459,
   "released": "2026-04-28",
-  "notes": "v458: Payments tab on Reports + invoice subject auto-from-job + weather schedule first-fetch fix"
+  "notes": "v459: Dashboard daily briefing → individual dismissible task list, shown after Today's Jobs only when no jobs / all jobs done"
 }
