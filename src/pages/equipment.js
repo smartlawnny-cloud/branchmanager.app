@@ -515,7 +515,17 @@ var EquipmentPage = {
   _getDocs: function(id) {
     try {
       var stored = localStorage.getItem('bm-equipment-docs-' + id);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        var docs = JSON.parse(stored);
+        // Migration: ensure Giant 254T has the bro-1-g1200 parts breakdown email attachment
+        if (id === 'eq4b' && !docs.find(function(d) { return d.id === 'doc-g6'; })) {
+          docs.push({ id: 'doc-g6', name: 'Giant G1200 / Kubota D902-E4B Parts Breakdown', type: 'parts',
+            url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-bro-1-g1200.pdf',
+            addedAt: '2026-04-29', note: 'Email attachment from Dan Wojick @ Belfast Inc.' });
+          EquipmentPage._saveDocs(id, docs);
+        }
+        return docs;
+      }
     } catch(e) {}
     // Pre-seed Bandit 254 Chipper (Giant/1200 w/ Kubota D902-E4B) with Dan Wojick's manuals
     if (id === 'eq4b') {
@@ -534,7 +544,10 @@ var EquipmentPage = {
           addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
         { id: 'doc-g5', name: 'Kubota D902-E4B Parts List (PDF)', type: 'parts',
           url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-parts-list.pdf',
-          addedAt: '2026-04-29', note: 'Uploaded to BM storage' }
+          addedAt: '2026-04-29', note: 'Uploaded to BM storage' },
+        { id: 'doc-g6', name: 'Giant G1200 / Kubota D902-E4B Parts Breakdown', type: 'parts',
+          url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-bro-1-g1200.pdf',
+          addedAt: '2026-04-29', note: 'Email attachment from Dan Wojick @ Belfast Inc.' }
       ];
       EquipmentPage._saveDocs(id, seed);
       return seed;
