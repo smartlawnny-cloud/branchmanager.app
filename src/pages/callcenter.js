@@ -7,7 +7,7 @@ var CallCenter = {
   _clientId: null,
   _clientName: null,
   _activeThread: null,   // { phone, clientId, name }
-  _activeTab: 'threads', // 'threads' | 'activity'
+  _activeTab: 'missed',  // 'missed' | 'threads' | 'activity'
 
   render: function() {
     var configured = typeof Dialpad !== 'undefined' && Dialpad.isConfigured();
@@ -70,12 +70,18 @@ var CallCenter = {
     html += '<div style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;min-height:520px;display:flex;flex-direction:column;">';
 
     // Tab bar
-    html += '<div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);">'
-      + '<button id="cc-tab-threads" onclick="CallCenter._switchTab(\'threads\')"'
-      + ' style="flex:1;padding:11px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;background:' + (CallCenter._activeTab==='threads'?'var(--bg)':'var(--surface)') + ';color:' + (CallCenter._activeTab==='threads'?'var(--accent)':'var(--text-light)') + ';border-bottom:2px solid ' + (CallCenter._activeTab==='threads'?'var(--accent)':'transparent') + ';">💬 Messages</button>'
-      + '<button id="cc-tab-activity" onclick="CallCenter._switchTab(\'activity\')"'
-      + ' style="flex:1;padding:11px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;background:' + (CallCenter._activeTab==='activity'?'var(--bg)':'var(--surface)') + ';color:' + (CallCenter._activeTab==='activity'?'var(--accent)':'var(--text-light)') + ';border-bottom:2px solid ' + (CallCenter._activeTab==='activity'?'var(--accent)':'transparent') + ';">📋 Activity</button>'
-      + '</div>';
+    var _tabs = [['missed','📵 Missed'],['threads','💬 Messages'],['activity','📋 Activity']];
+    html += '<div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);">';
+    _tabs.forEach(function(t) {
+      var active = CallCenter._activeTab === t[0];
+      html += '<button id="cc-tab-' + t[0] + '" onclick="CallCenter._switchTab(\'' + t[0] + '\')"'
+        + ' style="flex:1;padding:11px 0;font-size:13px;font-weight:600;border:none;cursor:pointer;'
+        + 'background:' + (active?'var(--bg)':'var(--surface)') + ';'
+        + 'color:' + (active?'var(--accent)':'var(--text-light)') + ';'
+        + 'border-bottom:2px solid ' + (active?'var(--accent)':'transparent') + ';">'
+        + t[1] + '</button>';
+    });
+    html += '</div>';
 
     // Panel content
     html += '<div id="cc-panel" style="flex:1;overflow-y:auto;">'
@@ -114,7 +120,7 @@ var CallCenter = {
   _switchTab: function(tab) {
     CallCenter._activeTab = tab;
     CallCenter._activeThread = null;
-    ['threads','activity'].forEach(function(t) {
+    ['missed','threads','activity'].forEach(function(t) {
       var btn = document.getElementById('cc-tab-' + t);
       if (!btn) return;
       var active = t === tab;
@@ -128,11 +134,9 @@ var CallCenter = {
   },
 
   _loadPanel: function() {
-    if (CallCenter._activeTab === 'threads') {
-      CallCenter._loadThreads();
-    } else {
-      CallCenter._loadActivity();
-    }
+    if (CallCenter._activeTab === 'threads') CallCenter._loadThreads();
+    else if (CallCenter._activeTab === 'missed') CallCenter._loadMissed();
+    else CallCenter._loadActivity();
   },
 
   // ── Dial pad ────────────────────────────────────────────────
@@ -252,6 +256,82 @@ var CallCenter = {
     var thr = { phone: num, clientId: CallCenter._clientId, name: CallCenter._clientName || CallCenter._fmtPhone(num) };
     CallCenter._switchTab('threads');
     CallCenter._openThread(thr);
+  },
+
+  // ── Missed Calls / Voicemails ───────────────────────────────
+
+  _loadMissed: async function() {
+    var el = document.getElementById('cc-panel');
+    if (!el) return;
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-light);font-size:13px;">Sign in to view missed calls.</div>'; return; }
+
+    try {
+      var { data, error } = await sb.from('communications')
+        .select('id,client_id,channel,direction,body,from_number,to_number,status,duration_seconds,recording_url,created_at,metadata')
+        .eq('direction', 'inbound')
+        .in('channel', ['call', 'voicemail'])
+        .order('created_at', { ascending: false })
+        .limit(60);
+
+      if (error) throw error;
+      var rows = data || [];
+
+      var clients = (typeof ClientsPage !== 'undefined' && ClientsPage._cache) ? ClientsPage._cache : [];
+      var clientMap = {};
+      clients.forEach(function(c) { if (c.id) clientMap[c.id] = c; });
+
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:48px 24px;text-align:center;color:var(--text-light);">'
+          + '<div style="font-size:32px;margin-bottom:10px;">📵</div>'
+          + '<div style="font-size:14px;font-weight:600;margin-bottom:6px;">No missed calls yet</div>'
+          + '<div style="font-size:12px;">Missed inbound calls and voicemails from Dialpad will appear here.</div>'
+          + '</div>';
+        return;
+      }
+
+      el.innerHTML = rows.map(function(c) {
+        var cl = c.client_id ? clientMap[c.client_id] : null;
+        var phone = c.from_number || '';
+        var digits = phone.replace(/\D/g, '');
+        var name = (cl && cl.name) || CallCenter._fmtPhone(phone) || 'Unknown caller';
+        var isMissed = c.status === 'missed' || c.status === 'no-answer' || c.status === 'no_answer';
+        var isVM = c.channel === 'voicemail';
+        var icon = isVM ? '📭' : (isMissed ? '📵' : '📞');
+        var statusLabel = isVM ? 'Voicemail' : (isMissed ? 'Missed' : 'Inbound call');
+        var statusColor = isVM ? '#7b1fa2' : (isMissed ? '#c62828' : '#1565c0');
+        var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : c.created_at.slice(0,16).replace('T',' ');
+        var dur = c.duration_seconds ? Math.floor(c.duration_seconds/60) + ':' + String(c.duration_seconds%60).padStart(2,'0') + ' min' : '';
+        var safePhone = digits.replace(/'/g,"\\'");
+        var safeName  = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var safeId    = (c.client_id||'').replace(/'/g,"\\'");
+
+        var out = '<div style="padding:13px 16px;border-bottom:1px solid var(--border);">'
+          + '<div style="display:flex;align-items:center;gap:10px;">'
+          + '<div style="flex-shrink:0;width:38px;height:38px;background:var(--surface);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;">' + icon + '</div>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
+          + '<span style="font-weight:700;font-size:13px;">' + name + '</span>'
+          + '<span style="font-size:11px;color:var(--text-light);">' + ts + '</span>'
+          + '</div>'
+          + '<div style="font-size:11px;font-weight:600;color:' + statusColor + ';margin-top:1px;">' + statusLabel + (dur ? ' · ' + dur : '') + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '') + '</div>'
+          + (c.body ? '<div style="font-size:12px;color:var(--text-light);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + c.body.replace(/"/g,'&quot;') + '">' + c.body.slice(0,90) + (c.body.length>90?'…':'') + '</div>' : '')
+          + '</div>'
+          + '</div>';
+
+        if (digits) {
+          out += '<div style="display:flex;gap:6px;margin-top:8px;padding-left:48px;">'
+            + '<button onclick="CallCenter._selectClient(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\');CallCenter._doCall();" style="padding:5px 12px;background:#1a7a3c;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📞 Call Back</button>'
+            + '<button onclick="CallCenter._selectClient(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\');CallCenter._doText();" style="padding:5px 12px;background:var(--green-dark);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">💬 Text Back</button>'
+            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" style="padding:5px 12px;background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;">▶ Listen</a>' : '')
+            + '</div>';
+        }
+        out += '</div>';
+        return out;
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-light);font-size:13px;">Failed to load missed calls.</div>';
+    }
   },
 
   // ── SMS Threads ─────────────────────────────────────────────
