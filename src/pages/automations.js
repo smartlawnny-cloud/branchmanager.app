@@ -73,6 +73,9 @@ var AutomationsPage = {
       + '</div>'
       + '</div>';
 
+    // ── Server-side Automations (runs on Supabase cron, independent of browser) ──
+    html += AutomationsPage._renderServerSection();
+
     // Quotes section
     html += AutomationsPage._section('Quotes', [
       AutomationsPage._rule('quoteFollowup1', config),
@@ -131,6 +134,94 @@ var AutomationsPage = {
       + '</div>';
 
     return html;
+  },
+
+  // ── Server-side section ────────────────────────────────────────────────────
+
+  EDGE_URL: 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/marketing-automation',
+
+  _renderServerSection: function() {
+    var lastResult = null;
+    try { lastResult = JSON.parse(localStorage.getItem('bm-server-auto-last') || 'null'); } catch(e) {}
+    var lastLabel = lastResult ? new Date(lastResult.ran_at).toLocaleString() : 'Never';
+
+    // Per-trigger toggles stored in localStorage
+    var cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem('bm-server-auto-cfg') || '{}'); } catch(e) {}
+    function isOn(key) { return cfg[key] !== false; }
+    function toggle(key) {
+      return 'AutomationsPage._toggleServerTrigger(\'' + key + '\')';
+    }
+    function onOff(key, label, desc) {
+      var on = isOn(key);
+      return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">'
+        + '<button onclick="' + toggle(key) + '" style="position:relative;width:36px;height:20px;border-radius:10px;border:none;cursor:pointer;background:' + (on ? 'var(--green-dark)' : '#ccc') + ';flex-shrink:0;">'
+        + '<span style="position:absolute;top:2px;' + (on ? 'left:18px' : 'left:2px') + ';width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;"></span></button>'
+        + '<div><div style="font-size:13px;font-weight:600;">' + label + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);">' + desc + '</div></div>'
+        + '</div>';
+    }
+
+    var resultHtml = '';
+    if (lastResult) {
+      var r = lastResult;
+      resultHtml = '<div style="font-size:12px;color:var(--text-light);margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;">'
+        + '<span>Reviews: <b>' + r.review_requests.sent + '</b> sent, ' + r.review_requests.skipped + ' skip</span>'
+        + '<span>Follow-ups: <b>' + r.quote_followups.sent + '</b> sent, ' + r.quote_followups.skipped + ' skip</span>'
+        + '<span>Upsells: <b>' + r.upsells.sent + '</b> sent, ' + r.upsells.skipped + ' skip</span>'
+        + '<span style="color:' + (r.total_sent > 0 ? 'var(--green-dark)' : 'var(--text-light)') + ';">Total: <b>' + r.total_sent + '</b></span>'
+        + '</div>';
+    }
+
+    var cronSql = "select cron.schedule('marketing-automation', '0 */4 * * *', $$select net.http_post('https://ltpivkqahvplapyagljt.supabase.co/functions/v1/marketing-automation','{}','application/json')$$);";
+
+    return '<div style="background:var(--white);border-radius:12px;padding:20px;border:2px solid var(--green-light);margin-bottom:16px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+      + '<h3 style="margin:0;font-size:15px;">⚡ Server Automations <span style="font-size:11px;font-weight:400;color:var(--text-light);margin-left:6px;">runs on Supabase cron, works even when app is closed</span></h3>'
+      + '<button id="server-auto-run-btn" onclick="AutomationsPage.runServerAutomations()" style="background:var(--green-dark);color:#fff;border:none;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">▶ Run Now</button>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text-light);margin-bottom:12px;">Last run: ' + lastLabel + resultHtml + '</div>'
+      + onOff('review', '⭐ Review Request (24h after job completes)', 'Sends "how did we do?" email with Google review link')
+      + onOff('quote_followup', '📋 Quote Follow-up (7 days no response)', 'Sends follow-up email on open sent quotes')
+      + onOff('upsell', '💬 Upsell (30 days after invoice paid)', 'Sends "ready for more?" email to happy customers')
+      + '<details style="margin-top:12px;"><summary style="font-size:12px;color:var(--text-light);cursor:pointer;">▸ pg_cron setup (run once in Supabase SQL editor)</summary>'
+      + '<textarea onclick="this.select()" readonly style="width:100%;margin-top:8px;font-size:11px;font-family:monospace;padding:8px;border:1px solid var(--border);border-radius:6px;box-sizing:border-box;color:var(--text);background:var(--bg);resize:none;" rows="3">' + cronSql + '</textarea>'
+      + '<div style="font-size:11px;color:var(--text-light);margin-top:4px;">Runs every 4 hours. Requires pg_net extension enabled (Dashboard → Database → Extensions).</div>'
+      + '</details>'
+      + '</div>';
+  },
+
+  _toggleServerTrigger: function(key) {
+    var cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem('bm-server-auto-cfg') || '{}'); } catch(e) {}
+    cfg[key] = cfg[key] === false ? true : false; // toggle (default=on)
+    localStorage.setItem('bm-server-auto-cfg', JSON.stringify(cfg));
+    // Re-render just the server section
+    loadPage('automations');
+  },
+
+  runServerAutomations: function() {
+    var btn = document.getElementById('server-auto-run-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    fetch(AutomationsPage.EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      localStorage.setItem('bm-server-auto-last', JSON.stringify(result));
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Run Now'; }
+      var msg = 'Server automations: ' + result.total_sent + ' email' + (result.total_sent !== 1 ? 's' : '') + ' sent';
+      UI.toast(msg, result.total_sent > 0 ? 'success' : '');
+      // Refresh the section
+      loadPage('automations');
+    })
+    .catch(function(err) {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Run Now'; }
+      UI.toast('Server automation error: ' + (err.message || 'check console'), 'error');
+      console.error('marketing-automation error:', err);
+    });
   },
 
   _section: function(title, rules, description) {
