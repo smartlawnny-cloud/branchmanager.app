@@ -22,9 +22,8 @@ var Dialpad = {
   // ── SMS ──────────────────────────────────────────────
 
   /**
-   * Send SMS via Dialpad API
-   * POST https://dialpad.com/api/v2/sms
-   * { to_numbers: ["+1..."], text: "..." }
+   * Send SMS via dialpad-sms-send edge function (credentials stay server-side).
+   * Falls back to sms: link if edge fn fails or isn't configured.
    */
   sendSMS: async function(toPhone, message, clientId) {
     var cleanPhone = Dialpad._cleanPhone(toPhone);
@@ -33,45 +32,34 @@ var Dialpad = {
       return { success: false, error: 'Invalid phone' };
     }
 
-    // Log to comms regardless of API status
-    Dialpad._logComm(clientId, 'text', 'outbound', message);
-
-    if (!Dialpad.isConfigured()) {
-      // Fallback: open SMS app
-      var smsUrl = 'sms:' + cleanPhone + '?body=' + encodeURIComponent(message);
-      window.open(smsUrl);
-      UI.toast('Opening Messages app (Dialpad not configured)');
-      return { success: true, method: 'sms_app' };
-    }
+    var FN_URL = (window.BM_CONFIG && window.BM_CONFIG.supabaseFunctionsUrl)
+      ? window.BM_CONFIG.supabaseFunctionsUrl
+      : 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1';
 
     try {
-      var response = await fetch('https://dialpad.com/api/v2/sms', {
+      var res = await fetch(FN_URL + '/dialpad-sms-send', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + Dialpad.apiKey
-        },
-        body: JSON.stringify({
-          to_numbers: ['+' + cleanPhone],
-          text: message
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: cleanPhone, message: message, clientId: clientId || null })
       });
-
-      if (response.ok) {
+      var data = await res.json();
+      if (data.ok) {
         UI.toast('Text sent to ' + Dialpad._formatPhone(cleanPhone));
         return { success: true, method: 'dialpad' };
-      } else {
-        var errText = await response.text();
-        console.warn('Dialpad SMS error:', errText);
-        // Fallback to SMS app
-        window.open('sms:' + cleanPhone + '?body=' + encodeURIComponent(message));
-        UI.toast('Dialpad error — opening Messages app', 'error');
-        return { success: false, method: 'sms_fallback', error: errText };
       }
+      // Edge fn returned an error (e.g. DIALPAD_API_KEY not set) — fall back
+      console.warn('[Dialpad] sendSMS edge fn error:', data.error);
+      if (data.error && data.error.includes('not configured')) {
+        // No key set — open SMS app silently
+        window.open('sms:' + cleanPhone + '?body=' + encodeURIComponent(message));
+        UI.toast('Opening Messages app');
+        return { success: true, method: 'sms_app' };
+      }
+      throw new Error(data.error || 'Send failed');
     } catch (e) {
-      console.warn('Dialpad SMS error:', e);
+      console.warn('[Dialpad] sendSMS fallback:', e);
       window.open('sms:' + cleanPhone + '?body=' + encodeURIComponent(message));
-      UI.toast('Dialpad error — opening Messages app', 'error');
+      UI.toast('Opening Messages app', 'error');
       return { success: false, method: 'sms_fallback', error: e.message };
     }
   },

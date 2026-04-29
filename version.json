@@ -1,5 +1,5 @@
 {
-  "version": 498,
+  "version": 499,
   "released": "2026-04-29",
-  "notes": "Dashboard widgets compact: call center + tasks match jobs card style"
+  "notes": "Two-way SMS: dialpad-sms-send edge fn, secure outbound route, global inbound notifier"
 }

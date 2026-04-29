@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 498; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 499; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -949,7 +949,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v498.min.js"></script>
+<script defer src="dist/bm.bundle.v499.min.js"></script>
 
 
 
@@ -2546,6 +2546,33 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof ReviewsPage !== 'undefined' && ReviewsPage.checkAutoReviews) ReviewsPage.checkAutoReviews();
     // Initialize TeamChat real-time subscription
     if (typeof TeamChat !== 'undefined' && TeamChat._init) TeamChat._init();
+    // Global inbound SMS notifier — fires a toast + badge regardless of current page
+    (function() {
+      var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+      if (!sb) return;
+      sb.channel('global-sms-inbound')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'communications', filter: 'channel=eq.sms' }, function(payload) {
+          var row = payload.new || {};
+          if (row.direction !== 'inbound') return;
+          // Don't toast if user is already on the call center page
+          if (window._currentPage === 'callcenter') return;
+          var phone = (row.from_number || '').replace(/\D/g, '').slice(-10);
+          var clients = (typeof DB !== 'undefined') ? DB.clients.getAll() : [];
+          var match = clients.find(function(c) { return (c.phone||'').replace(/\D/g,'').slice(-10) === phone; });
+          var name = match ? (match.name || match.firstName) : (phone ? '(' + phone.slice(0,3) + ') ' + phone.slice(3,6) + '-' + phone.slice(6) : 'Unknown');
+          var preview = (row.body || '').slice(0, 60);
+          if (typeof UI !== 'undefined' && UI.toast) {
+            UI.toast('💬 New text from ' + name + (preview ? ' — tap Call Center to reply' : ''));
+          }
+          // Refresh call center dashboard widget if visible
+          if (typeof DashboardPage !== 'undefined' && DashboardPage._fillCallCenterWidget && window._currentPage === 'dashboard') {
+            DashboardPage._fillCallCenterWidget();
+          }
+          // Refresh call center notification badge
+          if (typeof NotifCenter !== 'undefined' && NotifCenter.refreshComms) NotifCenter.refreshComms();
+        })
+        .subscribe();
+    })();
   }, 3000);
 });
 // Initialize Lucide icons after DOM is ready
