@@ -34,7 +34,29 @@ var TaskReminders = {
     { key: 'monthly', label: 'Monthly' }
   ],
 
+  _seedSamples: function() {
+    if (localStorage.getItem('bm-tasks-seeded')) return;
+    var now = new Date();
+    var d = function(offsetDays, hour) {
+      var dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays, hour, 0, 0);
+      return dt.toISOString();
+    };
+    var samples = [
+      { id: 'task_seed_1', title: 'Pick up chainsaw chains from dealer', description: '', assignedTo: '', dueDate: d(0, 10), priority: 'high', category: 'errand', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
+      { id: 'task_seed_2', title: 'Service the chipper (Bandit 254 — oil + belts)', description: '', assignedTo: '', dueDate: d(1, 8), priority: 'medium', category: 'maintenance', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
+      { id: 'task_seed_3', title: 'Order fuel filters for trucks', description: '', assignedTo: '', dueDate: d(0, 12), priority: 'medium', category: 'errand', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
+      { id: 'task_seed_4', title: 'Prep estimate docs for Johnson property', description: '', assignedTo: '', dueDate: d(1, 9), priority: 'high', category: 'prep', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
+      { id: 'task_seed_5', title: 'Clean up yard waste — 45 Main St', description: '', assignedTo: '', dueDate: d(-1, 17), priority: 'urgent', category: 'cleanup', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() }
+    ];
+    var existing = TaskReminders._getAll();
+    if (existing.length === 0) {
+      TaskReminders._saveAll(samples);
+    }
+    localStorage.setItem('bm-tasks-seeded', '1');
+  },
+
   render: function() {
+    TaskReminders._seedSamples();
     TaskReminders._startChecker();
     TaskReminders._requestNotificationPermission();
 
@@ -598,10 +620,22 @@ var TaskReminders = {
   // --- Dashboard widget (call from dashboard) ---
 
   getDashboardWidget: function() {
+    TaskReminders._seedSamples();
     var tasks = TaskReminders._getAll();
     var now = new Date();
     var todayStr = now.toDateString();
     var allIncomplete = tasks.filter(function(t) { return !t.completed; });
+
+    // Empty → compact pill (same height as Today's Jobs empty)
+    if (allIncomplete.length === 0) {
+      return '<div style="background:var(--white);border-radius:10px;padding:10px 16px;border:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text-light);">'
+        + '<span><strong style="color:var(--text);">Tasks</strong> · All clear</span>'
+        + '<div style="display:flex;gap:6px;">'
+        + '<button onclick="TaskReminders._showForm(null)" style="background:var(--green-dark);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">+ New</button>'
+        + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
+        + '</div>'
+        + '</div>';
+    }
 
     // Overdue → today → future/no-date, max 6 shown
     var overdue = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate) < now && new Date(t.dueDate).toDateString() !== todayStr; });
@@ -616,11 +650,12 @@ var TaskReminders = {
     // ── Header ──
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
       + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Tasks</h3>'
-      + (allIncomplete.length > 0
-          ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open</div>'
-          : '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">All clear</div>')
+      + '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open</div>'
       + '</div>'
+      + '<div style="display:flex;gap:6px;align-items:center;">'
+      + '<button onclick="TaskReminders._showForm(null)" style="background:var(--green-dark);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">+ New</button>'
       + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
+      + '</div>'
       + '</div>';
 
     // ── Task rows ──

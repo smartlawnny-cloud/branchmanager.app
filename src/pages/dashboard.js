@@ -236,13 +236,13 @@ var DashboardPage = {
     var __todayDone = __todayJobs.filter(function(j) { return j.status === 'completed'; }).length;
     if (__todayJobs.length === 0) {
       html += '<div onclick="loadPage(\'schedule\')" style="background:var(--white);border-radius:10px;padding:10px 16px;border:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;color:var(--text-light);">'
-        + '<span><strong style="color:var(--text);">Today</strong> · No jobs scheduled</span>'
+        + '<span><strong style="color:var(--text);">Jobs</strong> · No jobs scheduled today</span>'
         + '<span style="color:var(--accent);font-size:12px;">Open Schedule →</span>'
         + '</div>';
     } else {
       html += '<div style="background:var(--white);border-radius:12px;padding:18px 20px;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-        + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Today\'s Jobs</h3>'
+        + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Jobs</h3>'
         + '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + __todayDone + ' of ' + __todayJobs.length + ' complete</div>'
         + '</div>'
         + '<button onclick="event.stopPropagation();loadPage(\'schedule\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View Schedule →</button>'
