@@ -852,6 +852,14 @@ var SettingsPage = {
       + '</div>'
       + '<div id="dialpad-test-result" style="margin-top:10px;font-size:13px;"></div>'
       + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Get token at <a href="https://dialpad.com/accounts/api/keys" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">dialpad.com → API Keys</a>. Also register a 10DLC number for SMS compliance.</p>'
+      + '<div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Inbound SMS + Call Webhook</div>'
+      + '<div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Add this URL in Dialpad Admin → Automations → Webhooks. Events: <code>sms.received</code>, <code>call.ringing</code>, <code>call.completed</code>, <code>voicemail.created</code>.</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<code style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;word-break:break-all;">https://ltpivkqahvplapyagljt.supabase.co/functions/v1/dialpad-webhook</code>'
+      + '<button onclick="navigator.clipboard.writeText(\'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/dialpad-webhook\').then(function(){UI.toast(\'Copied!\');}).catch(function(){});" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy</button>'
+      + '</div>'
+      + '</div>'
       + '</div>';
 
     // ── Gusto ──

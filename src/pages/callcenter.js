@@ -5,6 +5,7 @@
 var CallCenter = {
   _activeTab: 'missed',  // 'missed' | 'threads' | 'activity'
   _activeThread: null,
+  _realtimeSub: null,
 
   render: function() {
     var html = '<div style="max-width:960px;margin:0 auto;">';
@@ -52,6 +53,12 @@ var CallCenter = {
   // ── Tab switching ────────────────────────────────────────────
 
   _switchTab: function(tab) {
+    // Clean up realtime sub when leaving SMS threads
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (sb && CallCenter._realtimeSub && tab !== 'threads') {
+      try { sb.removeChannel(CallCenter._realtimeSub); } catch(e) {}
+      CallCenter._realtimeSub = null;
+    }
     CallCenter._activeTab = tab;
     CallCenter._activeThread = null;
     ['missed','threads','activity'].forEach(function(t) {
@@ -410,9 +417,54 @@ var CallCenter = {
       });
       html += '</div>';
       el.innerHTML = html;
+
+      // Realtime: refresh thread list when a new inbound SMS arrives
+      CallCenter._subscribeRealtime(sb, null);
+
     } catch(e) {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light);">Failed to load messages.</div>';
     }
+  },
+
+  _subscribeRealtime: function(sb, activePhone) {
+    // Unsubscribe any existing channel
+    if (CallCenter._realtimeSub) {
+      try { sb.removeChannel(CallCenter._realtimeSub); } catch(e) {}
+      CallCenter._realtimeSub = null;
+    }
+    if (!sb || !sb.channel) return;
+    CallCenter._realtimeSub = sb.channel('cc-sms-' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'communications', filter: 'channel=eq.sms' }, function(payload) {
+        var row = payload.new || {};
+        if (activePhone) {
+          // Inside a thread — append if matching phone
+          var fromPhone = (row.from_number || '').replace(/\D/g, '').slice(-10);
+          var toPhone   = (row.to_number   || '').replace(/\D/g, '').slice(-10);
+          var thrPhone  = (activePhone || '').replace(/\D/g, '').slice(-10);
+          if (fromPhone === thrPhone || toPhone === thrPhone) {
+            CallCenter._appendThreadMsg(row);
+          }
+        } else {
+          // Thread list — re-render
+          if (CallCenter._activeTab === 'threads' && !CallCenter._activeThread) {
+            CallCenter._loadThreads();
+          }
+        }
+      })
+      .subscribe();
+  },
+
+  _appendThreadMsg: function(row) {
+    var msgsEl = document.getElementById('cc-thread-msgs');
+    if (!msgsEl) return;
+    var out = row.direction === 'outbound';
+    var ts = row.created_at ? new Date(row.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + ' · ' + new Date(row.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'now';
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;flex-direction:column;align-items:' + (out?'flex-end':'flex-start') + ';';
+    div.innerHTML = '<div style="max-width:72%;padding:9px 13px;border-radius:' + (out?'14px 14px 4px 14px':'14px 14px 14px 4px') + ';background:' + (out?'var(--green-dark)':'var(--surface)') + ';color:' + (out?'#fff':'var(--text)') + ';font-size:13px;line-height:1.45;border:' + (out?'none':'1px solid var(--border)') + ';">' + (row.body||'') + '</div>'
+      + '<div style="font-size:10px;color:var(--text-light);margin-top:2px;padding:0 2px;">' + ts + '</div>';
+    msgsEl.appendChild(div);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
   },
 
   _openThread: async function(thr) {
@@ -471,6 +523,8 @@ var CallCenter = {
       setTimeout(function() { msgsEl.scrollTop = msgsEl.scrollHeight; }, 50);
       var ri = document.getElementById('cc-reply-input');
       if (ri) ri.focus();
+      // Realtime: append new messages to this thread as they arrive
+      CallCenter._subscribeRealtime(sb, thr.phone);
     } catch(e) { console.warn('Thread load failed:', e); }
   },
 
