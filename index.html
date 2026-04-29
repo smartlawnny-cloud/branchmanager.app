@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 479; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 480; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -279,6 +279,10 @@
   .li-hdr { width:18px; height:18px; stroke-width:2; vertical-align:-3px; margin-right:6px; stroke:currentColor; display:inline-block; }
   /* Nav count badges hidden per user (felt noisy — counts live in page headers) */
   .nav-item .badge { display:none !important; }
+  /* Call Center live-indicator dot */
+  .cc-dot { display:none; width:8px; height:8px; background:#ef4444; border-radius:50%; margin-left:6px; flex-shrink:0; }
+  .cc-dot.active { display:inline-block !important; animation:cc-pulse 2s ease-in-out infinite; }
+  @keyframes cc-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 
   .sidebar-footer {
     padding:10px 16px; border-top:1px solid var(--sidebar-border);
@@ -852,7 +856,7 @@
       <button class="nav-item" data-page="invoices"><span class="icon"><i data-lucide="receipt" class="li"></i></span> Invoices <span class="badge" id="badge-invoices"></span></button>
       <!-- v419: Team folded into Payroll (tabs: Payroll / Team / Timesheets / My Pay). Operations moved up to where Team was. -->
       <button class="nav-item" data-page="operations"><span class="icon"><i data-lucide="truck" class="li"></i></span> Operations</button>
-      <button class="nav-item" data-page="callcenter"><span class="icon"><i data-lucide="phone" class="li"></i></span> Call Center</button>
+      <button class="nav-item" data-page="callcenter"><span class="icon"><i data-lucide="phone" class="li"></i></span> Call Center<span class="cc-dot" id="cc-indicator-dot"></span></button>
 
       <div style="border-top:1px solid var(--sidebar-border);margin:8px 10px 4px;"></div>
       <button class="nav-item" data-page="reports"><span class="icon"><i data-lucide="pie-chart" class="li"></i></span> Reports</button>
@@ -943,7 +947,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v479.min.js"></script>
+<script defer src="dist/bm.bundle.v480.min.js"></script>
 
 
 
@@ -1504,6 +1508,11 @@ function loadPage(page) {
 
   // Render Lucide icons added by page renderers — only if new <i data-lucide> exist in content
   if (typeof lucide !== 'undefined' && content.querySelector('i[data-lucide]')) lucide.createIcons();
+
+  // Mark call center communications as read when user visits
+  if (page === 'callcenter' && typeof NotifCenter !== 'undefined' && NotifCenter.markCommsRead) {
+    NotifCenter.markCommsRead();
+  }
 
   // Post-render hooks
   // Dispatch map fires either as its own page OR as the active tab inside Operations hub
@@ -2137,6 +2146,71 @@ document.addEventListener('keydown', function(e) {
 /* ── Notification Center Dropdown ── */
 var NotifCenter = (function() {
   var STORAGE_KEY = 'bm-notif-read';
+  var _commCache = [];
+  var _lastPollTime = null;
+  var _browserAsked = false;
+
+  function _requestBrowserPerms() {
+    if (!_browserAsked && 'Notification' in window && Notification.permission === 'default') {
+      _browserAsked = true;
+      Notification.requestPermission();
+    }
+  }
+
+  function _fireBrowserNotif(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try { new Notification(title, { body: body, icon: '/favicon-32x32.png', tag: 'bm-comms' }); } catch(e) {}
+  }
+
+  function _updateCCDot() {
+    var dot = document.getElementById('cc-indicator-dot');
+    if (!dot) return;
+    var readIds = getReadIds();
+    var unread = _commCache.filter(function(c) { return readIds.indexOf('comm-' + c.id) < 0; }).length;
+    if (unread > 0) { dot.className = 'cc-dot active'; }
+    else { dot.className = 'cc-dot'; }
+  }
+
+  function _loadComms() {
+    var sb = (typeof SupabaseDB !== 'undefined') ? SupabaseDB.client : null;
+    if (!sb) return;
+    var since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    sb.from('communications')
+      .select('id,channel,direction,from_number,body,status,created_at,metadata')
+      .gte('created_at', since)
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(function(r) {
+        if (r.error || !r.data) return;
+        // Fire browser notifications for genuinely new items
+        if (_lastPollTime) {
+          var newItems = r.data.filter(function(c) { return c.created_at > _lastPollTime; });
+          newItems.forEach(function(c) {
+            var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
+            var name = meta.name || c.from_number || 'Unknown';
+            var label = c.channel === 'sms' ? 'SMS from ' : (c.channel === 'voicemail' ? 'Voicemail from ' : 'Missed call from ');
+            var snippet = c.body ? ' — ' + c.body.substring(0, 60) : '';
+            _fireBrowserNotif('Branch Manager', label + name + snippet);
+          });
+        }
+        _commCache = r.data;
+        _lastPollTime = new Date().toISOString();
+        _updateCCDot();
+        updateBadge();
+      });
+  }
+
+  function markCommsRead() {
+    var readIds = getReadIds();
+    _commCache.forEach(function(c) {
+      var id = 'comm-' + c.id;
+      if (readIds.indexOf(id) < 0) readIds.push(id);
+    });
+    setReadIds(readIds);
+    _updateCCDot();
+    updateBadge();
+  }
 
   function getReadIds() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch(e) { return []; }
@@ -2276,6 +2350,18 @@ var NotifCenter = (function() {
       }
     }
 
+    // Inbound communications (SMS / calls / voicemails from Dialpad)
+    for (var i = 0; i < _commCache.length; i++) {
+      var c = _commCache[i];
+      var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
+      var cName = meta.name || c.from_number || 'Unknown';
+      var cIcon = c.channel === 'sms' ? '💬' : (c.channel === 'voicemail' ? '📭' : '📵');
+      var cBg   = c.channel === 'sms' ? '#e3f2fd' : '#fce4ec';
+      var cMsg  = (c.channel === 'sms' ? 'SMS from ' : (c.channel === 'voicemail' ? 'Voicemail from ' : 'Missed call from ')) + cName;
+      if (meta.service_wanted) cMsg += ' — ' + meta.service_wanted.substring(0, 35);
+      items.push({ id: 'comm-' + c.id, icon: cIcon, iconBg: cBg, msg: cMsg, time: c.created_at, page: 'callcenter', recordId: c.id });
+    }
+
     // Sort by time descending
     items.sort(function(a, b) {
       return (b.time || '').localeCompare(a.time || '');
@@ -2401,10 +2487,16 @@ var NotifCenter = (function() {
     }
   });
 
-  // Update badge periodically
+  // Update badge periodically + poll communications
   function init() {
     updateBadge();
     setInterval(updateBadge, 60000);
+    // Start communications polling (delayed to let SupabaseDB initialize)
+    setTimeout(function() {
+      _requestBrowserPerms();
+      _loadComms();
+      setInterval(_loadComms, 30000);
+    }, 4000);
   }
 
   if (document.readyState === 'loading') {
@@ -2418,7 +2510,9 @@ var NotifCenter = (function() {
     close: close,
     clickItem: clickItem,
     markAllRead: markAllRead,
-    updateBadge: updateBadge
+    updateBadge: updateBadge,
+    markCommsRead: markCommsRead,
+    refreshComms: _loadComms
   };
 })();
 </script>
