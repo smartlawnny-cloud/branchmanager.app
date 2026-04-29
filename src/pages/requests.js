@@ -566,7 +566,8 @@ var RequestsPage = {
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">'
       + '<button class="btn btn-outline" onclick="loadPage(\'requests\')" style="padding:6px 12px;font-size:12px;">← Back to Requests</button>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-      + '<button class="btn btn-primary" onclick="RequestsPage._createQuote(\'' + r.id + '\',\'' + (r.clientId||'') + '\',\'' + UI.esc(r.clientName||'') + '\')" style="font-size:12px;">📝 Create Quote</button>'
+      + '<button class="btn btn-primary" onclick="RequestsPage._fastCreateQuote(\'' + r.id + '\')" style="font-size:12px;background:#16a34a;border:none;">⚡ Fast Quote</button>'
+      + '<button class="btn btn-outline" onclick="RequestsPage._createQuote(\'' + r.id + '\',\'' + (r.clientId||'') + '\',\'' + UI.esc(r.clientName||'') + '\')" style="font-size:12px;">📝 Build Quote</button>'
       + '<button class="btn btn-outline" onclick="RequestsPage._archiveRequest(\'' + r.id + '\')" style="font-size:12px;padding:6px 12px;">Archive</button>'
       + '</div></div>'
 
@@ -768,6 +769,64 @@ var RequestsPage = {
     }
     // Pass requestId so the new quote is back-linked to its originating request
     QuotesPage.showForm(null, resolvedId, requestId);
+  },
+
+  // v461 Fast Quote — one-click request → draft quote with all known fields
+  // pre-filled from the request, no modal form. Lands on the new quote's
+  // detail so the user can edit line items if needed. Solves the funnel-audit
+  // finding "Request → Quote takes 3 clicks." Now it's 1.
+  _fastCreateQuote: function(requestId) {
+    var r = DB.requests.getById(requestId);
+    if (!r) { UI.toast('Request not found', 'error'); return; }
+
+    // Resolve client (might be missing from old requests; create-or-match)
+    var clientId = r.clientId || '';
+    if (clientId && !DB.clients.getById(clientId)) clientId = '';
+    if (!clientId && r.clientName) {
+      var allClients = DB.clients.getAll();
+      var match = allClients.find(function(c) { return (c.name || '').toLowerCase() === r.clientName.toLowerCase(); });
+      if (match) clientId = match.id;
+    }
+    // Last resort: spin up a client record from the request data so the quote
+    // doesn't end up orphaned. Mirrors the auto-create on the manual flow.
+    if (!clientId && r.clientName) {
+      var newClient = DB.clients.create({
+        name: r.clientName,
+        phone: r.phone || '',
+        email: r.email || '',
+        address: r.property || '',
+        status: 'lead',
+        source: r.source || 'request',
+        notes: r.notes || ''
+      });
+      clientId = newClient.id;
+    }
+
+    var client = clientId ? DB.clients.getById(clientId) : null;
+    var quote = DB.quotes.create({
+      clientId: clientId,
+      clientName: r.clientName || (client && client.name) || '',
+      clientEmail: r.email || (client && client.email) || '',
+      clientPhone: r.phone || (client && client.phone) || '',
+      property: r.property || (client && client.address) || '',
+      description: r.notes || '',
+      lineItems: [],
+      total: 0,
+      subtotal: 0,
+      taxRate: 0,
+      taxAmount: 0,
+      status: 'draft',
+      requestId: requestId,
+      photos: r.photos || [],
+      photo: (r.photos && r.photos[0]) || ''
+    });
+
+    DB.requests.update(requestId, { status: 'converted', quoteId: quote.id });
+    UI.toast('⚡ Fast Quote draft #' + (quote.quoteNumber || '?') + ' created');
+    loadPage('quotes');
+    setTimeout(function() {
+      if (typeof QuotesPage !== 'undefined' && QuotesPage.showDetail) QuotesPage.showDetail(quote.id);
+    }, 100);
   },
 
   _sendConfirmation: function(id) {

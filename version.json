@@ -1,5 +1,5 @@
 {
-  "version": 460,
+  "version": 461,
   "released": "2026-04-28",
-  "notes": "v460: Auto-draft invoice on batch/crew/dispatch job-complete (solo still prompts)"
+  "notes": "v461: Fast Quote button on Request detail (one-click request → draft quote with all fields prefilled)"
 }
