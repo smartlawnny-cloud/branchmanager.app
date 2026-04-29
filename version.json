@@ -1,5 +1,5 @@
 {
-  "version": 499,
+  "version": 500,
   "released": "2026-04-29",
-  "notes": "Two-way SMS: dialpad-sms-send edge fn, secure outbound route, global inbound notifier"
+  "notes": "Tasks page clean UI + call center collapses when empty"
 }

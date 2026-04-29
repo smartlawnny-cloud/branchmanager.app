@@ -616,12 +616,20 @@ var DashboardPage = {
       if (error) throw error;
 
       var badge = document.getElementById('dash-cc-badge');
-      if (badge) badge.textContent = data && data.length > 0 ? data.length + ' recent' : 'No recent activity';
+      var widget = document.getElementById('dash-callcenter-widget');
 
       if (!data || data.length === 0) {
-        el.innerHTML = '<div style="font-size:13px;color:var(--text-light);padding:4px 0;">No calls or messages in the last 48 hours.</div>';
+        // Collapse to a compact pill like Today's Jobs empty state
+        if (widget) {
+          widget.style.cssText = 'background:var(--white);border-radius:10px;padding:10px 16px;border:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;color:var(--text-light);';
+          widget.onclick = function() { loadPage('callcenter'); };
+          widget.innerHTML = '<span><strong style="color:var(--text);">Call Center</strong> · No recent activity</span>'
+            + '<span style="color:var(--accent);font-size:12px;">Open →</span>';
+        }
         return;
       }
+
+      if (badge) badge.textContent = data.length + ' recent';
 
       var chanIcon = { sms: '💬', call: '📞', voicemail: '📭', email: '✉️' };
       var html = '';
