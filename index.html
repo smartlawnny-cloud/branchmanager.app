@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 509; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 510; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -949,7 +949,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v509.min.js"></script>
+<script defer src="dist/bm.bundle.v510.min.js"></script>
 
 
 
@@ -1317,7 +1317,8 @@ var OperationsHub = {
       ['fleet', 'Fleet'],
       ['equipment', 'Equipment'],
       ['pretrip', 'Pre-Trip'],
-      ['chat', 'Chat & Tasks']
+      ['chat', 'Chat & Tasks'],
+      ['weather', '🌤 Weather']
     ];
     var r = _renderHubTabs('_opsTab', tabs, 'dispatch');
     var body = '';
@@ -1327,6 +1328,7 @@ var OperationsHub = {
       else if (r.tab === 'equipment') body = EquipmentPage.render();
       else if (r.tab === 'pretrip') body = (typeof DailyInspection !== 'undefined' ? DailyInspection.render() : '<div style="padding:16px;color:var(--text-light);">Pre-Trip module not loaded.</div>');
       else if (r.tab === 'chat') body = (typeof TaskReminders !== 'undefined' ? TaskReminders.render() : '<div style="padding:16px;color:var(--text-light);">Chat & Tasks module not loaded.</div>');
+      else if (r.tab === 'weather') body = (typeof Weather !== 'undefined' ? Weather.renderPage() : '<div style="padding:16px;color:var(--text-light);">Weather module not loaded.</div>');
     } catch (e) { body = '<div style="padding:16px;color:var(--red);">Error loading tab: ' + e.message + '</div>'; }
     return r.html + body;
   }

@@ -60,7 +60,7 @@ var Weather = {
 
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + Weather.LAT + '&longitude=' + Weather.LON
       + '&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m'
-      + '&hourly=temperature_2m,precipitation_probability,weather_code'
+      + '&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m'
       + '&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,wind_speed_10m_max'
       + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York&forecast_days=7';
 
@@ -173,6 +173,152 @@ var Weather = {
       }
     }
     return '';
+  },
+
+  // Full weather page (used as Operations tab)
+  renderPage: function() {
+    setTimeout(function() { Weather._renderPageContent(); }, 80);
+    return '<div id="weather-page-root" style="max-width:600px;">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<span style="font-size:22px;">🌤</span>'
+      + '<div><h2 style="margin:0;font-size:20px;font-weight:700;">Weather</h2>'
+      + '<div style="font-size:12px;color:var(--text-light);">Peekskill, NY — powered by Open-Meteo</div>'
+      + '</div>'
+      + '</div>'
+      + '<div id="weather-page-content" style="font-size:13px;color:var(--text-light);">Loading…</div>'
+      + '</div>';
+  },
+
+  _renderPageContent: function() {
+    var el = document.getElementById('weather-page-content');
+    if (!el) return;
+    if (!Weather.cache) {
+      Weather.fetch();
+      setTimeout(function() { Weather._renderPageContent(); }, 2500);
+      return;
+    }
+    var data = Weather.cache;
+    var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var html = '';
+
+    // Current conditions
+    if (data.current) {
+      var cur = data.current;
+      var curIcon = Weather._icon(cur.weather_code);
+      var curTemp = Math.round(cur.temperature_2m);
+      var windSpd = Math.round(cur.wind_speed_10m);
+      var gustSpd = Math.round(cur.wind_gusts_10m);
+      html += '<div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);">'
+        + '<div style="font-size:56px;line-height:1;">' + curIcon + '</div>'
+        + '<div>'
+        + '<div style="font-size:40px;font-weight:800;line-height:1;">' + curTemp + '°F</div>'
+        + '<div style="font-size:13px;color:var(--text-light);margin-top:6px;">Wind ' + windSpd + ' mph' + (gustSpd > windSpd ? ' · Gusts ' + gustSpd + ' mph' : '') + '</div>'
+        + (gustSpd > 25 ? '<div style="font-size:12px;color:#c62828;font-weight:600;margin-top:4px;">⚠ High gusts — caution with aerial work</div>' : '')
+        + '</div>'
+        + '</div>';
+    }
+
+    // 5-day forecast
+    if (data.daily) {
+      var days = data.daily;
+      html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04);">';
+      html += '<div style="font-size:12px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">5-Day Forecast</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;">';
+      for (var i = 0; i < 5; i++) {
+        var d = new Date(days.time[i] + 'T12:00:00');
+        var dName = i === 0 ? 'Today' : dayNames[d.getDay()];
+        var dDate = monthNames[d.getMonth()] + ' ' + d.getDate();
+        var hi = Math.round(days.temperature_2m_max[i]);
+        var lo = Math.round(days.temperature_2m_min[i]);
+        var rain = days.precipitation_probability_max[i];
+        var ic = Weather._icon(days.weathercode[i]);
+        var bg = rain > 60 ? '#fff3e0' : (i === 0 ? '#f0faf0' : 'transparent');
+        html += '<div style="padding:10px 4px;border-radius:8px;background:' + bg + ';border:1px solid var(--border);">'
+          + '<div style="font-size:11px;font-weight:700;">' + dName + '</div>'
+          + '<div style="font-size:10px;color:var(--text-light);margin-bottom:4px;">' + dDate + '</div>'
+          + '<div style="font-size:26px;margin:4px 0;">' + ic + '</div>'
+          + '<div style="font-size:15px;font-weight:700;">' + hi + '°</div>'
+          + '<div style="font-size:11px;color:var(--text-light);">' + lo + '°</div>'
+          + (rain > 0 ? '<div style="font-size:10px;color:' + (rain > 60 ? '#e65100' : '#1976d2') + ';margin-top:4px;">💧 ' + rain + '%</div>' : '')
+          + '</div>';
+      }
+      html += '</div>';
+
+      // Warnings
+      var rainyDays = [];
+      for (var j = 0; j < 5; j++) {
+        if (days.precipitation_probability_max[j] > 60) {
+          var rd = new Date(days.time[j] + 'T12:00:00');
+          rainyDays.push(j === 0 ? 'Today' : dayNames[rd.getDay()]);
+        }
+      }
+      if (rainyDays.length) {
+        html += '<div style="margin-top:12px;padding:10px;background:#fff3e0;border-radius:8px;font-size:12px;color:#e65100;">'
+          + '⚠️ Rain likely: <strong>' + rainyDays.join(', ') + '</strong> — consider rescheduling outdoor work</div>';
+      }
+      if (data.daily.wind_speed_10m_max) {
+        var windyDays = [];
+        for (var w = 1; w < 5; w++) {
+          if (days.wind_speed_10m_max[w] > 25) {
+            var wd = new Date(days.time[w] + 'T12:00:00');
+            windyDays.push(dayNames[wd.getDay()] + ' (' + Math.round(days.wind_speed_10m_max[w]) + ' mph)');
+          }
+        }
+        if (windyDays.length) {
+          html += '<div style="margin-top:8px;padding:10px;background:#e3f2fd;border-radius:8px;font-size:12px;color:#1565c0;">'
+            + '💨 Windy days ahead: <strong>' + windyDays.join(', ') + '</strong></div>';
+        }
+      }
+      html += '</div>';
+    }
+
+    // Today's hourly — table: time rows × metric columns
+    if (data.hourly) {
+      var h = data.hourly;
+      var todayStr = new Date().toISOString().split('T')[0];
+      var nowHour = new Date().getHours();
+      var colStyle = 'padding:8px 10px;text-align:center;font-size:13px;';
+      var hdrStyle = 'padding:6px 10px;text-align:center;font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;border-bottom:2px solid var(--border);';
+      html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);">';
+      html += '<table style="width:100%;border-collapse:collapse;">';
+      html += '<thead><tr style="background:#f8f9fa;">'
+        + '<th style="' + hdrStyle + 'text-align:left;padding-left:16px;">Time</th>'
+        + '<th style="' + hdrStyle + '"></th>'
+        + '<th style="' + hdrStyle + '">Temp</th>'
+        + '<th style="' + hdrStyle + '">Rain</th>'
+        + '<th style="' + hdrStyle + '">Wind</th>'
+        + '</tr></thead>';
+      html += '<tbody>';
+      var rowCount = 0;
+      for (var k = 0; k < h.time.length; k++) {
+        var tStr = h.time[k];
+        if (tStr.indexOf(todayStr) !== 0) continue;
+        var hour = parseInt(tStr.split('T')[1].split(':')[0], 10);
+        if (hour < 6 || hour > 20) continue;
+        var isPast = hour < nowHour;
+        var isNow = hour === nowHour;
+        var temp = Math.round(h.temperature_2m[k]);
+        var precip = h.precipitation_probability ? h.precipitation_probability[k] : 0;
+        var wind = h.wind_speed_10m ? Math.round(h.wind_speed_10m[k]) : null;
+        var hIcon = Weather._icon(h.weather_code[k]);
+        var ampm = hour < 12 ? hour + 'am' : hour === 12 ? '12pm' : (hour - 12) + 'pm';
+        var rowBg = isNow ? '#f0faf0' : (rowCount % 2 === 0 ? '#fff' : '#fafafa');
+        html += '<tr style="background:' + rowBg + ';' + (isPast ? 'opacity:0.4;' : '') + 'border-top:1px solid var(--border);">'
+          + '<td style="' + colStyle + 'text-align:left;padding-left:16px;font-weight:' + (isNow ? '700' : '500') + ';color:' + (isNow ? 'var(--green-dark)' : 'var(--text)') + ';white-space:nowrap;">'
+          + ampm + (isNow ? ' <span style="font-size:10px;background:var(--green-dark);color:#fff;padding:1px 6px;border-radius:8px;vertical-align:middle;">NOW</span>' : '')
+          + '</td>'
+          + '<td style="' + colStyle + 'font-size:18px;">' + hIcon + '</td>'
+          + '<td style="' + colStyle + 'font-weight:600;">' + temp + '°</td>'
+          + '<td style="' + colStyle + 'color:' + (precip > 60 ? '#e65100' : precip > 10 ? '#1976d2' : 'var(--text-light)') + ';">' + (precip > 0 ? precip + '%' : '—') + '</td>'
+          + '<td style="' + colStyle + 'color:' + (wind !== null && wind > 20 ? '#c62828' : 'var(--text)') + ';">' + (wind !== null ? wind + ' mph' : '—') + '</td>'
+          + '</tr>';
+        rowCount++;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    el.innerHTML = html;
   },
 
   // Full detail modal — 5-day forecast + today's hourly breakdown
