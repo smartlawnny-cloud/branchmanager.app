@@ -1,5 +1,5 @@
 {
-  "version": 473,
+  "version": 474,
   "released": "2026-04-29",
-  "notes": "Call Center page — dial pad, client search, recent activity feed; VS Code + tmux dev setup"
+  "notes": "Two-way SMS threads in Call Center — thread list, chat bubbles, reply box"
 }
