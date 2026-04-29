@@ -57,7 +57,10 @@ var DashboardPage = {
     var _monthPct = _goalData.monthly > 0 ? Math.min(Math.round((_monthRevenue / _goalData.monthly) * 100), 100) : 0;
 
     html += '<div style="margin-bottom:16px;">'
-      + '<div style="font-size:13px;color:var(--text-light);">' + dayNames[now.getDay()] + ', ' + monthFull[now.getMonth()] + ' ' + now.getDate() + '</div>'
+      + '<div style="font-size:13px;color:var(--text-light);display:flex;align-items:center;gap:10px;">'
+      + '<span>' + dayNames[now.getDay()] + ', ' + monthFull[now.getMonth()] + ' ' + now.getDate() + '</span>'
+      + '<span id="dash-date-weather"></span>'
+      + '</div>'
       + '<h2 style="font-size:28px;font-weight:700;margin-top:2px;">' + greeting + ', ' + userName.split(' ')[0] + '</h2>'
       + '</div>';
 
@@ -221,6 +224,7 @@ var DashboardPage = {
       + '<div id="dash-cc-items"></div>'
       + '</div>';
     setTimeout(function() { if (typeof DashboardPage !== 'undefined') DashboardPage._fillCallCenterWidget(); }, 80);
+    setTimeout(function() { if (typeof DashboardPage !== 'undefined') DashboardPage._fillDateWeather(); }, 120);
 
     // ── Today's Jobs (v419: hoisted to top; collapses to compact pill when empty) ──
     var __td = now.getFullYear() + '-' + (now.getMonth()+1<10?'0':'') + (now.getMonth()+1) + '-' + (now.getDate()<10?'0':'') + now.getDate();
@@ -598,6 +602,34 @@ var DashboardPage = {
     return html;
   },
 
+  _fillDateWeather: function() {
+    var el = document.getElementById('dash-date-weather');
+    if (!el || typeof Weather === 'undefined') return;
+    var todayStr = new Date().toISOString().split('T')[0];
+    function _applyWeather() {
+      var el2 = document.getElementById('dash-date-weather');
+      if (!el2 || !Weather.cache || !Weather.cache.daily) return;
+      var days = Weather.cache.daily;
+      for (var i = 0; i < days.time.length; i++) {
+        if (days.time[i] === todayStr) {
+          var hi = Math.round(days.temperature_2m_max[i]);
+          var lo = Math.round(days.temperature_2m_min[i]);
+          var icon = Weather._icon(days.weathercode[i]);
+          var rain = days.precipitation_probability_max ? days.precipitation_probability_max[i] : 0;
+          var rainStr = rain > 20 ? ' <span style="color:' + (rain > 60 ? '#e65100' : '#1976d2') + ';">· ' + rain + '% rain</span>' : '';
+          el2.innerHTML = '<span style="font-size:13px;">' + icon + ' ' + hi + '°/' + lo + '°' + rainStr + '</span>';
+          return;
+        }
+      }
+    }
+    if (Weather.cache) {
+      _applyWeather();
+    } else {
+      Weather.fetch();
+      setTimeout(_applyWeather, 2500);
+    }
+  },
+
   _fillCallCenterWidget: async function() {
     var el = document.getElementById('dash-cc-items');
     if (!el) return;
@@ -657,7 +689,6 @@ var DashboardPage = {
         var isLast = idx === data.length - 1;
         html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">';
         html += '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>';
-        html += '<span style="font-size:14px;flex-shrink:0;">' + icon + '</span>';
         html += '<div style="flex:1;min-width:0;">';
         html += '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (typeof UI !== 'undefined' ? UI.esc(name) : name) + '</div>';
         if (preview) html += '<div style="font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (typeof UI !== 'undefined' ? UI.esc(preview) : preview) + '</div>';

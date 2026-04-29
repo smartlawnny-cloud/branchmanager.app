@@ -1,5 +1,5 @@
 {
-  "version": 500,
+  "version": 501,
   "released": "2026-04-29",
   "notes": "Tasks page clean UI + call center collapses when empty"
 }

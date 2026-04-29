@@ -640,12 +640,11 @@ var TaskReminders = {
         }
         var isLast = idx === shown.length - 1 && allIncomplete.length <= shown.length;
         html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
-          + '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" title="Mark complete" style="width:20px;height:20px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;padding:0;"></button>'
+          + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>'
           + '<div style="flex:1;min-width:0;">'
           + '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
           + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + meta.join(' · ') + '</div>' : '')
           + '</div>'
-          + '<span style="font-size:14px;color:var(--text-light);">›</span>'
           + '</div>';
       });
       if (allIncomplete.length > shown.length) {
