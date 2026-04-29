@@ -3186,7 +3186,8 @@ var ClientsPage = {
       // so phone/email/name edits don't go stale on already-issued docs.
       ClientsPage._propagate(id, data);
     } else {
-      DB.clients.create(data);
+      var newClient = DB.clients.create(data);
+      if (typeof SendJim !== 'undefined') SendJim.afterNewClient(newClient || data);
     }
     loadPage('clients');
   },
@@ -8842,6 +8843,7 @@ var JobsPage = {
     var j = DB.jobs.getById(id);
     if (!j) return;
     DB.jobs.update(id, { status: 'completed', completedAt: new Date().toISOString() });
+    if (typeof SendJim !== 'undefined') SendJim.afterJobComplete(j);
 
     // Solo path: prompt to create invoice (Option C — preserves the decision).
     // Batch/crew/system flows auto-draft via Workflow.completeAndDraft.
@@ -17314,7 +17316,17 @@ var EquipmentPage = {
   _getDocs: function(id) {
     try {
       var stored = localStorage.getItem('bm-equipment-docs-' + id);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        var docs = JSON.parse(stored);
+        // Migration: ensure Giant 254T has the bro-1-g1200 parts breakdown email attachment
+        if (id === 'eq4b' && !docs.find(function(d) { return d.id === 'doc-g6'; })) {
+          docs.push({ id: 'doc-g6', name: 'Giant G1200 / Kubota D902-E4B Parts Breakdown', type: 'parts',
+            url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-bro-1-g1200.pdf',
+            addedAt: '2026-04-29', note: 'Email attachment from Dan Wojick @ Belfast Inc.' });
+          EquipmentPage._saveDocs(id, docs);
+        }
+        return docs;
+      }
     } catch(e) {}
     // Pre-seed Bandit 254 Chipper (Giant/1200 w/ Kubota D902-E4B) with Dan Wojick's manuals
     if (id === 'eq4b') {
@@ -17333,7 +17345,10 @@ var EquipmentPage = {
           addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
         { id: 'doc-g5', name: 'Kubota D902-E4B Parts List (PDF)', type: 'parts',
           url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-parts-list.pdf',
-          addedAt: '2026-04-29', note: 'Uploaded to BM storage' }
+          addedAt: '2026-04-29', note: 'Uploaded to BM storage' },
+        { id: 'doc-g6', name: 'Giant G1200 / Kubota D902-E4B Parts Breakdown', type: 'parts',
+          url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-bro-1-g1200.pdf',
+          addedAt: '2026-04-29', note: 'Email attachment from Dan Wojick @ Belfast Inc.' }
       ];
       EquipmentPage._saveDocs(id, seed);
       return seed;
@@ -17385,7 +17400,11 @@ var EquipmentPage = {
         + '<div><strong>Thermostat</strong>: 19434-73015</div>'
         + '<div><strong>T-stat Gasket</strong>: 16221-73270</div>'
         + '</div>'
-        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Order: Diesel Parts Direct · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+        + '<a href="https://www.messicks.com/search?q=" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#1565c0;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 Messick\'s</a>'
+        + '<a href="https://rlpartssupply.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#e65100;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 R&amp;L Parts Supply</a>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:5px;">Both sell Kubota OEM parts by part number · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
         + '</div>';
     }
 
@@ -19269,25 +19288,21 @@ var FleetPage = {
   },
 
   showAdd: function() {
-    UI.modal({
-      title: 'Add Vehicle',
-      html: '<div style="display:grid;gap:10px;">'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Name<input id="fleet-name" placeholder="e.g. Bucket Truck #1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Nickname<input id="fleet-nick" placeholder="e.g. The Beast" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">License Plate<input id="fleet-plate" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Type<select id="fleet-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
-        +   '<option value="bucket">Bucket Truck</option><option value="dump">Dump Truck</option><option value="pickup">Pickup</option><option value="chipper">Chipper</option><option value="trailer">Trailer</option><option value="other">Other</option>'
-        + '</select></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Provider<select id="fleet-tracker" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
-        +   '<option value="">— None yet —</option><option value="bouncie">Bouncie OBD-II</option><option value="trak4">Trak-4 Portable</option><option value="manual">Manual entry</option>'
-        + '</select></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Device ID<input id="fleet-device" placeholder="IMEI / VIN / serial — leave blank to auto-register on first event" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '</div>',
-      buttons: [
-        { label: 'Cancel', action: 'close' },
-        { label: 'Save', primary: true, action: 'FleetPage.saveAdd()' }
-      ]
-    });
+    var body = '<div style="display:grid;gap:10px;">'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Name<input id="fleet-name" placeholder="e.g. Bucket Truck #1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Nickname<input id="fleet-nick" placeholder="e.g. The Beast" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">License Plate<input id="fleet-plate" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Type<select id="fleet-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
+      +   '<option value="bucket">Bucket Truck</option><option value="dump">Dump Truck</option><option value="pickup">Pickup</option><option value="chipper">Chipper</option><option value="trailer">Trailer</option><option value="other">Other</option>'
+      + '</select></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Provider<select id="fleet-tracker" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
+      +   '<option value="">— None yet —</option><option value="bouncie">Bouncie OBD-II</option><option value="trak4">Trak-4 Portable</option><option value="manual">Manual entry</option>'
+      + '</select></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Device ID (IMEI)<input id="fleet-device" placeholder="Leave blank — auto-registers on first Bouncie event" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '</div>';
+    var footer = '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+      + '<button class="btn btn-primary" onclick="FleetPage.saveAdd()">Save</button>';
+    UI.showModal('Add Vehicle', body, { footer: footer });
   },
 
   saveAdd: function() {
@@ -19332,14 +19347,13 @@ var FleetPage = {
       + '</div>'
       + '<div id="fleet-detail-extra" style="margin-top:12px;"><div style="color:var(--text-light);font-size:12px;">Loading history…</div></div>';
 
-    UI.modal({
-      title: v.name + (v.nickname ? ' — ' + v.nickname : ''),
-      html: baseHtml,
-      buttons: [
-        { label: 'Close', action: 'close' },
-        { label: 'Archive', action: 'FleetPage.archive(\'' + id + '\')' }
-      ]
-    });
+    var assignBtn = !v.tracker_device_id
+      ? '<button class="btn btn-outline" style="font-size:12px;" onclick="FleetPage.showAssignTracker(\'' + id + '\')">🔗 Assign Tracker</button>'
+      : '';
+    var footer = assignBtn
+      + '<button class="btn btn-outline" style="color:#c62828;" onclick="FleetPage.archive(\'' + id + '\')">Archive</button>'
+      + '<button class="btn btn-outline" onclick="UI.closeModal()">Close</button>';
+    UI.showModal(v.name + (v.nickname ? ' — ' + v.nickname : ''), baseHtml, { footer: footer });
 
     // Async: load position history + open maintenance alerts
     if (!sb) return;
@@ -19435,6 +19449,36 @@ var FleetPage = {
         b.extend([-73.9210, 41.2847]);
         FleetPage._map.fitBounds(b, { padding: 40, maxZoom: 14 });
       }
+    });
+  },
+
+  showAssignTracker: function(id) {
+    var body = '<div style="display:grid;gap:12px;">'
+      + '<div style="font-size:13px;color:var(--text-light);">Enter the IMEI printed on the Bouncie device label. On first Bouncie event, this vehicle row will be claimed automatically. You can also paste it here now to pre-link it.</div>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Provider<select id="fat-provider" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
+      +   '<option value="bouncie">Bouncie OBD-II</option><option value="trak4">Trak-4 Portable</option><option value="manual">Manual</option>'
+      + '</select></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Device ID / IMEI<input id="fat-imei" placeholder="e.g. 123456789012345" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;" onkeydown="if(event.key===\'Enter\')FleetPage.saveAssignTracker(\'' + id + '\')"></label>'
+      + '</div>';
+    var footer = '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+      + '<button class="btn btn-primary" onclick="FleetPage.saveAssignTracker(\'' + id + '\')">Save</button>';
+    UI.showModal('Assign Tracker', body, { footer: footer });
+    setTimeout(function(){ var el = document.getElementById('fat-imei'); if(el) el.focus(); }, 100);
+  },
+
+  saveAssignTracker: function(id) {
+    var imei = (document.getElementById('fat-imei') || {}).value || '';
+    var provider = (document.getElementById('fat-provider') || {}).value || 'bouncie';
+    imei = imei.trim();
+    if (!imei) { UI.toast('IMEI is required', 'error'); return; }
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { UI.toast('Supabase not ready', 'error'); return; }
+    sb.from('vehicles').update({ tracker_device_id: imei, tracker_provider: provider }).eq('id', id).then(function(r) {
+      if (r.error) { UI.toast('Save failed: ' + r.error.message, 'error'); return; }
+      UI.toast('Tracker assigned');
+      UI.closeModal();
+      FleetPage._fetched = false;
+      FleetPage._refresh(true);
     });
   },
 
@@ -24412,150 +24456,277 @@ Stripe.init();
 /* ──── src/sendjim.js ──── */
 /**
  * Branch Manager — SendJim Integration
- * Direct mail / postcard automation
- * SendJim API: sends physical postcards, handwritten cards, and gift cards
+ * Direct mail automation: postcards, handwritten cards, gift mailers
+ * API proxied through sendjim-send edge function (credentials stay server-side)
  *
- * Triggers:
- * - After job completion → thank you postcard
- * - After quote sent → follow-up mailer
- * - Seasonal campaigns → bulk mailers to past clients
- * - Win-back → postcard to inactive clients
- *
- * Setup: Get API key from sendjim.com
+ * Setup:
+ *   1. supabase secrets set SENDJIM_CLIENT_KEY=xxx SENDJIM_CLIENT_SECRET=yyy
+ *   2. In SendJim UI, create QuickSend templates and note their IDs
+ *   3. Enter QuickSend IDs in BM Settings → Integrations → SendJim
  */
-var SendJim = {
-  apiKey: null,
+var SendJim = (function() {
 
-  init: function() {
-    SendJim.apiKey = localStorage.getItem('bm-sendjim-key') || null;
-  },
+  var FN_URL = (window.BM_CONFIG && window.BM_CONFIG.supabaseFunctionsUrl)
+    ? window.BM_CONFIG.supabaseFunctionsUrl
+    : 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1';
 
-  isConnected: function() {
-    return !!SendJim.apiKey;
-  },
+  // ── Config stored in localStorage ────────────────────────────────────────
+  function getConfig() {
+    try { return JSON.parse(localStorage.getItem('bm-sendjim-config') || '{}'); } catch(e) { return {}; }
+  }
+  function saveConfig(cfg) {
+    localStorage.setItem('bm-sendjim-config', JSON.stringify(cfg));
+  }
 
-  // Available mail pieces
-  mailTypes: [
-    { id: 'postcard_4x6', label: '4×6 Postcard', cost: '$0.89', desc: 'Standard postcard with your branding' },
-    { id: 'postcard_6x9', label: '6×9 Postcard', cost: '$1.19', desc: 'Large format — stands out in mailbox' },
-    { id: 'handwritten', label: 'Handwritten Card', cost: '$3.25', desc: 'Robot-handwritten thank you card' },
-    { id: 'gift_card', label: 'Gift Card Mailer', cost: '$5+', desc: 'Physical gift card (Starbucks, Amazon, etc.)' }
-  ],
+  // ── Core API call via edge function ───────────────────────────────────────
+  function call(action, payload) {
+    return fetch(FN_URL + '/sendjim-send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action, payload: payload || {} })
+    }).then(function(r) { return r.json(); });
+  }
 
-  // Automation triggers
-  automations: [
-    { id: 'job_complete', label: 'After Job Complete', desc: 'Send thank you postcard 3 days after job', mailType: 'postcard_4x6', enabled: false },
-    { id: 'new_client', label: 'New Client Welcome', desc: 'Welcome postcard when client is created', mailType: 'postcard_6x9', enabled: false },
-    { id: 'inactive_winback', label: 'Win-Back (90 days)', desc: 'Postcard to clients with no activity in 90 days', mailType: 'postcard_6x9', enabled: false },
-    { id: 'seasonal_spring', label: 'Spring Campaign', desc: 'Annual spring pruning reminder to all past clients', mailType: 'postcard_6x9', enabled: false },
-    { id: 'review_thank', label: 'Review Thank You', desc: 'Handwritten card when client leaves a Google review', mailType: 'handwritten', enabled: false }
-  ],
+  // ── Send a single mail piece ──────────────────────────────────────────────
+  function sendMail(quickSendId, client) {
+    if (!quickSendId) return Promise.reject(new Error('No QuickSend ID configured'));
+    var nameParts = (client.name || '').trim().split(/\s+/);
+    return call('send', {
+      quickSendId: parseInt(quickSendId, 10),
+      contact: {
+        firstName: nameParts[0] || '',
+        lastName:  nameParts.slice(1).join(' ') || '',
+        address:   client.address || client.street || '',
+        city:      client.city  || '',
+        state:     client.state || 'NY',
+        zip:       client.zip   || client.postal || '',
+        email:     client.email || '',
+        phone:     client.phone || ''
+      }
+    });
+  }
 
-  renderSettings: function() {
-    var connected = SendJim.isConnected();
+  // ── Automation triggers (call from jobs.js / clients.js etc.) ────────────
+
+  function afterJobComplete(job) {
+    var cfg = getConfig();
+    if (!cfg.auto_job_complete) return;
+    var qid = cfg.qid_job_complete;
+    if (!qid) return;
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) return;
+    // Delay 3 days — store a scheduled flag to avoid double-firing
+    var key = 'sj-jc-' + job.id;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    // Fetch client address
+    sb.from('clients').select('name,email,phone,address,city,state,zip').eq('id', job.client_id).maybeSingle()
+      .then(function(r) {
+        if (!r.data) return;
+        // Real send happens via a 3-day delayed edge function call — for now fire immediately
+        // TODO: swap for a pg_cron-scheduled row in a sendjim_queue table
+        sendMail(qid, r.data).then(function(res) {
+          if (res.Code === 0) {
+            UI.toast('📬 Thank-you postcard queued for ' + (r.data.name || 'client'));
+          } else {
+            console.warn('[SendJim] afterJobComplete error:', res);
+          }
+        }).catch(function(e) { console.warn('[SendJim]', e); });
+      });
+  }
+
+  function afterNewClient(client) {
+    var cfg = getConfig();
+    if (!cfg.auto_new_client) return;
+    var qid = cfg.qid_new_client;
+    if (!qid || !client.address) return;
+    sendMail(qid, client).then(function(res) {
+      if (res.Code === 0) UI.toast('📬 Welcome postcard queued for ' + (client.name || 'client'));
+      else console.warn('[SendJim] afterNewClient error:', res);
+    }).catch(function(e) { console.warn('[SendJim]', e); });
+  }
+
+  // ── Settings UI ───────────────────────────────────────────────────────────
+  function renderSettings() {
+    var cfg = getConfig();
+
+    var automations = [
+      { id: 'job_complete', label: 'Thank-You After Job', desc: 'Postcard 3 days after job marked complete', qidKey: 'qid_job_complete', autoKey: 'auto_job_complete' },
+      { id: 'new_client',   label: 'New Client Welcome',  desc: 'Postcard when a new client is created',    qidKey: 'qid_new_client',   autoKey: 'auto_new_client' },
+      { id: 'winback',      label: 'Win-Back (90 days)',  desc: 'Postcard to clients inactive 90+ days',    qidKey: 'qid_winback',      autoKey: 'auto_winback' },
+      { id: 'seasonal',     label: 'Spring Campaign',     desc: 'Annual spring mailer to all past clients', qidKey: 'qid_seasonal',     autoKey: 'auto_seasonal' },
+      { id: 'review_thank', label: 'Review Thank-You',    desc: 'Handwritten card after client leaves a Google review', qidKey: 'qid_review_thank', autoKey: 'auto_review_thank' }
+    ];
 
     var html = '<div style="background:var(--white);border-radius:12px;padding:20px;border:1px solid var(--border);margin-bottom:16px;">'
       + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">'
-      + '<div style="width:40px;height:40px;background:#ff6b35;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;">SJ</div>'
-      + '<div><h3 style="margin:0;">SendJim — Direct Mail</h3>'
-      + '<div style="font-size:12px;color:' + (connected ? 'var(--green-dark)' : 'var(--text-light)') + ';">' + (connected ? '✅ Connected' : '⚪ Not connected') + '</div>'
-      + '</div></div>'
-      + '<p style="font-size:13px;color:var(--text-light);margin-bottom:16px;">Automate physical postcards, handwritten thank you cards, and seasonal mailers. Clients love getting real mail — it builds loyalty and generates referrals.</p>';
-
-    // Mail types
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:16px;">';
-    SendJim.mailTypes.forEach(function(mt) {
-      html += '<div style="padding:12px;background:var(--bg);border-radius:8px;text-align:center;">'
-        + '<div style="font-weight:700;font-size:13px;">' + mt.label + '</div>'
-        + '<div style="font-size:18px;font-weight:800;color:var(--green-dark);margin:4px 0;">' + mt.cost + '</div>'
-        + '<div style="font-size:11px;color:var(--text-light);">' + mt.desc + '</div>'
-        + '</div>';
-    });
-    html += '</div>';
-
-    // API key
-    html += UI.formField('SendJim API Key', 'text', 'sendjim-key', SendJim.apiKey || '', { placeholder: 'Your SendJim API key' })
-      + '<div style="display:flex;gap:8px;">'
-      + '<button class="btn btn-primary" onclick="SendJim.saveKey()">Save Key</button>'
-      + (connected ? '<button class="btn btn-outline" onclick="SendJim.disconnect()">Disconnect</button>' : '')
+      + '<div style="width:40px;height:40px;background:#ff6b35;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;flex-shrink:0;">SJ</div>'
+      + '<div><h3 style="margin:0;font-size:15px;">SendJim — Direct Mail</h3>'
+      + '<div id="sj-status" style="font-size:12px;color:var(--text-light);">Checking connection…</div></div>'
+      + '<button onclick="SendJim.checkBalance()" style="margin-left:auto;background:none;border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;">Check Balance</button>'
       + '</div>'
-      + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Get your key at <a href="https://sendjim.com" target="_blank" rel="noopener noreferrer" style="color:var(--green-dark);">sendjim.com</a></p>'
+      + '<p style="font-size:13px;color:var(--text-light);margin-bottom:16px;line-height:1.6;">Physical postcards and handwritten cards sent automatically. Credentials are stored securely on the server — add them via Supabase secrets, not here.</p>'
+      + '<div style="background:var(--bg);border-radius:8px;padding:12px;font-size:12px;color:var(--text-light);margin-bottom:12px;font-family:monospace;line-height:1.8;">'
+      + 'supabase secrets set SENDJIM_CLIENT_KEY=your_key SENDJIM_CLIENT_SECRET=your_secret<br>'
+      + '--project-ref ltpivkqahvplapyagljt'
+      + '</div>'
       + '</div>';
 
-    // Automations
+    // QuickSend IDs + automations
     html += '<div style="background:var(--white);border-radius:12px;padding:20px;border:1px solid var(--border);margin-bottom:16px;">'
-      + '<h3 style="margin-bottom:12px;">Direct Mail Automations</h3>';
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+      + '<h3 style="font-size:15px;margin:0;">Automations</h3>'
+      + '<button onclick="SendJim.loadQuickSends()" style="background:none;border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;">↻ Load QuickSend IDs</button>'
+      + '</div>'
+      + '<p style="font-size:12px;color:var(--text-light);margin-bottom:16px;">Create templates in SendJim UI → get the numeric ID → enter it here.</p>'
+      + '<div id="sj-quicksends-list" style="margin-bottom:12px;font-size:12px;color:var(--text-light);">Click "Load QuickSend IDs" to fetch your templates.</div>';
 
-    var config = SendJim.getConfig();
-    SendJim.automations.forEach(function(auto) {
-      var enabled = config[auto.id] || false;
-      var mt = SendJim.mailTypes.find(function(m) { return m.id === auto.mailType; });
-      html += '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:' + (enabled ? 'var(--green-bg)' : 'var(--bg)') + ';border-radius:8px;margin-bottom:8px;border-left:3px solid ' + (enabled ? 'var(--green-dark)' : 'var(--border)') + ';">'
-        + '<label style="display:flex;align-items:center;cursor:pointer;"><input type="checkbox" ' + (enabled ? 'checked' : '') + ' onchange="SendJim.toggleAuto(\'' + auto.id + '\', this.checked)" style="width:20px;height:20px;"' + (!connected ? ' disabled' : '') + '></label>'
-        + '<span style="font-size:18px;">📬</span>'
-        + '<div style="flex:1;">'
-        + '<div style="font-weight:600;font-size:14px;">' + auto.label + '</div>'
-        + '<div style="font-size:12px;color:var(--text-light);">' + auto.desc + ' &bull; ' + (mt ? mt.label + ' ' + mt.cost : '') + '</div>'
+    automations.forEach(function(a) {
+      var on  = !!cfg[a.autoKey];
+      var qid = cfg[a.qidKey] || '';
+      html += '<div style="display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">'
+        + '<input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="SendJim.toggleAuto(\'' + a.autoKey + '\',this.checked)" style="width:18px;height:18px;cursor:pointer;">'
+        + '<div>'
+        + '<div style="font-weight:600;font-size:13px;">' + a.label + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);">' + a.desc + '</div>'
         + '</div>'
-        + '<span style="font-size:12px;color:' + (enabled ? 'var(--green-dark)' : 'var(--text-light)') + ';font-weight:600;">' + (enabled ? 'ON' : 'OFF') + '</span>'
+        + '<input type="number" placeholder="QuickSend ID" value="' + UI.esc(qid) + '" onchange="SendJim.setQid(\'' + a.qidKey + '\',this.value)" style="width:110px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;">'
         + '</div>';
     });
     html += '</div>';
 
     // Manual send
     html += '<div style="background:var(--white);border-radius:12px;padding:20px;border:1px solid var(--border);">'
-      + '<h3 style="margin-bottom:12px;">Send Manual Mailer</h3>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-      + '<button class="btn btn-outline" onclick="SendJim.manualSend(\'all_clients\')">📬 Postcard to All Clients</button>'
-      + '<button class="btn btn-outline" onclick="SendJim.manualSend(\'inactive\')">📬 Win-Back Inactive (90+ days)</button>'
-      + '<button class="btn btn-outline" onclick="SendJim.manualSend(\'recent_complete\')">📬 Thank You to Recent Jobs</button>'
-      + '</div></div>';
+      + '<h3 style="font-size:15px;margin-bottom:8px;">Manual Campaigns</h3>'
+      + '<p style="font-size:12px;color:var(--text-light);margin-bottom:12px;">Pick a QuickSend ID and target — sends to matching clients immediately.</p>'
+      + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;">'
+      + '<input type="number" id="sj-manual-qid" placeholder="QuickSend ID" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">'
+      + '<select id="sj-manual-target" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">'
+      + '<option value="all_active">All active clients</option>'
+      + '<option value="inactive_90">Inactive 90+ days</option>'
+      + '<option value="recent_complete">Recent completed jobs (30d)</option>'
+      + '</select>'
+      + '<button onclick="SendJim.runManual()" class="btn btn-primary" style="font-size:13px;white-space:nowrap;">Send</button>'
+      + '</div>'
+      + '<div id="sj-manual-result" style="margin-top:8px;font-size:12px;color:var(--text-light);"></div>'
+      + '</div>';
 
+    // Auto-check balance
+    setTimeout(function() { SendJim.checkBalance(true); }, 300);
     return html;
-  },
-
-  getConfig: function() {
-    return JSON.parse(localStorage.getItem('bm-sendjim-config') || '{}');
-  },
-
-  toggleAuto: function(id, enabled) {
-    var config = SendJim.getConfig();
-    config[id] = enabled;
-    localStorage.setItem('bm-sendjim-config', JSON.stringify(config));
-    UI.toast(enabled ? 'Automation enabled' : 'Automation disabled');
-  },
-
-  saveKey: function() {
-    var key = document.getElementById('sendjim-key').value.trim();
-    if (!key) { UI.toast('Enter your SendJim API key', 'error'); return; }
-    localStorage.setItem('bm-sendjim-key', key);
-    SendJim.apiKey = key;
-    UI.toast('SendJim connected!');
-    loadPage('settings');
-  },
-
-  disconnect: function() {
-    localStorage.removeItem('bm-sendjim-key');
-    SendJim.apiKey = null;
-    UI.toast('SendJim disconnected');
-    loadPage('settings');
-  },
-
-  manualSend: function(target) {
-    var count = 0;
-    if (target === 'all_clients') count = DB.clients.countActive();
-    else if (target === 'inactive') count = DB.clients.getAll().filter(function(c) { return c.status === 'active'; }).length;
-    else if (target === 'recent_complete') count = DB.jobs.getAll().filter(function(j) { return j.status === 'completed'; }).length;
-
-    if (!SendJim.isConnected()) {
-      UI.toast('Connect SendJim in Settings first', 'error');
-      return;
-    }
-    UI.toast(count + ' postcards queued for sending via SendJim');
   }
-};
 
-SendJim.init();
+  function checkBalance(silent) {
+    call('balance').then(function(res) {
+      var el = document.getElementById('sj-status');
+      if (!el) return;
+      if (res.error) {
+        el.textContent = '⚠ ' + res.error;
+        el.style.color = '#c62828';
+      } else {
+        var credits = res.NumberOfCredits != null ? res.NumberOfCredits : '?';
+        el.textContent = '✅ Connected · ' + credits + ' credits remaining';
+        el.style.color = 'var(--green-dark)';
+      }
+    }).catch(function() {
+      var el = document.getElementById('sj-status');
+      if (el) { el.textContent = 'Could not reach SendJim'; el.style.color = 'var(--text-light)'; }
+    });
+  }
+
+  function loadQuickSends() {
+    var el = document.getElementById('sj-quicksends-list');
+    if (el) el.textContent = 'Loading…';
+    call('quicksends').then(function(res) {
+      if (!el) return;
+      var items = Array.isArray(res) ? res : (res.QuickSends || res.quickSends || []);
+      if (!items.length) { el.textContent = 'No QuickSends found. Create templates in the SendJim UI first.'; return; }
+      var html = '<div style="display:grid;gap:4px;">';
+      items.forEach(function(q) {
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:var(--bg);border-radius:6px;">'
+          + '<code style="font-size:11px;font-weight:700;color:var(--accent);">' + (q.QuickSendID || q.Id || q.id) + '</code>'
+          + '<span style="font-size:12px;">' + UI.esc(q.Name || q.name || 'Untitled') + '</span>'
+          + '<span style="font-size:11px;color:var(--text-light);margin-left:auto;">' + UI.esc(q.MailType || q.Type || '') + '</span>'
+          + '</div>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    }).catch(function() {
+      if (el) el.textContent = 'Failed to load — check credentials.';
+    });
+  }
+
+  function toggleAuto(key, val) {
+    var cfg = getConfig();
+    cfg[key] = val;
+    saveConfig(cfg);
+    UI.toast(val ? 'Automation enabled' : 'Automation disabled');
+  }
+
+  function setQid(key, val) {
+    var cfg = getConfig();
+    cfg[key] = val.trim();
+    saveConfig(cfg);
+  }
+
+  function runManual() {
+    var qid = parseInt((document.getElementById('sj-manual-qid') || {}).value || '0', 10);
+    var target = (document.getElementById('sj-manual-target') || {}).value || 'all_active';
+    var resultEl = document.getElementById('sj-manual-result');
+    if (!qid) { if (resultEl) resultEl.textContent = 'Enter a QuickSend ID first.'; return; }
+
+    var clients = [];
+    var now = Date.now();
+    if (typeof DB !== 'undefined') {
+      var all = DB.clients.getAll().filter(function(c) { return c.address && c.city; });
+      if (target === 'all_active') {
+        clients = all.filter(function(c) { return c.status !== 'archived'; });
+      } else if (target === 'inactive_90') {
+        var cutoff = now - 90 * 86400000;
+        clients = all.filter(function(c) {
+          var last = new Date(c.lastJobDate || c.updated_at || 0).getTime();
+          return last < cutoff;
+        });
+      } else if (target === 'recent_complete') {
+        var cutoff30 = now - 30 * 86400000;
+        var jobs = DB.jobs.getAll().filter(function(j) {
+          return j.status === 'completed' && new Date(j.completedDate || j.completed_at || 0).getTime() > cutoff30;
+        });
+        var cids = {};
+        jobs.forEach(function(j) { if (j.clientId) cids[j.clientId] = true; });
+        clients = all.filter(function(c) { return cids[c.id]; });
+      }
+    }
+
+    if (!clients.length) { if (resultEl) resultEl.textContent = 'No matching clients found.'; return; }
+    if (resultEl) resultEl.textContent = 'Sending to ' + clients.length + ' clients…';
+
+    var sent = 0; var failed = 0;
+    var promises = clients.slice(0, 50).map(function(c) { // cap at 50 per manual run
+      return sendMail(qid, c).then(function(res) {
+        if (res.Code === 0) sent++;
+        else { failed++; console.warn('[SendJim] manual send fail:', c.name, res); }
+      }).catch(function() { failed++; });
+    });
+
+    Promise.all(promises).then(function() {
+      if (resultEl) resultEl.textContent = '✅ ' + sent + ' sent' + (failed ? ' · ' + failed + ' failed' : '') + '.';
+      UI.toast('📬 SendJim: ' + sent + ' mailers sent');
+    });
+  }
+
+  return {
+    renderSettings:   renderSettings,
+    checkBalance:     checkBalance,
+    loadQuickSends:   loadQuickSends,
+    toggleAuto:       toggleAuto,
+    setQid:           setQid,
+    runManual:        runManual,
+    // Hooks called by other modules
+    afterJobComplete: afterJobComplete,
+    afterNewClient:   afterNewClient
+  };
+})();
 
 ;
 /* ──── src/pages/settings.js ──── */
@@ -25413,6 +25584,14 @@ var SettingsPage = {
       + '</div>'
       + '<div id="dialpad-test-result" style="margin-top:10px;font-size:13px;"></div>'
       + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Get token at <a href="https://dialpad.com/accounts/api/keys" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">dialpad.com → API Keys</a>. Also register a 10DLC number for SMS compliance.</p>'
+      + '<div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Inbound SMS + Call Webhook</div>'
+      + '<div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Add this URL in Dialpad Admin → Automations → Webhooks. Events: <code>sms.received</code>, <code>call.ringing</code>, <code>call.completed</code>, <code>voicemail.created</code>.</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<code style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;word-break:break-all;">https://ltpivkqahvplapyagljt.supabase.co/functions/v1/dialpad-webhook</code>'
+      + '<button onclick="navigator.clipboard.writeText(\'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/dialpad-webhook\').then(function(){UI.toast(\'Copied!\');}).catch(function(){});" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy</button>'
+      + '</div>'
+      + '</div>'
       + '</div>';
 
     // ── Gusto ──
@@ -25506,6 +25685,11 @@ var SettingsPage = {
       + (gmbOk ? '<button onclick="if(confirm(\'Disconnect Google Business?\')){localStorage.removeItem(\'bm-gmb-access-token\');localStorage.removeItem(\'bm-gmb-refresh-token\');loadPage(\'settings\');}" style="background:none;border:1px solid var(--border);padding:10px 20px;border-radius:6px;font-size:13px;cursor:pointer;">Disconnect</button>' : '')
       + '</div>'
       + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Once connected, BM will auto-request review responses, sync business hours, and post job photos to your GMB feed.</p>'
+      + '</div>';
+
+    // ── SendJim — Direct Mail ──
+    html += '<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">'
+      + (typeof SendJim !== 'undefined' ? SendJim.renderSettings() : '<p style="font-size:13px;color:var(--text-light);">SendJim module not loaded.</p>')
       + '</div>';
 
     // ═══ close API Keys collapsible ═══
@@ -30829,7 +31013,7 @@ var ClientHub = {
         + (pendingQuotes > 0 ? '<span style="font-size:11px;background:#e3f2fd;color:#1565c0;padding:3px 8px;border-radius:10px;font-weight:600;">' + pendingQuotes + ' quote' + (pendingQuotes > 1 ? 's' : '') + '</span>' : '')
         + '<button onclick="ClientHub.showForClient(\'' + c.id + '\')" style="background:var(--green-dark);color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">View Portal</button>'
         + '<button onclick="navigator.clipboard.writeText(\'' + link + '\').then(function(){UI.toast(\'Link copied!\');})" style="background:none;border:1px solid var(--border);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;" title="Copy link">🔗</button>'
-        + (c.email ? '<button onclick="window.open(\'mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent(mailSubject) + '&body=' + encodeURIComponent(mailBody) + '\',\'_blank\')" style="background:none;border:1px solid var(--border);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;" title="Send portal link by email">📧</button>' : '')
+        + (c.email ? '<button onclick="ClientHub.sendPortalLink(\'' + c.id + '\')" style="background:none;border:1px solid var(--border);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;" title="Email portal login link">📧</button>' : '')
         + '</div></div>';
     });
 
@@ -30848,7 +31032,23 @@ var ClientHub = {
 
   // Generate a shareable client portal link
   getLink: function(clientId) {
-    return window.location.origin + window.location.pathname.replace('index.html', '') + 'client.html?id=' + clientId;
+    return window.location.origin + window.location.pathname.replace('index.html', '') + 'portal.html';
+  },
+
+  // Send magic-link login email directly to client via portal-auth edge fn
+  sendPortalLink: function(clientId) {
+    var c = DB.clients.get(clientId);
+    if (!c || !c.email) { UI.toast('No email on file for this client', 'error'); return; }
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    var fnUrl = (sb && sb.functionsUrl) ? sb.functionsUrl : 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1';
+    fetch(fnUrl + '/portal-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: c.email })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() { UI.toast('Portal link sent to ' + c.email + ' ✅'); })
+    .catch(function() { UI.toast('Failed to send portal link', 'error'); });
   },
 
   // Render client hub preview (for the admin to see what client sees)
@@ -44673,104 +44873,110 @@ var TaskReminders = {
     var todayStr = now.toDateString();
     var allIncomplete = tasks.filter(function(t) { return !t.completed; });
 
-    // Overdue (past dates, not today) → today → future/no-date, max 6 shown
+    // Overdue → today → future/no-date, max 6 shown
     var overdue = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate) < now && new Date(t.dueDate).toDateString() !== todayStr; });
-    var today = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate).toDateString() === todayStr; });
-    var rest = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
-    var shown = overdue.concat(today).concat(rest).slice(0, 6);
+    var today   = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate).toDateString() === todayStr; });
+    var rest    = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
+    var shown   = overdue.concat(today).concat(rest).slice(0, 6);
 
-    // AI suggestions injected by dashboard.js before calling this
     var aiInsights = window.__bmBriefingInsights || [];
+    var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
 
     var html = '<div style="background:var(--white);border-radius:12px;border:1px solid var(--border);margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">';
 
-    // Header
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:linear-gradient(135deg,#14331a,#1e5428);">';
-    html += '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-size:15px;color:#8fe89f;">✦</span>'
-      + '<span style="font-size:15px;font-weight:700;color:#fff;">Tasks for Today</span>';
-    if (allIncomplete.length > 0) {
-      html += '<span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;">' + allIncomplete.length + '</span>';
-    }
-    html += '</div>';
-    html += '<div style="display:flex;align-items:center;gap:10px;">';
-    html += '<a onclick="loadPage(\'taskreminders\')" style="font-size:12px;color:rgba(255,255,255,0.6);cursor:pointer;text-decoration:none;">View All →</a>';
-    html += '<button onclick="TaskReminders._openOverlay()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);padding:5px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">+ Add Task</button>';
-    html += '</div></div>';
+    // ── Header (matches Today's Jobs style) ──
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);">'
+      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Tasks for Today</h3>'
+      + (allIncomplete.length > 0
+          ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open task' + (allIncomplete.length !== 1 ? 's' : '') + '</div>'
+          : '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">All clear</div>')
+      + '</div>'
+      + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
+      + '</div>';
 
-    // Manual task rows
+    // ── Task rows ──
     if (shown.length > 0) {
       shown.forEach(function(task) {
-        var isOverdue = task.dueDate && new Date(task.dueDate) < now;
-        var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
+        var isOverdue = task.dueDate && new Date(task.dueDate) < now && new Date(task.dueDate).toDateString() !== todayStr;
         var dot = prioMap[task.priority] || '#6c757d';
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);">';
-        // Complete circle button
-        html += '<button onclick="TaskReminders._toggleComplete(\'' + task.id + '\')" '
-          + 'title="Mark complete" '
-          + 'style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:' + dot + ';"></button>';
-        // Task info (click to edit)
-        html += '<div style="flex:1;min-width:0;cursor:pointer;" onclick="TaskReminders._openOverlay(\'' + task.id + '\')">';
-        html += '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>';
         var meta = [];
-        if (task.assignedTo) meta.push('<span>👤 ' + UI.esc(task.assignedTo) + '</span>');
+        if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
         if (task.dueDate) {
-          var dueLabel = isOverdue
-            ? '<span style="color:var(--red);">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
-            : '<span style="color:var(--text-light);">' + TaskReminders._formatDue(task.dueDate, now) + '</span>';
-          meta.push(dueLabel);
+          meta.push(isOverdue
+            ? '<span style="color:#c62828;">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
+            : TaskReminders._formatDue(task.dueDate, now));
         }
-        if (meta.length > 0) html += '<div style="font-size:11px;display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;">' + meta.join('') + '</div>';
-        html += '</div>';
-        // Action link button (jump to linked record)
-        if (task.actionLink) {
-          html += '<button onclick="' + task.actionLink + '" '
-            + 'title="Open linked record" '
-            + 'style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-light);flex-shrink:0;white-space:nowrap;">→ View</button>';
+        if (task.category) {
+          var cat = TaskReminders.CATEGORIES.find(function(c){return c.key===task.category;});
+          if (cat) meta.push(cat.icon + ' ' + cat.label);
         }
-        // Edit button
-        html += '<button onclick="TaskReminders._openOverlay(\'' + task.id + '\')" '
-          + 'title="Edit" '
-          + 'style="background:none;border:none;padding:4px;cursor:pointer;color:var(--text-light);font-size:13px;flex-shrink:0;">✏</button>';
-        html += '</div>';
+
+        // Full row click → quick-complete sheet. Circle click → instant complete.
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
+          + '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" title="Mark complete" style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;"></button>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
+          + (meta.length ? '<div style="font-size:11px;color:var(--text-light);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">' + meta.join('<span style="opacity:.4;">·</span>') + '</div>' : '')
+          + '</div>'
+          + '<span style="font-size:18px;color:var(--text-light);">›</span>'
+          + '</div>';
       });
       if (allIncomplete.length > shown.length) {
-        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;border-bottom:1px solid var(--border);">'
-          + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more tasks →</a></div>';
+        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;">'
+          + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more →</a></div>';
       }
     } else if (aiInsights.length === 0) {
-      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks. Hit + Add Task to create one.</div>';
+      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks</div>';
     }
 
-    // AI Suggestions section
+    // ── AI Suggestions ──
     if (aiInsights.length > 0) {
-      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">';
-      html += '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ AI Suggestions</div>';
+      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">'
+        + '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ Suggestions</div>';
       aiInsights.forEach(function(ins, idx) {
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">';
-        html += '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>';
-        html += '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>';
-        // "+ Task" button — pre-fills form title + actionLink from this insight
-        html += '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" '
-          + 'style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>';
-        html += '</div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">'
+          + '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>'
+          + '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>'
+          + '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>'
+          + '</div>';
       });
       html += '</div>';
     }
 
-    // ── AI Quick-Add bar ──
-    html += '<div style="padding:10px 14px 12px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
-      + '<input type="text" id="bm-task-quickadd" placeholder="Quick-add a task… (or tap 🎤)"'
+    // ── Quick-add bar ──
+    html += '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
+      + '<input type="text" id="bm-task-quickadd" placeholder="Add a task…"'
       +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TaskReminders._quickAddSubmit();}"'
       +   ' style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg);color:var(--text);min-width:0;">'
-      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice input"'
-      +   ' style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;flex-shrink:0;padding:0;line-height:1;">🎤</button>'
-      + '<button onclick="TaskReminders._quickAddSubmit()" title="Add with AI enrichment"'
-      +   ' style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">✦ Add</button>'
+      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice" style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:15px;flex-shrink:0;padding:0;">🎤</button>'
+      + '<button onclick="TaskReminders._quickAddSubmit()" style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Add</button>'
       + '</div>';
 
     html += '</div>';
     return html;
+  },
+
+  // ── Quick-complete sheet (tap a task row → this) ──
+  _openQuickComplete: function(id) {
+    var task = TaskReminders._getAll().find(function(t) { return t.id === id; });
+    if (!task) return;
+    var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
+    var dot = prioMap[task.priority] || '#6c757d';
+    var meta = [];
+    if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
+    if (task.dueDate) meta.push('📅 ' + UI.dateShort(task.dueDate));
+    if (task.notes)   meta.push('<span style="color:var(--text-light);">' + UI.esc(task.notes.slice(0,80)) + '</span>');
+
+    var html = '<div style="text-align:center;padding:8px 0 16px;">'
+      + '<div style="width:10px;height:10px;border-radius:50%;background:' + dot + ';display:inline-block;margin-bottom:12px;"></div>'
+      + '<div style="font-size:17px;font-weight:700;margin-bottom:8px;line-height:1.3;">' + UI.esc(task.title) + '</div>'
+      + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-bottom:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' + meta.join('') + '</div>' : '<div style="margin-bottom:16px;"></div>')
+      + '<button onclick="TaskReminders._toggleComplete(\'' + id + '\');UI.closeModal();" style="width:100%;padding:14px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">✅ Mark Complete</button>'
+      + (task.actionLink ? '<button onclick="' + task.actionLink + ';UI.closeModal();" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;color:var(--text);">→ Open Linked Record</button>' : '')
+      + '<button onclick="UI.closeModal();TaskReminders._openOverlay(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Edit task</button>'
+      + '</div>';
+
+    UI.showModal(task.title, html);
   },
 
   // ── AI quick-add methods ──
@@ -45296,8 +45502,15 @@ var TeamChat = {
 
   // ── Create task message ───────────────────────────────────────────────
   _addTask: function() {
-    var task = prompt('What needs to be done?');
-    if (!task || !task.trim()) return;
+    UI.modal('📋 New Task', '<input id="tc-task-input" placeholder="What needs to be done?" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;outline:none;" onfocus="this.style.borderColor=\'var(--green-dark)\'" onblur="this.style.borderColor=\'var(--border)\'" onkeydown="if(event.key===\'Enter\'){TeamChat._submitTask();}">', [{label:'Cancel',fn:'UI.closeModal()'},{label:'Create Task',fn:'TeamChat._submitTask()'}]);
+    setTimeout(function(){ var el=document.getElementById('tc-task-input'); if(el) el.focus(); }, 100);
+  },
+
+  _submitTask: function() {
+    var el = document.getElementById('tc-task-input');
+    var task = el ? el.value.trim() : '';
+    UI.closeModal();
+    if (!task) return;
     var row = {
       channel: TeamChat._channel,
       author: TeamChat._getCurrentUser(),
@@ -47347,6 +47560,7 @@ var RBAC = {
 var CallCenter = {
   _activeTab: 'missed',  // 'missed' | 'threads' | 'activity'
   _activeThread: null,
+  _realtimeSub: null,
 
   render: function() {
     var html = '<div style="max-width:960px;margin:0 auto;">';
@@ -47358,8 +47572,8 @@ var CallCenter = {
       + '<div style="font-size:12px;color:var(--text-light);">Inbound calls, SMS threads, voicemails &amp; bid emails</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
-      + '<button onclick="CallCenter._openDialModal(\'call\')" style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:#1a7a3c;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="phone" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New Call</button>'
-      + '<button onclick="CallCenter._openDialModal(\'sms\')"  style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="message-square" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New SMS</button>'
+      + '<button onclick="CallCenter._openDialModal(\'call\')" style="padding:7px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">📞 Call</button>'
+      + '<button onclick="CallCenter._openDialModal(\'sms\')"  style="padding:7px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">💬 SMS</button>'
       + '</div>'
       + '</div>';
 
@@ -47394,6 +47608,12 @@ var CallCenter = {
   // ── Tab switching ────────────────────────────────────────────
 
   _switchTab: function(tab) {
+    // Clean up realtime sub when leaving SMS threads
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (sb && CallCenter._realtimeSub && tab !== 'threads') {
+      try { sb.removeChannel(CallCenter._realtimeSub); } catch(e) {}
+      CallCenter._realtimeSub = null;
+    }
     CallCenter._activeTab = tab;
     CallCenter._activeThread = null;
     ['missed','threads','activity'].forEach(function(t) {
@@ -47627,21 +47847,15 @@ var CallCenter = {
           var subject = c.body || '';
           var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
           var isLast = idx === rows.length - 1;
-          html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-            + '<div style="display:flex;align-items:flex-start;gap:12px;">'
-            + '<div style="flex-shrink:0;width:42px;height:42px;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + bidIcon + '</div>'
+          html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+            + '<div style="flex-shrink:0;width:32px;height:32px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + bidIcon + '</div>'
             + '<div style="flex:1;min-width:0;">'
-            + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
-            + '<span style="font-weight:700;font-size:14px;">' + (agency || 'Unknown Agency') + '</span>'
-            + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+            + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (agency || 'Unknown Agency') + '</div>'
+            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+            + (subject ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + subject.slice(0, 90) + (subject.length > 90 ? '…' : '') + '</div>' : '')
             + '</div>'
-            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:2px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
-            + (subject ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + subject.slice(0, 140) + (subject.length > 140 ? '…' : '') + '</div>' : '')
-            + '</div>'
-            + '</div>'
-            + '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
-            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">🔗 View Bid</a>' : '')
-            + '</div>'
+            + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</div>'
+            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" title="View bid" style="flex-shrink:0;width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:14px;">🔗</a>' : '')
             + '</div>';
           return;
         }
@@ -47659,40 +47873,23 @@ var CallCenter = {
         var safeId    = (c.client_id||'').replace(/'/g,"\\'");
         var isLast = idx === rows.length - 1;
 
-        html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-          + '<div style="display:flex;align-items:flex-start;gap:12px;">'
-
-          // Avatar / icon
-          + '<div style="flex-shrink:0;width:42px;height:42px;background:var(--surface);border:1.5px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + icon + '</div>'
-
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+          + '<div style="flex-shrink:0;width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + icon + '</div>'
           + '<div style="flex:1;min-width:0;">'
-          // Top row: name + timestamp
-          + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
-          + '<span style="font-weight:700;font-size:14px;">' + name + '</span>'
-          + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+          + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</div>'
+          + '<div style="font-size:12px;color:' + labelColor + ';font-weight:600;margin-top:1px;">'
+          + label + (dur ? ' · ' + dur : '') + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '')
           + '</div>'
-          // Second row: label + phone
-          + '<div style="font-size:12px;color:' + labelColor + ';font-weight:600;margin-top:2px;">'
-          + label
-          + (dur ? ' · ' + dur : '')
-          + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '')
+          + (c.body ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + c.body.slice(0, 90) + (c.body.length > 90 ? '…' : '') + '</div>' : '')
+          + (service ? '<div style="font-size:11px;color:var(--text-light);margin-top:1px;">Wants: ' + service + '</div>' : '')
           + '</div>'
-          // Message/transcript snippet
-          + (c.body ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + c.body.slice(0, 120) + (c.body.length > 120 ? '…' : '') + '</div>' : '')
-          // Service wanted (from sheet import metadata)
-          + (service ? '<div style="font-size:12px;color:var(--text-light);margin-top:3px;">Wants: ' + service + '</div>' : '')
-          + '</div>'
+          + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;flex-shrink:0;">' + ts + '</div>'
+          + (digits ? '<div style="display:flex;gap:4px;flex-shrink:0;">'
+            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'call\')" title="Call back" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">📞</button>'
+            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'sms\')" title="Text back" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">💬</button>'
+            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" title="Listen" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;">▶</a>' : '')
+            + '</div>' : '')
           + '</div>';
-
-        // Action buttons
-        if (digits) {
-          html += '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
-            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'call\')" style="padding:6px 14px;background:#1a7a3c;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📞 Call Back</button>'
-            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'sms\')"  style="padding:6px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">💬 Text Back</button>'
-            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">▶ Listen</a>' : '')
-            + '</div>';
-        }
-        html += '</div>';
       });
 
       html += '</div>';
@@ -47775,9 +47972,54 @@ var CallCenter = {
       });
       html += '</div>';
       el.innerHTML = html;
+
+      // Realtime: refresh thread list when a new inbound SMS arrives
+      CallCenter._subscribeRealtime(sb, null);
+
     } catch(e) {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light);">Failed to load messages.</div>';
     }
+  },
+
+  _subscribeRealtime: function(sb, activePhone) {
+    // Unsubscribe any existing channel
+    if (CallCenter._realtimeSub) {
+      try { sb.removeChannel(CallCenter._realtimeSub); } catch(e) {}
+      CallCenter._realtimeSub = null;
+    }
+    if (!sb || !sb.channel) return;
+    CallCenter._realtimeSub = sb.channel('cc-sms-' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'communications', filter: 'channel=eq.sms' }, function(payload) {
+        var row = payload.new || {};
+        if (activePhone) {
+          // Inside a thread — append if matching phone
+          var fromPhone = (row.from_number || '').replace(/\D/g, '').slice(-10);
+          var toPhone   = (row.to_number   || '').replace(/\D/g, '').slice(-10);
+          var thrPhone  = (activePhone || '').replace(/\D/g, '').slice(-10);
+          if (fromPhone === thrPhone || toPhone === thrPhone) {
+            CallCenter._appendThreadMsg(row);
+          }
+        } else {
+          // Thread list — re-render
+          if (CallCenter._activeTab === 'threads' && !CallCenter._activeThread) {
+            CallCenter._loadThreads();
+          }
+        }
+      })
+      .subscribe();
+  },
+
+  _appendThreadMsg: function(row) {
+    var msgsEl = document.getElementById('cc-thread-msgs');
+    if (!msgsEl) return;
+    var out = row.direction === 'outbound';
+    var ts = row.created_at ? new Date(row.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + ' · ' + new Date(row.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'now';
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;flex-direction:column;align-items:' + (out?'flex-end':'flex-start') + ';';
+    div.innerHTML = '<div style="max-width:72%;padding:9px 13px;border-radius:' + (out?'14px 14px 4px 14px':'14px 14px 14px 4px') + ';background:' + (out?'var(--green-dark)':'var(--surface)') + ';color:' + (out?'#fff':'var(--text)') + ';font-size:13px;line-height:1.45;border:' + (out?'none':'1px solid var(--border)') + ';">' + (row.body||'') + '</div>'
+      + '<div style="font-size:10px;color:var(--text-light);margin-top:2px;padding:0 2px;">' + ts + '</div>';
+    msgsEl.appendChild(div);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
   },
 
   _openThread: async function(thr) {
@@ -47836,6 +48078,8 @@ var CallCenter = {
       setTimeout(function() { msgsEl.scrollTop = msgsEl.scrollHeight; }, 50);
       var ri = document.getElementById('cc-reply-input');
       if (ri) ri.focus();
+      // Realtime: append new messages to this thread as they arrive
+      CallCenter._subscribeRealtime(sb, thr.phone);
     } catch(e) { console.warn('Thread load failed:', e); }
   },
 

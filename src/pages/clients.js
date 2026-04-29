@@ -687,7 +687,8 @@ var ClientsPage = {
       // so phone/email/name edits don't go stale on already-issued docs.
       ClientsPage._propagate(id, data);
     } else {
-      DB.clients.create(data);
+      var newClient = DB.clients.create(data);
+      if (typeof SendJim !== 'undefined') SendJim.afterNewClient(newClient || data);
     }
     loadPage('clients');
   },

@@ -17385,7 +17385,11 @@ var EquipmentPage = {
         + '<div><strong>Thermostat</strong>: 19434-73015</div>'
         + '<div><strong>T-stat Gasket</strong>: 16221-73270</div>'
         + '</div>'
-        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Order: Diesel Parts Direct · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+        + '<a href="https://www.messicks.com/search?q=" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#1565c0;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 Messick\'s</a>'
+        + '<a href="https://rlpartssupply.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#e65100;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 R&amp;L Parts Supply</a>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:5px;">Both sell Kubota OEM parts by part number · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
         + '</div>';
     }
 

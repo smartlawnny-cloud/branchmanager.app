@@ -1,6 +1,6 @@
 // Branch Manager — Service Worker
 // Full offline support + push notifications
-var CACHE_NAME = 'branch-manager-v496';
+var CACHE_NAME = 'branch-manager-v497';
 
 // Allow the page to trigger immediate activation
 self.addEventListener('message', function(e) {
@@ -19,6 +19,7 @@ var ASSETS = [
   './src/supacloud.js',
   './src/cloudkeys.js',
   './src/stripe.js',
+  './src/sendjim.js',
   './src/templates.js',
   './src/photos.js',
   './src/dailyinspection.js',

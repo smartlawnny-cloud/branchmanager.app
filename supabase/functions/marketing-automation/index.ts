@@ -1,47 +1,42 @@
 // Supabase Edge Function — Marketing Automation
 //
 // Triggers:
-//   1. Review request email  — 24h after job marked completed
+//   1. Review request email  — 24h+ after job marked completed
 //   2. Quote follow-up email — 7 days after quote sent with no response
 //   3. Upsell email          — 30 days after invoice paid
 //
 // Each trigger is idempotent: checks communications table before sending.
-// Logs every send to communications.metadata so duplicates are impossible.
+// Wide time windows + alreadySent() dedup = cron can skip runs without missing records.
 //
 // Deploy:
-//   supabase functions deploy marketing-automation --no-verify-jwt
+//   supabase functions deploy marketing-automation --project-ref ltpivkqahvplapyagljt --no-verify-jwt
 //
 // Schedule via pg_cron (run once from Supabase SQL editor):
 //   select cron.schedule('marketing-automation', '0 */4 * * *',
 //     $$select net.http_post(
 //       'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/marketing-automation',
 //       '{}',
-//       'application/json',
-//       ARRAY[http_header('Authorization','Bearer <SERVICE_ROLE_KEY>')]
+//       'application/json'
 //     )$$);
 //
-// Env secrets needed:
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, RESEND_FROM_EMAIL (optional)
-//
-// Manual test from BM Settings → Automations → "Run Now" button:
-//   POST /functions/v1/marketing-automation  (with Authorization: Bearer <anon key>)
+// Env secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, RESEND_FROM_EMAIL (optional)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL       = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY        = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RESEND_API_KEY     = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM_EMAIL         = Deno.env.get("RESEND_FROM_EMAIL") ?? "Second Nature Tree <onboarding@resend.dev>";
-const REPLY_TO           = "info@peekskilltree.com";
-const GOOGLE_REVIEW_URL  = "https://g.page/r/CcVkZHV_EKlEEBM/review";
-const COMPANY_NAME       = "Second Nature Tree Service";
-const COMPANY_PHONE      = "(914) 391-5233";
-const OWNER_NAME         = "Doug Brown";
+const SUPABASE_URL        = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY         = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const RESEND_API_KEY      = Deno.env.get("RESEND_API_KEY") ?? "";
+const FROM_EMAIL          = Deno.env.get("RESEND_FROM_EMAIL") ?? "Second Nature Tree <onboarding@resend.dev>";
+const REPLY_TO            = "info@peekskilltree.com";
+const GOOGLE_REVIEW_URL   = "https://g.page/r/CcVkZHV_EKlEEBM/review";
+const COMPANY_NAME        = "Second Nature Tree Service";
+const COMPANY_PHONE       = "(914) 391-5233";
+const OWNER_NAME          = "Doug Brown";
 
 // Toggle individual triggers via Supabase secrets (default: enabled)
-const REVIEW_ENABLED        = Deno.env.get("AUTOMATION_REVIEW")        !== "false";
+const REVIEW_ENABLED         = Deno.env.get("AUTOMATION_REVIEW")         !== "false";
 const QUOTE_FOLLOWUP_ENABLED = Deno.env.get("AUTOMATION_QUOTE_FOLLOWUP") !== "false";
-const UPSELL_ENABLED        = Deno.env.get("AUTOMATION_UPSELL")        !== "false";
+const UPSELL_ENABLED         = Deno.env.get("AUTOMATION_UPSELL")         !== "false";
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -105,20 +100,22 @@ function emailHtml(bodyText: string): string {
   </body></html>`;
 }
 
-// ─── Trigger 1: Review request (24h after job completed) ──────────────────────
+// ─── Trigger 1: Review request (24h–14d after job completed) ─────────────────
+// Wide window: any completed job updated 24h–14d ago that hasn't been sent.
+// alreadySent() prevents re-sending on subsequent cron runs.
 
 async function runReviewRequests(): Promise<{ sent: number; skipped: number }> {
   if (!REVIEW_ENABLED) return { sent: 0, skipped: 0 };
 
-  const since = new Date(Date.now() - 28 * 3600_000).toISOString();
-  const until = new Date(Date.now() - 20 * 3600_000).toISOString();
+  const until = new Date(Date.now() - 22 * 3600_000).toISOString();   // at least 22h ago
+  const since = new Date(Date.now() - 14 * 86400_000).toISOString();  // no older than 14 days
 
   const { data: jobs, error } = await sb
     .from("jobs")
-    .select("id, client_id, client_name, job_number, description, total, updated_at")
+    .select("id, client_id, client_name, job_number, description, total, updated_at, completed_at")
     .eq("status", "completed")
-    .gte("updated_at", since)
-    .lte("updated_at", until);
+    .lte("updated_at", until)
+    .gte("updated_at", since);
 
   if (error) { console.error("jobs query error:", error.message); return { sent: 0, skipped: 0 }; }
   if (!jobs || jobs.length === 0) return { sent: 0, skipped: 0 };
@@ -128,7 +125,6 @@ async function runReviewRequests(): Promise<{ sent: number; skipped: number }> {
   for (const job of jobs) {
     if (await alreadySent("review_request", job.id)) { skipped++; continue; }
 
-    // Get client email
     let email = "";
     let firstName = (job.client_name || "").split(" ")[0] || "there";
     if (job.client_id) {
@@ -137,9 +133,9 @@ async function runReviewRequests(): Promise<{ sent: number; skipped: number }> {
     }
     if (!email) { skipped++; continue; }
 
-    const jobNum   = job.job_number ? `#${job.job_number}` : "";
-    const jobDesc  = job.description || "your tree service";
-    const subject  = "Your tree work is complete — how did we do?";
+    const jobNum  = job.job_number ? `#${job.job_number}` : "";
+    const jobDesc = job.description || "your tree service";
+    const subject = "Your tree work is complete — how did we do?";
     const body =
       `Hi ${firstName},\n\n` +
       `We have finished the work at your property! Job ${jobNum} (${jobDesc}) is now complete.\n\n` +
@@ -160,20 +156,21 @@ async function runReviewRequests(): Promise<{ sent: number; skipped: number }> {
   return { sent, skipped };
 }
 
-// ─── Trigger 2: Quote follow-up (7 days after sent, no response) ─────────────
+// ─── Trigger 2: Quote follow-up (7–30d after sent, no response) ──────────────
+// Wide window catches missed runs. alreadySent() prevents double-sends.
 
 async function runQuoteFollowups(): Promise<{ sent: number; skipped: number }> {
   if (!QUOTE_FOLLOWUP_ENABLED) return { sent: 0, skipped: 0 };
 
-  const since = new Date(Date.now() - 8 * 86400_000).toISOString();
-  const until = new Date(Date.now() - 6 * 86400_000).toISOString();
+  const until = new Date(Date.now() - 6 * 86400_000).toISOString();   // at least 6 days old
+  const since = new Date(Date.now() - 30 * 86400_000).toISOString();  // no older than 30 days
 
   const { data: quotes, error } = await sb
     .from("quotes")
-    .select("id, client_id, client_name, quote_number, description, total, updated_at, expiry_date")
+    .select("id, client_id, client_name, quote_number, description, total, updated_at")
     .eq("status", "sent")
-    .gte("updated_at", since)
-    .lte("updated_at", until);
+    .lte("updated_at", until)
+    .gte("updated_at", since);
 
   if (error) { console.error("quotes query error:", error.message); return { sent: 0, skipped: 0 }; }
   if (!quotes || quotes.length === 0) return { sent: 0, skipped: 0 };
@@ -191,20 +188,19 @@ async function runQuoteFollowups(): Promise<{ sent: number; skipped: number }> {
     }
     if (!email) { skipped++; continue; }
 
-    const quoteNum  = q.quote_number ? `#${q.quote_number}` : "";
-    const total     = q.total ? `$${Number(q.total).toLocaleString("en-US", { minimumFractionDigits: 0 })}` : "";
-    const jobDesc   = q.description || "your tree service";
-    const sentDate  = new Date(q.updated_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    const subject   = `Following up on your tree service quote ${quoteNum}`;
+    const quoteNum = q.quote_number ? `#${q.quote_number}` : "";
+    const total    = q.total ? `$${Number(q.total).toLocaleString("en-US", { minimumFractionDigits: 0 })}` : "";
+    const jobDesc  = q.description || "your tree service";
+    const sentDate = new Date(q.updated_at).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+    const approveUrl = `https://branchmanager.app/approve.html?id=${q.id}`;
+    const subject  = `Following up on your tree service quote ${quoteNum}`;
     const body =
       `Hi ${firstName},\n\n` +
-      `I wanted to follow up on the estimate we put together for you on ${sentDate} for ${jobDesc}.\n\n` +
+      `I wanted to follow up on the estimate we sent on ${sentDate} for ${jobDesc}.\n\n` +
       `Your quote (${quoteNum}) came to ${total}. If you have any questions about the scope of work or pricing, I am happy to walk through it with you.\n\n` +
-      `We have availability coming up soon and would love to get you on the schedule. Just reply to this email or give us a call at ${COMPANY_PHONE} to get started.\n\n` +
-      `Thanks,\n` +
-      `${OWNER_NAME}\n` +
-      `${COMPANY_NAME}\n` +
-      `${COMPANY_PHONE}`;
+      `You can also view and approve your quote online:\n${approveUrl}\n\n` +
+      `We have availability coming up and would love to get you on the schedule. Just reply to this email or give us a call at ${COMPANY_PHONE}.\n\n` +
+      `Thanks,\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
 
     const ok = await sendEmail(email, subject, emailHtml(body));
     if (ok) {
@@ -216,21 +212,23 @@ async function runQuoteFollowups(): Promise<{ sent: number; skipped: number }> {
   return { sent, skipped };
 }
 
-// ─── Trigger 3: Upsell (30 days after invoice paid) ──────────────────────────
+// ─── Trigger 3: Upsell (30–90d after invoice paid) ───────────────────────────
+// Uses paid_date if set, otherwise falls back to updated_at.
+// Wide window + alreadySent() dedup.
 
 async function runUpsells(): Promise<{ sent: number; skipped: number }> {
   if (!UPSELL_ENABLED) return { sent: 0, skipped: 0 };
 
-  const since = new Date(Date.now() - 31 * 86400_000).toISOString();
-  const until = new Date(Date.now() - 29 * 86400_000).toISOString();
+  const until = new Date(Date.now() - 28 * 86400_000).toISOString();  // at least 28 days ago
+  const since = new Date(Date.now() - 90 * 86400_000).toISOString();  // no older than 90 days
 
-  // Try paid_date first, fall back to updated_at for invoices without it
+  // Fetch paid invoices in the window — prefer paid_date, fall back to updated_at
   const { data: invoices, error } = await sb
     .from("invoices")
     .select("id, client_id, client_name, invoice_number, total, paid_date, updated_at")
     .eq("status", "paid")
-    .or(`paid_date.gte.${since},and(paid_date.is.null,updated_at.gte.${since})`)
-    .or(`paid_date.lte.${until},and(paid_date.is.null,updated_at.lte.${until})`);
+    .gte("updated_at", since)
+    .lte("updated_at", until);
 
   if (error) { console.error("invoices query error:", error.message); return { sent: 0, skipped: 0 }; }
   if (!invoices || invoices.length === 0) return { sent: 0, skipped: 0 };
@@ -238,6 +236,12 @@ async function runUpsells(): Promise<{ sent: number; skipped: number }> {
   let sent = 0, skipped = 0;
 
   for (const inv of invoices) {
+    // If paid_date is set, verify it's also in the right window (paid_date takes priority)
+    if (inv.paid_date) {
+      const pd = new Date(inv.paid_date).getTime();
+      if (pd > new Date(until).getTime() || pd < new Date(since).getTime()) { skipped++; continue; }
+    }
+
     if (await alreadySent("upsell_30d", inv.id)) { skipped++; continue; }
 
     let email = "";
@@ -255,11 +259,8 @@ async function runUpsells(): Promise<{ sent: number; skipped: number }> {
       `It has been about a month since we completed your job (invoice ${invoiceNum}). Hope everything at your property is looking great!\n\n` +
       `Spring and summer are our busiest seasons — if you have been thinking about any additional tree work (pruning, removal, stump grinding, cleanups), now is a great time to get on the schedule before the calendar fills up.\n\n` +
       `Just reply to this email or give us a call at ${COMPANY_PHONE} and we can get you a quick estimate.\n\n` +
-      `And if you know anyone who needs tree work, we appreciate the referral — word of mouth is how we have built our business.\n\n` +
-      `Thanks again,\n` +
-      `${OWNER_NAME}\n` +
-      `${COMPANY_NAME}\n` +
-      `${COMPANY_PHONE}`;
+      `And if you know anyone who needs tree work, we really appreciate the referral — word of mouth is how we built this business.\n\n` +
+      `Thanks again,\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
 
     const ok = await sendEmail(email, subject, emailHtml(body));
     if (ok) {
@@ -286,12 +287,12 @@ Deno.serve(async (req) => {
   ]);
 
   const result = {
-    ran_at:   new Date().toISOString(),
-    duration: Date.now() - startMs,
-    review_requests:   review,
-    quote_followups:   followup,
-    upsells:           upsell,
-    total_sent: review.sent + followup.sent + upsell.sent,
+    ran_at:          new Date().toISOString(),
+    duration_ms:     Date.now() - startMs,
+    review_requests: review,
+    quote_followups: followup,
+    upsells:         upsell,
+    total_sent:      review.sent + followup.sent + upsell.sent,
   };
 
   console.log("marketing-automation: done", JSON.stringify(result));

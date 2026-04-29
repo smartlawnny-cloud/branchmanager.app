@@ -955,6 +955,11 @@ var SettingsPage = {
       + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Once connected, BM will auto-request review responses, sync business hours, and post job photos to your GMB feed.</p>'
       + '</div>';
 
+    // ── SendJim — Direct Mail ──
+    html += '<div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">'
+      + (typeof SendJim !== 'undefined' ? SendJim.renderSettings() : '<p style="font-size:13px;color:var(--text-light);">SendJim module not loaded.</p>')
+      + '</div>';
+
     // ═══ close API Keys collapsible ═══
     html += '</div></details>';
 

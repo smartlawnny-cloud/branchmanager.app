@@ -1,5 +1,5 @@
 {
-  "version": 496,
+  "version": 497,
   "released": "2026-04-29",
-  "notes": "Call Center: Missed Calls tab — inbound calls & voicemails with Call Back / Text Back"
+  "notes": "SendJim direct mail live: edge fn deployed, hooks wired into jobs/clients/settings"
 }

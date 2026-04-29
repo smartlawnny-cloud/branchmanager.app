@@ -17314,7 +17314,17 @@ var EquipmentPage = {
   _getDocs: function(id) {
     try {
       var stored = localStorage.getItem('bm-equipment-docs-' + id);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        var docs = JSON.parse(stored);
+        // Migration: ensure Giant 254T has the bro-1-g1200 parts breakdown email attachment
+        if (id === 'eq4b' && !docs.find(function(d) { return d.id === 'doc-g6'; })) {
+          docs.push({ id: 'doc-g6', name: 'Giant G1200 / Kubota D902-E4B Parts Breakdown', type: 'parts',
+            url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-bro-1-g1200.pdf',
+            addedAt: '2026-04-29', note: 'Email attachment from Dan Wojick @ Belfast Inc.' });
+          EquipmentPage._saveDocs(id, docs);
+        }
+        return docs;
+      }
     } catch(e) {}
     // Pre-seed Bandit 254 Chipper (Giant/1200 w/ Kubota D902-E4B) with Dan Wojick's manuals
     if (id === 'eq4b') {
@@ -17333,7 +17343,10 @@ var EquipmentPage = {
           addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
         { id: 'doc-g5', name: 'Kubota D902-E4B Parts List (PDF)', type: 'parts',
           url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-parts-list.pdf',
-          addedAt: '2026-04-29', note: 'Uploaded to BM storage' }
+          addedAt: '2026-04-29', note: 'Uploaded to BM storage' },
+        { id: 'doc-g6', name: 'Giant G1200 / Kubota D902-E4B Parts Breakdown', type: 'parts',
+          url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-bro-1-g1200.pdf',
+          addedAt: '2026-04-29', note: 'Email attachment from Dan Wojick @ Belfast Inc.' }
       ];
       EquipmentPage._saveDocs(id, seed);
       return seed;
@@ -17385,7 +17398,11 @@ var EquipmentPage = {
         + '<div><strong>Thermostat</strong>: 19434-73015</div>'
         + '<div><strong>T-stat Gasket</strong>: 16221-73270</div>'
         + '</div>'
-        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Order: Diesel Parts Direct · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
+        + '<a href="https://www.messicks.com/search?q=" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#1565c0;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 Messick\'s</a>'
+        + '<a href="https://rlpartssupply.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#e65100;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 R&amp;L Parts Supply</a>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:5px;">Both sell Kubota OEM parts by part number · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
         + '</div>';
     }
 
@@ -25413,6 +25430,14 @@ var SettingsPage = {
       + '</div>'
       + '<div id="dialpad-test-result" style="margin-top:10px;font-size:13px;"></div>'
       + '<p style="font-size:11px;color:var(--text-light);margin-top:8px;">Get token at <a href="https://dialpad.com/accounts/api/keys" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">dialpad.com → API Keys</a>. Also register a 10DLC number for SMS compliance.</p>'
+      + '<div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Inbound SMS + Call Webhook</div>'
+      + '<div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Add this URL in Dialpad Admin → Automations → Webhooks. Events: <code>sms.received</code>, <code>call.ringing</code>, <code>call.completed</code>, <code>voicemail.created</code>.</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<code style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;word-break:break-all;">https://ltpivkqahvplapyagljt.supabase.co/functions/v1/dialpad-webhook</code>'
+      + '<button onclick="navigator.clipboard.writeText(\'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/dialpad-webhook\').then(function(){UI.toast(\'Copied!\');}).catch(function(){});" style="padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy</button>'
+      + '</div>'
+      + '</div>'
       + '</div>';
 
     // ── Gusto ──
@@ -44673,104 +44698,110 @@ var TaskReminders = {
     var todayStr = now.toDateString();
     var allIncomplete = tasks.filter(function(t) { return !t.completed; });
 
-    // Overdue (past dates, not today) → today → future/no-date, max 6 shown
+    // Overdue → today → future/no-date, max 6 shown
     var overdue = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate) < now && new Date(t.dueDate).toDateString() !== todayStr; });
-    var today = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate).toDateString() === todayStr; });
-    var rest = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
-    var shown = overdue.concat(today).concat(rest).slice(0, 6);
+    var today   = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate).toDateString() === todayStr; });
+    var rest    = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
+    var shown   = overdue.concat(today).concat(rest).slice(0, 6);
 
-    // AI suggestions injected by dashboard.js before calling this
     var aiInsights = window.__bmBriefingInsights || [];
+    var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
 
     var html = '<div style="background:var(--white);border-radius:12px;border:1px solid var(--border);margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">';
 
-    // Header
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:linear-gradient(135deg,#14331a,#1e5428);">';
-    html += '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-size:15px;color:#8fe89f;">✦</span>'
-      + '<span style="font-size:15px;font-weight:700;color:#fff;">Tasks for Today</span>';
-    if (allIncomplete.length > 0) {
-      html += '<span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;">' + allIncomplete.length + '</span>';
-    }
-    html += '</div>';
-    html += '<div style="display:flex;align-items:center;gap:10px;">';
-    html += '<a onclick="loadPage(\'taskreminders\')" style="font-size:12px;color:rgba(255,255,255,0.6);cursor:pointer;text-decoration:none;">View All →</a>';
-    html += '<button onclick="TaskReminders._openOverlay()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);padding:5px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">+ Add Task</button>';
-    html += '</div></div>';
+    // ── Header (matches Today's Jobs style) ──
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);">'
+      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Tasks for Today</h3>'
+      + (allIncomplete.length > 0
+          ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open task' + (allIncomplete.length !== 1 ? 's' : '') + '</div>'
+          : '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">All clear</div>')
+      + '</div>'
+      + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
+      + '</div>';
 
-    // Manual task rows
+    // ── Task rows ──
     if (shown.length > 0) {
       shown.forEach(function(task) {
-        var isOverdue = task.dueDate && new Date(task.dueDate) < now;
-        var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
+        var isOverdue = task.dueDate && new Date(task.dueDate) < now && new Date(task.dueDate).toDateString() !== todayStr;
         var dot = prioMap[task.priority] || '#6c757d';
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);">';
-        // Complete circle button
-        html += '<button onclick="TaskReminders._toggleComplete(\'' + task.id + '\')" '
-          + 'title="Mark complete" '
-          + 'style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:' + dot + ';"></button>';
-        // Task info (click to edit)
-        html += '<div style="flex:1;min-width:0;cursor:pointer;" onclick="TaskReminders._openOverlay(\'' + task.id + '\')">';
-        html += '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>';
         var meta = [];
-        if (task.assignedTo) meta.push('<span>👤 ' + UI.esc(task.assignedTo) + '</span>');
+        if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
         if (task.dueDate) {
-          var dueLabel = isOverdue
-            ? '<span style="color:var(--red);">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
-            : '<span style="color:var(--text-light);">' + TaskReminders._formatDue(task.dueDate, now) + '</span>';
-          meta.push(dueLabel);
+          meta.push(isOverdue
+            ? '<span style="color:#c62828;">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
+            : TaskReminders._formatDue(task.dueDate, now));
         }
-        if (meta.length > 0) html += '<div style="font-size:11px;display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;">' + meta.join('') + '</div>';
-        html += '</div>';
-        // Action link button (jump to linked record)
-        if (task.actionLink) {
-          html += '<button onclick="' + task.actionLink + '" '
-            + 'title="Open linked record" '
-            + 'style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-light);flex-shrink:0;white-space:nowrap;">→ View</button>';
+        if (task.category) {
+          var cat = TaskReminders.CATEGORIES.find(function(c){return c.key===task.category;});
+          if (cat) meta.push(cat.icon + ' ' + cat.label);
         }
-        // Edit button
-        html += '<button onclick="TaskReminders._openOverlay(\'' + task.id + '\')" '
-          + 'title="Edit" '
-          + 'style="background:none;border:none;padding:4px;cursor:pointer;color:var(--text-light);font-size:13px;flex-shrink:0;">✏</button>';
-        html += '</div>';
+
+        // Full row click → quick-complete sheet. Circle click → instant complete.
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
+          + '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" title="Mark complete" style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;"></button>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
+          + (meta.length ? '<div style="font-size:11px;color:var(--text-light);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">' + meta.join('<span style="opacity:.4;">·</span>') + '</div>' : '')
+          + '</div>'
+          + '<span style="font-size:18px;color:var(--text-light);">›</span>'
+          + '</div>';
       });
       if (allIncomplete.length > shown.length) {
-        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;border-bottom:1px solid var(--border);">'
-          + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more tasks →</a></div>';
+        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;">'
+          + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more →</a></div>';
       }
     } else if (aiInsights.length === 0) {
-      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks. Hit + Add Task to create one.</div>';
+      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks</div>';
     }
 
-    // AI Suggestions section
+    // ── AI Suggestions ──
     if (aiInsights.length > 0) {
-      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">';
-      html += '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ AI Suggestions</div>';
+      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">'
+        + '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ Suggestions</div>';
       aiInsights.forEach(function(ins, idx) {
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">';
-        html += '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>';
-        html += '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>';
-        // "+ Task" button — pre-fills form title + actionLink from this insight
-        html += '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" '
-          + 'style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>';
-        html += '</div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">'
+          + '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>'
+          + '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>'
+          + '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>'
+          + '</div>';
       });
       html += '</div>';
     }
 
-    // ── AI Quick-Add bar ──
-    html += '<div style="padding:10px 14px 12px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
-      + '<input type="text" id="bm-task-quickadd" placeholder="Quick-add a task… (or tap 🎤)"'
+    // ── Quick-add bar ──
+    html += '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
+      + '<input type="text" id="bm-task-quickadd" placeholder="Add a task…"'
       +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TaskReminders._quickAddSubmit();}"'
       +   ' style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg);color:var(--text);min-width:0;">'
-      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice input"'
-      +   ' style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;flex-shrink:0;padding:0;line-height:1;">🎤</button>'
-      + '<button onclick="TaskReminders._quickAddSubmit()" title="Add with AI enrichment"'
-      +   ' style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">✦ Add</button>'
+      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice" style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:15px;flex-shrink:0;padding:0;">🎤</button>'
+      + '<button onclick="TaskReminders._quickAddSubmit()" style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Add</button>'
       + '</div>';
 
     html += '</div>';
     return html;
+  },
+
+  // ── Quick-complete sheet (tap a task row → this) ──
+  _openQuickComplete: function(id) {
+    var task = TaskReminders._getAll().find(function(t) { return t.id === id; });
+    if (!task) return;
+    var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
+    var dot = prioMap[task.priority] || '#6c757d';
+    var meta = [];
+    if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
+    if (task.dueDate) meta.push('📅 ' + UI.dateShort(task.dueDate));
+    if (task.notes)   meta.push('<span style="color:var(--text-light);">' + UI.esc(task.notes.slice(0,80)) + '</span>');
+
+    var html = '<div style="text-align:center;padding:8px 0 16px;">'
+      + '<div style="width:10px;height:10px;border-radius:50%;background:' + dot + ';display:inline-block;margin-bottom:12px;"></div>'
+      + '<div style="font-size:17px;font-weight:700;margin-bottom:8px;line-height:1.3;">' + UI.esc(task.title) + '</div>'
+      + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-bottom:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' + meta.join('') + '</div>' : '<div style="margin-bottom:16px;"></div>')
+      + '<button onclick="TaskReminders._toggleComplete(\'' + id + '\');UI.closeModal();" style="width:100%;padding:14px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">✅ Mark Complete</button>'
+      + (task.actionLink ? '<button onclick="' + task.actionLink + ';UI.closeModal();" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;color:var(--text);">→ Open Linked Record</button>' : '')
+      + '<button onclick="UI.closeModal();TaskReminders._openOverlay(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Edit task</button>'
+      + '</div>';
+
+    UI.showModal(task.title, html);
   },
 
   // ── AI quick-add methods ──
@@ -47347,6 +47378,7 @@ var RBAC = {
 var CallCenter = {
   _activeTab: 'missed',  // 'missed' | 'threads' | 'activity'
   _activeThread: null,
+  _realtimeSub: null,
 
   render: function() {
     var html = '<div style="max-width:960px;margin:0 auto;">';
@@ -47358,8 +47390,8 @@ var CallCenter = {
       + '<div style="font-size:12px;color:var(--text-light);">Inbound calls, SMS threads, voicemails &amp; bid emails</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
-      + '<button onclick="CallCenter._openDialModal(\'call\')" style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:#1a7a3c;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="phone" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New Call</button>'
-      + '<button onclick="CallCenter._openDialModal(\'sms\')"  style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="message-square" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New SMS</button>'
+      + '<button onclick="CallCenter._openDialModal(\'call\')" style="padding:7px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">📞 Call</button>'
+      + '<button onclick="CallCenter._openDialModal(\'sms\')"  style="padding:7px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">💬 SMS</button>'
       + '</div>'
       + '</div>';
 
@@ -47394,6 +47426,12 @@ var CallCenter = {
   // ── Tab switching ────────────────────────────────────────────
 
   _switchTab: function(tab) {
+    // Clean up realtime sub when leaving SMS threads
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (sb && CallCenter._realtimeSub && tab !== 'threads') {
+      try { sb.removeChannel(CallCenter._realtimeSub); } catch(e) {}
+      CallCenter._realtimeSub = null;
+    }
     CallCenter._activeTab = tab;
     CallCenter._activeThread = null;
     ['missed','threads','activity'].forEach(function(t) {
@@ -47627,21 +47665,15 @@ var CallCenter = {
           var subject = c.body || '';
           var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
           var isLast = idx === rows.length - 1;
-          html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-            + '<div style="display:flex;align-items:flex-start;gap:12px;">'
-            + '<div style="flex-shrink:0;width:42px;height:42px;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + bidIcon + '</div>'
+          html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+            + '<div style="flex-shrink:0;width:32px;height:32px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + bidIcon + '</div>'
             + '<div style="flex:1;min-width:0;">'
-            + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
-            + '<span style="font-weight:700;font-size:14px;">' + (agency || 'Unknown Agency') + '</span>'
-            + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+            + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (agency || 'Unknown Agency') + '</div>'
+            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+            + (subject ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + subject.slice(0, 90) + (subject.length > 90 ? '…' : '') + '</div>' : '')
             + '</div>'
-            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:2px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
-            + (subject ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + subject.slice(0, 140) + (subject.length > 140 ? '…' : '') + '</div>' : '')
-            + '</div>'
-            + '</div>'
-            + '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
-            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">🔗 View Bid</a>' : '')
-            + '</div>'
+            + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</div>'
+            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" title="View bid" style="flex-shrink:0;width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:14px;">🔗</a>' : '')
             + '</div>';
           return;
         }
@@ -47659,40 +47691,23 @@ var CallCenter = {
         var safeId    = (c.client_id||'').replace(/'/g,"\\'");
         var isLast = idx === rows.length - 1;
 
-        html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-          + '<div style="display:flex;align-items:flex-start;gap:12px;">'
-
-          // Avatar / icon
-          + '<div style="flex-shrink:0;width:42px;height:42px;background:var(--surface);border:1.5px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + icon + '</div>'
-
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+          + '<div style="flex-shrink:0;width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + icon + '</div>'
           + '<div style="flex:1;min-width:0;">'
-          // Top row: name + timestamp
-          + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
-          + '<span style="font-weight:700;font-size:14px;">' + name + '</span>'
-          + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+          + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</div>'
+          + '<div style="font-size:12px;color:' + labelColor + ';font-weight:600;margin-top:1px;">'
+          + label + (dur ? ' · ' + dur : '') + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '')
           + '</div>'
-          // Second row: label + phone
-          + '<div style="font-size:12px;color:' + labelColor + ';font-weight:600;margin-top:2px;">'
-          + label
-          + (dur ? ' · ' + dur : '')
-          + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '')
+          + (c.body ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + c.body.slice(0, 90) + (c.body.length > 90 ? '…' : '') + '</div>' : '')
+          + (service ? '<div style="font-size:11px;color:var(--text-light);margin-top:1px;">Wants: ' + service + '</div>' : '')
           + '</div>'
-          // Message/transcript snippet
-          + (c.body ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + c.body.slice(0, 120) + (c.body.length > 120 ? '…' : '') + '</div>' : '')
-          // Service wanted (from sheet import metadata)
-          + (service ? '<div style="font-size:12px;color:var(--text-light);margin-top:3px;">Wants: ' + service + '</div>' : '')
-          + '</div>'
+          + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;flex-shrink:0;">' + ts + '</div>'
+          + (digits ? '<div style="display:flex;gap:4px;flex-shrink:0;">'
+            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'call\')" title="Call back" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">📞</button>'
+            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'sms\')" title="Text back" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">💬</button>'
+            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" title="Listen" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;">▶</a>' : '')
+            + '</div>' : '')
           + '</div>';
-
-        // Action buttons
-        if (digits) {
-          html += '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
-            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'call\')" style="padding:6px 14px;background:#1a7a3c;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📞 Call Back</button>'
-            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'sms\')"  style="padding:6px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">💬 Text Back</button>'
-            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">▶ Listen</a>' : '')
-            + '</div>';
-        }
-        html += '</div>';
       });
 
       html += '</div>';
@@ -47775,9 +47790,54 @@ var CallCenter = {
       });
       html += '</div>';
       el.innerHTML = html;
+
+      // Realtime: refresh thread list when a new inbound SMS arrives
+      CallCenter._subscribeRealtime(sb, null);
+
     } catch(e) {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light);">Failed to load messages.</div>';
     }
+  },
+
+  _subscribeRealtime: function(sb, activePhone) {
+    // Unsubscribe any existing channel
+    if (CallCenter._realtimeSub) {
+      try { sb.removeChannel(CallCenter._realtimeSub); } catch(e) {}
+      CallCenter._realtimeSub = null;
+    }
+    if (!sb || !sb.channel) return;
+    CallCenter._realtimeSub = sb.channel('cc-sms-' + Date.now())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'communications', filter: 'channel=eq.sms' }, function(payload) {
+        var row = payload.new || {};
+        if (activePhone) {
+          // Inside a thread — append if matching phone
+          var fromPhone = (row.from_number || '').replace(/\D/g, '').slice(-10);
+          var toPhone   = (row.to_number   || '').replace(/\D/g, '').slice(-10);
+          var thrPhone  = (activePhone || '').replace(/\D/g, '').slice(-10);
+          if (fromPhone === thrPhone || toPhone === thrPhone) {
+            CallCenter._appendThreadMsg(row);
+          }
+        } else {
+          // Thread list — re-render
+          if (CallCenter._activeTab === 'threads' && !CallCenter._activeThread) {
+            CallCenter._loadThreads();
+          }
+        }
+      })
+      .subscribe();
+  },
+
+  _appendThreadMsg: function(row) {
+    var msgsEl = document.getElementById('cc-thread-msgs');
+    if (!msgsEl) return;
+    var out = row.direction === 'outbound';
+    var ts = row.created_at ? new Date(row.created_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + ' · ' + new Date(row.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : 'now';
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;flex-direction:column;align-items:' + (out?'flex-end':'flex-start') + ';';
+    div.innerHTML = '<div style="max-width:72%;padding:9px 13px;border-radius:' + (out?'14px 14px 4px 14px':'14px 14px 14px 4px') + ';background:' + (out?'var(--green-dark)':'var(--surface)') + ';color:' + (out?'#fff':'var(--text)') + ';font-size:13px;line-height:1.45;border:' + (out?'none':'1px solid var(--border)') + ';">' + (row.body||'') + '</div>'
+      + '<div style="font-size:10px;color:var(--text-light);margin-top:2px;padding:0 2px;">' + ts + '</div>';
+    msgsEl.appendChild(div);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
   },
 
   _openThread: async function(thr) {
@@ -47836,6 +47896,8 @@ var CallCenter = {
       setTimeout(function() { msgsEl.scrollTop = msgsEl.scrollHeight; }, 50);
       var ri = document.getElementById('cc-reply-input');
       if (ri) ri.focus();
+      // Realtime: append new messages to this thread as they arrive
+      CallCenter._subscribeRealtime(sb, thr.phone);
     } catch(e) { console.warn('Thread load failed:', e); }
   },
 
