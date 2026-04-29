@@ -1,5 +1,5 @@
 {
-  "version": 497,
+  "version": 498,
   "released": "2026-04-29",
-  "notes": "SendJim direct mail live: edge fn deployed, hooks wired into jobs/clients/settings"
+  "notes": "Dashboard widgets compact: call center + tasks match jobs card style"
 }

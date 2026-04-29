@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 497; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 498; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -949,7 +949,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v497.min.js"></script>
+<script defer src="dist/bm.bundle.v498.min.js"></script>
 
 
 
@@ -2580,32 +2580,6 @@ if (window.location.hash && window.location.hash.length > 1) {
   <button data-bottom-page="_more" onclick="toggleSidebar()"><i data-lucide="menu"></i><span>More</span></button>
 </nav>
 
-<!-- v391: Ask-AI floating pill — visible on every page, opens AI panel with current page context. -->
-<button id="bm-ai-fab" type="button" aria-label="Ask Claude"
-  onclick="(function(){
-    if (typeof AI === 'undefined' || !AI.show) return;
-    AI.init && AI.init();
-    AI._pendingContext = (function(){
-      var hash = (location.hash || '').replace('#','') || 'dashboard';
-      var name = (document.querySelector('.nav-item.active') || {}).textContent || hash;
-      return 'I am on the ' + name.trim() + ' page.';
-    })();
-    AI.show();
-  })()"
-  style="position:fixed;bottom:20px;right:20px;z-index:9000;display:flex;align-items:center;gap:8px;padding:10px 16px;border:none;border-radius:999px;background:linear-gradient(135deg,#1a3c12,#2e7d32);color:#fff;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(26,60,18,.35);transition:transform .12s, box-shadow .12s;"
-  onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px rgba(26,60,18,.45)';"
-  onmouseout="this.style.transform='';this.style.boxShadow='0 4px 14px rgba(26,60,18,.35)';">
-  <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
-  <span>Ask Claude</span>
-</button>
-<style>
-  /* Hide the FAB on the AI page itself (already inline there) and on the login screen. */
-  body[data-page="ai"] #bm-ai-fab,
-  body.app-locked #bm-ai-fab { display:none !important; }
-  /* Bottom nav on mobile sits above 0 — push the FAB up so it doesn't overlap the More button */
-  @media (max-width: 768px) {
-    #bm-ai-fab { bottom: 78px; right: 14px; }
-  }
-</style>
+<!-- bm-ai-fab removed v498 (user preference: no floating Ask Claude button) -->
 </body>
 </html>

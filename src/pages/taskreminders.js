@@ -633,16 +633,15 @@ var TaskReminders = {
     var rest    = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
     var shown   = overdue.concat(today).concat(rest).slice(0, 6);
 
-    var aiInsights = window.__bmBriefingInsights || [];
     var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
 
-    var html = '<div style="background:var(--white);border-radius:12px;border:1px solid var(--border);margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">';
+    var html = '<div style="background:var(--white);border-radius:12px;padding:18px 20px;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
 
-    // ── Header (matches Today's Jobs style) ──
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);">'
-      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Tasks for Today</h3>'
+    // ── Header ──
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Tasks</h3>'
       + (allIncomplete.length > 0
-          ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open task' + (allIncomplete.length !== 1 ? 's' : '') + '</div>'
+          ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open</div>'
           : '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">All clear</div>')
       + '</div>'
       + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
@@ -650,7 +649,7 @@ var TaskReminders = {
 
     // ── Task rows ──
     if (shown.length > 0) {
-      shown.forEach(function(task) {
+      shown.forEach(function(task, idx) {
         var isOverdue = task.dueDate && new Date(task.dueDate) < now && new Date(task.dueDate).toDateString() !== todayStr;
         var dot = prioMap[task.priority] || '#6c757d';
         var meta = [];
@@ -664,47 +663,23 @@ var TaskReminders = {
           var cat = TaskReminders.CATEGORIES.find(function(c){return c.key===task.category;});
           if (cat) meta.push(cat.icon + ' ' + cat.label);
         }
-
-        // Full row click → quick-complete sheet. Circle click → instant complete.
-        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
-          + '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" title="Mark complete" style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;"></button>'
+        var isLast = idx === shown.length - 1 && allIncomplete.length <= shown.length;
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
+          + '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" title="Mark complete" style="width:20px;height:20px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;padding:0;"></button>'
           + '<div style="flex:1;min-width:0;">'
           + '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
-          + (meta.length ? '<div style="font-size:11px;color:var(--text-light);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">' + meta.join('<span style="opacity:.4;">·</span>') + '</div>' : '')
+          + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + meta.join(' · ') + '</div>' : '')
           + '</div>'
-          + '<span style="font-size:18px;color:var(--text-light);">›</span>'
+          + '<span style="font-size:14px;color:var(--text-light);">›</span>'
           + '</div>';
       });
       if (allIncomplete.length > shown.length) {
-        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;">'
+        html += '<div style="padding-top:8px;font-size:12px;color:var(--text-light);text-align:center;">'
           + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more →</a></div>';
       }
-    } else if (aiInsights.length === 0) {
-      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks</div>';
+    } else {
+      html += '<div style="padding:4px 0 8px;font-size:13px;color:var(--text-light);">No open tasks</div>';
     }
-
-    // ── AI Suggestions ──
-    if (aiInsights.length > 0) {
-      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">'
-        + '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ Suggestions</div>';
-      aiInsights.forEach(function(ins, idx) {
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">'
-          + '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>'
-          + '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>'
-          + '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>'
-          + '</div>';
-      });
-      html += '</div>';
-    }
-
-    // ── Quick-add bar ──
-    html += '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
-      + '<input type="text" id="bm-task-quickadd" placeholder="Add a task…"'
-      +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TaskReminders._quickAddSubmit();}"'
-      +   ' style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg);color:var(--text);min-width:0;">'
-      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice" style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:15px;flex-shrink:0;padding:0;">🎤</button>'
-      + '<button onclick="TaskReminders._quickAddSubmit()" style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Add</button>'
-      + '</div>';
 
     html += '</div>';
     return html;
