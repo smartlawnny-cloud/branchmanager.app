@@ -377,8 +377,15 @@ var TeamChat = {
 
   // ── Create task message ───────────────────────────────────────────────
   _addTask: function() {
-    var task = prompt('What needs to be done?');
-    if (!task || !task.trim()) return;
+    UI.modal('📋 New Task', '<input id="tc-task-input" placeholder="What needs to be done?" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;outline:none;" onfocus="this.style.borderColor=\'var(--green-dark)\'" onblur="this.style.borderColor=\'var(--border)\'" onkeydown="if(event.key===\'Enter\'){TeamChat._submitTask();}">', [{label:'Cancel',fn:'UI.closeModal()'},{label:'Create Task',fn:'TeamChat._submitTask()'}]);
+    setTimeout(function(){ var el=document.getElementById('tc-task-input'); if(el) el.focus(); }, 100);
+  },
+
+  _submitTask: function() {
+    var el = document.getElementById('tc-task-input');
+    var task = el ? el.value.trim() : '';
+    UI.closeModal();
+    if (!task) return;
     var row = {
       channel: TeamChat._channel,
       author: TeamChat._getCurrentUser(),
