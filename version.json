@@ -1,5 +1,5 @@
 {
-  "version": 466,
+  "version": 467,
   "released": "2026-04-28",
-  "notes": "Tasks for Today: interactive widget with edit, add, complete + AI suggestions"
+  "notes": "Fix Schedule today off-by-one: use local date instead of toISOString UTC"
 }
