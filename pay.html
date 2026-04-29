@@ -9,97 +9,134 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; min-height: 100vh; color: #1a202c; }
 
-  .pay-wrap { max-width: 520px; margin: 0 auto; padding: 20px 16px 60px; }
+  /* ── Layout ────────────────────────────────────────────────────────── */
+  .pay-shell { max-width: 980px; margin: 0 auto; padding: 28px 16px 60px; }
 
-  .brand { text-align: center; padding: 24px 0 20px; }
-  .brand-logo { width: 52px; height: 52px; background: #1a3c12; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 26px; margin-bottom: 8px; }
-  .brand-name { font-size: 18px; font-weight: 700; color: #1a3c12; }
-  .brand-sub { font-size: 13px; color: #718096; margin-top: 2px; }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+  .brand-logo { width: 44px; height: 44px; background: #1a3c12; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .brand-name { font-size: 17px; font-weight: 800; color: #1a3c12; }
+  .brand-sub  { font-size: 12px; color: #718096; margin-top: 1px; }
 
-  .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); overflow: hidden; margin-bottom: 16px; }
-  .card-header { background: linear-gradient(135deg, #1a3c12 0%, #00836c 100%); color: #fff; padding: 22px 24px; }
-  .card-header h1 { font-size: 16px; font-weight: 600; opacity: .85; margin-bottom: 4px; }
-  .card-header .amount { font-size: 42px; font-weight: 900; margin: 4px 0; letter-spacing: -1.5px; }
-  .card-header .meta { font-size: 13px; opacity: .75; }
-  .card-body { padding: 20px 24px; }
+  .pay-cols { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+  @media (max-width: 700px) { .pay-cols { grid-template-columns: 1fr; } }
 
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
-  .info-item label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #a0aec0; }
-  .info-item .val { font-size: 14px; font-weight: 600; color: #2d3748; margin-top: 3px; }
+  /* ── Left column: invoice card ─────────────────────────────────────── */
+  .inv-card { background: #fff; border-radius: 14px; box-shadow: 0 2px 16px rgba(0,0,0,.08); overflow: hidden; }
 
-  .line-items { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
-  .line-items table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .line-items th { padding: 10px 14px; background: #f7fafc; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #718096; text-align: left; }
-  .line-items th:last-child { text-align: right; }
-  .line-items td { padding: 10px 14px; border-top: 1px solid #e2e8f0; }
-  .line-items td:last-child { text-align: right; font-weight: 600; }
-  .line-items .total-row td { background: #f0f9f4; font-weight: 700; font-size: 14px; border-top: 2px solid #c6f6d5; color: #276749; }
+  .inv-header { background: #1a3c12; padding: 20px 24px; }
+  .inv-header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .inv-doc-type { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 3px; }
+  .inv-number   { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -.3px; }
+  .inv-amount   { font-size: 28px; font-weight: 900; color: #fff; letter-spacing: -1px; text-align: right; }
+  .inv-amount-label { font-size: 11px; color: rgba(255,255,255,.6); text-align: right; margin-bottom: 2px; }
 
-  .tip-section { margin-bottom: 20px; }
-  .tip-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: #2d3748; }
+  .inv-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 1px solid #e5e7eb; }
+  .inv-meta-item { padding: 14px 22px; border-right: 1px solid #e5e7eb; }
+  .inv-meta-item:last-child { border-right: none; }
+  .inv-meta-item:nth-child(n+3) { border-top: 1px solid #e5e7eb; }
+  .inv-meta-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 4px; }
+  .inv-meta-val   { font-size: 14px; font-weight: 600; color: #111; }
+
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-left: 6px; }
+  .status-paid     { background: #d1fae5; color: #065f46; }
+  .status-due      { background: #fef9c3; color: #854d0e; }
+  .status-overdue  { background: #fee2e2; color: #991b1b; }
+
+  /* Bill To section */
+  .bill-to { padding: 16px 22px; border-bottom: 1px solid #e5e7eb; }
+  .bill-to-label  { font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px; }
+  .bill-to-name   { font-size:15px;font-weight:700;color:#111;margin-bottom:2px; }
+  .bill-to-detail { font-size:13px;color:#4b5563;margin-top:1px; }
+
+  /* Subject bar */
+  .inv-subject { padding: 12px 22px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: 14px; font-weight: 700; color: #374151; }
+
+  /* Line items */
+  .line-items { overflow-x: auto; }
+  .line-items table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 400px; }
+  .line-items thead tr { background: #1a3c12; }
+  .line-items th { padding: 9px 14px; color: #fff; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; text-align: left; white-space: nowrap; }
+  .line-items th.r { text-align: right; }
+  .line-items th.c { text-align: center; }
+  .line-items td { padding: 10px 14px; border-bottom: 1px solid #e5e7eb; color: #111; vertical-align: top; }
+  .line-items td.r { text-align: right; font-weight: 600; }
+  .line-items td.c { text-align: center; }
+  .line-items tr:nth-child(even) td { background: #f8fafc; }
+  .line-svc  { font-weight: 700; }
+  .line-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+  /* Totals */
+  .inv-totals { display: flex; justify-content: flex-end; border-top: 2px solid #e5e7eb; }
+  .totals-inner { min-width: 260px; border-left: 1px solid #e5e7eb; }
+  .totals-row  { display: flex; justify-content: space-between; padding: 7px 16px; font-size: 13px; color: #4b5563; }
+  .totals-row span:last-child { font-weight: 600; color: #111; }
+  .totals-grand { background: #1a3c12; }
+  .totals-grand span { color: #fff !important; font-weight: 900 !important; font-size: 15px !important; padding: 10px 0; display: block; }
+
+  /* ── Right column: payment panel ───────────────────────────────────── */
+  .pay-panel { background: #fff; border-radius: 14px; box-shadow: 0 2px 16px rgba(0,0,0,.08); overflow: hidden; position: sticky; top: 20px; }
+  .pay-panel-header { background: #1a3c12; padding: 18px 22px; }
+  .pay-panel-header h2 { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+  .pay-panel-amount   { font-size: 30px; font-weight: 900; color: #fff; letter-spacing: -1px; }
+  .pay-panel-body     { padding: 20px 22px; }
+
+  .tip-section h3   { font-size: 14px; font-weight: 700; color: #2d3748; margin-bottom: 3px; }
   .tip-section .tip-sub { font-size: 12px; color: #a0aec0; margin-bottom: 12px; }
-  .tip-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
-  .tip-btn { padding: 12px 6px; border: 2px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer; text-align: center; transition: all .15s; }
+  .tip-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+  .tip-btn { padding: 10px 4px; border: 2px solid #e2e8f0; border-radius: 9px; background: #fff; cursor: pointer; text-align: center; transition: all .15s; }
   .tip-btn:hover { border-color: #b2dfdb; }
-  .tip-btn.active { border-color: #00836c; background: #f0faf8; }
-  .tip-btn .tip-pct { font-size: 17px; font-weight: 800; color: #2d3748; }
-  .tip-btn.active .tip-pct { color: #00836c; }
-  .tip-btn .tip-amt { font-size: 11px; color: #a0aec0; margin-top: 3px; }
-  .tip-btn.active .tip-amt { color: #00836c; }
-  .tip-custom-row { display: none; margin-top: 6px; }
-  .tip-custom-row.show { display: flex; gap: 8px; align-items: center; }
-  .tip-custom-row input { flex: 1; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 16px; text-align: center; }
-  .tip-custom-row input:focus { outline: none; border-color: #00836c; }
-  .tip-custom-btn { padding: 10px 16px; border: 2px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: #718096; white-space: nowrap; transition: all .15s; }
-  .tip-custom-btn.active { border-color: #00836c; color: #00836c; background: #f0faf8; }
+  .tip-btn.active { border-color: #1a3c12; background: #f0faf4; }
+  .tip-btn .tip-pct { font-size: 15px; font-weight: 800; color: #2d3748; white-space: pre; }
+  .tip-btn.active .tip-pct { color: #1a3c12; }
+  .tip-btn .tip-amt { font-size: 11px; color: #a0aec0; margin-top: 2px; }
+  .tip-btn.active .tip-amt { color: #1a3c12; }
+  .tip-custom-row { display: none; margin-top: 6px; gap: 8px; align-items: center; }
+  .tip-custom-row.show { display: flex; }
+  .tip-custom-row input { flex: 1; padding: 9px 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 15px; text-align: center; }
+  .tip-custom-row input:focus { outline: none; border-color: #1a3c12; }
+  .tip-custom-btn { padding: 9px 14px; border: 2px solid #e2e8f0; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: #718096; white-space: nowrap; transition: all .15s; }
+  .tip-custom-btn.active { border-color: #1a3c12; color: #1a3c12; background: #f0faf4; }
 
-  .totals-box { background: #f7fafc; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; }
-  .totals-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding: 4px 0; color: #4a5568; }
-  .totals-row.tip-row { color: #00836c; font-weight: 600; }
-  .totals-row.grand { font-size: 19px; font-weight: 900; color: #1a3c12; border-top: 2px solid #e2e8f0; margin-top: 8px; padding-top: 10px; }
+  .pay-totals { background: #f7fafc; border-radius: 9px; padding: 12px 14px; margin: 16px 0; }
+  .pay-total-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: #4a5568; }
+  .pay-total-row.tip-row { color: #1a3c12; font-weight: 600; }
+  .pay-total-row.grand   { font-size: 17px; font-weight: 900; color: #1a3c12; border-top: 2px solid #e2e8f0; margin-top: 6px; padding-top: 8px; }
 
-  .pay-btn { width: 100%; padding: 17px; background: linear-gradient(135deg, #00836c 0%, #1a3c12 100%); color: #fff; border: none; border-radius: 12px; font-size: 18px; font-weight: 800; cursor: pointer; margin-bottom: 12px; transition: all .15s; box-shadow: 0 4px 15px rgba(0,131,108,.35); }
-  .pay-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,131,108,.45); }
-  .pay-btn:active { transform: translateY(0); }
-  .pay-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+  .pay-btn { width: 100%; padding: 15px; background: #1a3c12; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-bottom: 10px; transition: all .15s; box-shadow: 0 3px 12px rgba(26,60,18,.3); }
+  .pay-btn:hover { background: #15310e; box-shadow: 0 5px 18px rgba(26,60,18,.4); }
+  .pay-btn:active { transform: translateY(1px); }
+  .pay-btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
-  .other-methods { background: #f7fafc; border-radius: 10px; padding: 16px 18px; }
-  .other-methods h4 { font-size: 11px; font-weight: 700; color: #a0aec0; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 12px; }
-  .method-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
-  .method-row:last-child { border-bottom: none; padding-bottom: 0; }
-  .method-icon { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
-  .method-label { font-size: 14px; font-weight: 600; color: #2d3748; }
+  .other-methods { border-top: 1px solid #e5e7eb; padding-top: 14px; }
+  .other-methods h4 { font-size: 11px; font-weight: 700; color: #a0aec0; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; }
+  .method-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+  .method-row:last-child { border-bottom: none; }
+  .method-icon   { width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .method-label  { font-size: 13px; font-weight: 600; color: #2d3748; }
   .method-detail { font-size: 12px; color: #718096; margin-top: 1px; }
 
-  .secure-badge { text-align: center; margin-top: 16px; font-size: 11px; color: #cbd5e0; }
+  .secure-badge { text-align: center; margin-top: 12px; font-size: 11px; color: #cbd5e0; }
 
-  .status-paid { text-align: center; padding: 48px 24px; }
-  .status-paid .check { font-size: 64px; }
-  .status-paid h2 { font-size: 24px; font-weight: 800; color: #276749; margin: 14px 0 8px; }
-  .status-paid p { color: #718096; font-size: 14px; line-height: 1.6; }
-
+  /* ── States ─────────────────────────────────────────────────────────── */
+  .state-center { text-align: center; padding: 56px 24px; }
+  .state-center .s-icon { font-size: 56px; margin-bottom: 14px; }
+  .state-center h2 { font-size: 22px; font-weight: 800; color: #276749; margin-bottom: 8px; }
+  .state-center p  { color: #718096; font-size: 14px; line-height: 1.6; }
+  .state-err h2    { color: #c53030; }
   .loading { text-align: center; padding: 60px 24px; color: #a0aec0; font-size: 14px; }
-  .error-msg { text-align: center; padding: 48px 24px; }
-  .error-msg .err-icon { font-size: 48px; margin-bottom: 12px; }
-  .error-msg h2 { color: #c53030; font-size: 20px; margin-bottom: 8px; }
-  .error-msg p { color: #718096; font-size: 14px; line-height: 1.6; }
-
-  @media (max-width: 400px) {
-    .info-grid { grid-template-columns: 1fr; }
-    .tip-options { grid-template-columns: repeat(2, 1fr); }
-    .card-header .amount { font-size: 34px; }
-  }
 </style>
 </head>
 <body>
-<div class="pay-wrap">
+<div class="pay-shell">
   <div class="brand">
     <div class="brand-logo">🌳</div>
-    <div class="brand-name" id="brand-name"></div>
-    <div class="brand-sub" id="brand-sub"></div>
+    <div>
+      <div class="brand-name" id="brand-name"></div>
+      <div class="brand-sub"  id="brand-sub"></div>
+    </div>
   </div>
   <div id="pay-content">
-    <div class="card"><div class="loading">Loading invoice…</div></div>
+    <div class="inv-card"><div class="loading">Loading invoice…</div></div>
   </div>
 </div>
 
@@ -115,9 +152,8 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
   var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0cGl2a3FhaHZwbGFweWFnbGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTgxNzIsImV4cCI6MjA4OTY3NDE3Mn0.bQ-wAx4Uu-FyA2ZwsTVfFoU2ZPbeWCmupqV-6ZR9uFI';
 
   var params = new URLSearchParams(window.location.search);
-  var invId = params.get('id') || params.get('inv');
-
-  var state = { invoice: null, tip: 0, tipPct: 0 };
+  var invId  = params.get('id') || params.get('inv');
+  var state  = { invoice: null, tip: 0, tipPct: 0, tenantBaseLink: '' };
 
   function fmt(n) {
     n = parseFloat(n) || 0;
@@ -129,41 +165,81 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
   }
   function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+  function statusBadge(inv) {
+    if (inv.status === 'paid') return '<span class="status-badge status-paid">Paid</span>';
+    var due = inv.due_date || inv.dueDate;
+    if (!due) return '';
+    var days = Math.round((new Date(due) - Date.now()) / 86400000);
+    if (days < 0)   return '<span class="status-badge status-overdue">Past Due</span>';
+    if (days === 0) return '<span class="status-badge status-due">Due Today</span>';
+    if (days <= 7)  return '<span class="status-badge status-due">Due in ' + days + ' day' + (days===1?'':'s') + '</span>';
+    return '';
+  }
+
   function render() {
     var inv = state.invoice;
-    var el = document.getElementById('pay-content');
+    var el  = document.getElementById('pay-content');
+
     if (!inv) {
-      el.innerHTML = '<div class="card"><div class="error-msg"><div class="err-icon">🔍</div><h2>Invoice Not Found</h2><p>This link may have expired or the invoice number is incorrect.<br>Please check your email or contact us.</p><p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#00836c;font-weight:700;font-size:16px;">📞 ' + esc(BM_CONFIG.phone) + '</a></p></div></div>';
-      return;
-    }
-    if (inv.status === 'paid') {
-      el.innerHTML = '<div class="card"><div class="status-paid"><div class="check">✅</div><h2>All Paid — Thank You!</h2><p>Invoice #' + esc(inv.invoice_number || inv.invoiceNumber || '') + ' for <strong>' + esc(inv.client_name || inv.clientName || '') + '</strong> has been paid in full.<br><br>We appreciate your business!</p><p style="margin-top:20px;"><a href="' + esc(BM_CONFIG.websiteUrl) + '" style="color:#00836c;">Back to ' + esc(BM_CONFIG.website) + '</a></p></div></div>';
+      el.innerHTML = '<div class="inv-card"><div class="state-center state-err">'
+        + '<div class="s-icon">🔍</div><h2>Invoice Not Found</h2>'
+        + '<p>This link may have expired or the invoice number is incorrect.<br>Please check your email or contact us.</p>'
+        + '<p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#1a3c12;font-weight:700;font-size:16px;">📞 ' + esc(BM_CONFIG.phone) + '</a></p>'
+        + '</div></div>';
       return;
     }
 
-    var balance = parseFloat(inv.balance || inv.total || 0);
-    var tipAmt = state.tip;
+    if (inv.status === 'paid') {
+      el.innerHTML = '<div class="inv-card"><div class="state-center">'
+        + '<div class="s-icon">✅</div><h2>All Paid — Thank You!</h2>'
+        + '<p>Invoice #' + esc(inv.invoice_number||inv.invoiceNumber||'') + ' for <strong>' + esc(inv.client_name||inv.clientName||'') + '</strong> has been paid in full.<br><br>We appreciate your business!</p>'
+        + '<p style="margin-top:20px;"><a href="' + esc(BM_CONFIG.websiteUrl) + '" style="color:#1a3c12;">Back to ' + esc(BM_CONFIG.website) + '</a></p>'
+        + '</div></div>';
+      return;
+    }
+
+    var balance    = parseFloat(inv.balance || inv.total || 0);
+    var tipAmt     = state.tip;
     var grandTotal = balance + tipAmt;
 
     // Line items
     var lineItems = [];
     try { lineItems = inv.line_items || inv.lineItems || JSON.parse(inv.lineItemsJson || '[]') || []; } catch(e) { lineItems = []; }
+
     var lineHtml = '';
     if (lineItems.length > 0) {
-      lineHtml = '<div class="line-items"><table><thead><tr><th>Service</th><th style="text-align:right;">Amount</th></tr></thead><tbody>';
+      lineHtml = '<div class="line-items"><table><thead><tr>'
+        + '<th>Service</th><th>Description</th><th class="c">Qty</th><th class="r">Unit Price</th><th class="r">Total</th>'
+        + '</tr></thead><tbody>';
       lineItems.forEach(function(item) {
-        var amt = parseFloat(item.amount || ((parseFloat(item.qty)||1) * (parseFloat(item.rate)||0)));
-        lineHtml += '<tr><td><div style="font-weight:600;">' + esc(item.service || item.name || 'Tree Service') + '</div>'
-          + (item.description ? '<div style="font-size:12px;color:#718096;">' + esc(item.description) + '</div>' : '')
-          + '</td><td>' + fmt(amt) + '</td></tr>';
+        var qty  = parseFloat(item.qty || 1);
+        var rate = parseFloat(item.rate || 0);
+        var amt  = parseFloat(item.amount || (qty * rate));
+        lineHtml += '<tr>'
+          + '<td><div class="line-svc">' + esc(item.service || item.name || 'Tree Service') + '</div></td>'
+          + '<td><div class="line-desc">' + esc(item.description || '') + '</div></td>'
+          + '<td class="c">' + qty + '</td>'
+          + '<td class="r">' + fmt(rate) + '</td>'
+          + '<td class="r">' + fmt(amt) + '</td>'
+          + '</tr>';
       });
-      lineHtml += '<tr class="total-row"><td>Total</td><td>' + fmt(inv.total || balance) + '</td></tr></tbody></table></div>';
+      lineHtml += '</tbody></table></div>';
     }
 
+    // Totals block
+    var sub     = parseFloat(inv.subtotal || balance);
+    var taxPct  = parseFloat(inv.tax_rate || inv.taxRate || 0);
+    var taxAmt2 = parseFloat(inv.tax_amount || inv.taxAmount || 0);
+    var totalsHtml = '<div class="inv-totals"><div class="totals-inner">'
+      + '<div class="totals-row"><span>Subtotal</span><span>' + fmt(sub) + '</span></div>'
+      + (taxPct > 0 ? '<div class="totals-row"><span>Tax (' + taxPct + '%)</span><span>' + fmt(taxAmt2) + '</span></div>' : '')
+      + '<div class="totals-row totals-grand"><span>Total</span><span>' + fmt(balance) + '</span></div>'
+      + '</div></div>';
+
     // Tip buttons
-    var tipPcts = [0, 10, 15, 20];
+    var tipPcts     = [0, 10, 15, 20];
     var tipBtnsHtml = tipPcts.map(function(pct) {
-      var amt = Math.round(balance * pct) / 100;
+      var amt      = Math.round(balance * pct) / 100;
       var isActive = state.tipPct === pct;
       return '<div class="tip-btn' + (isActive ? ' active' : '') + '" onclick="PAY.selectTip(' + pct + ')">'
         + '<div class="tip-pct">' + (pct === 0 ? 'No\ntip' : pct + '%') + '</div>'
@@ -171,58 +247,75 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
         + '</div>';
     }).join('');
 
-    var isCustomActive = state.tipPct === -1;
-    // Per-invoice override → tenant config (multi-tenant safe) → localStorage
-    // (only useful when the link is opened in Doug's own browser — customers
-    // never have it). The tenant fetch happens after invoice load; see fetch
-    // chain at the bottom of this file.
+    var isCustom   = state.tipPct === -1;
     var stripeLink = inv.stripe_payment_url || inv.stripePaymentUrl || state.tenantBaseLink || '';
     if (!stripeLink) { try { stripeLink = localStorage.getItem('bm-stripe-base-link') || ''; } catch(e) {} }
 
-    el.innerHTML = '<div class="card">'
-      + '<div class="card-header">'
-      + '<h1>Invoice #' + esc(inv.invoice_number || inv.invoiceNumber || '') + '</h1>'
-      + '<div class="amount">' + fmt(balance) + '</div>'
-      + '<div class="meta">' + esc(inv.client_name || inv.clientName || '') + ' &nbsp;·&nbsp; Due ' + dateStr(inv.due_date || inv.dueDate) + '</div>'
+    var clientName  = esc(inv.client_name || inv.clientName || '');
+    var clientAddr  = esc(inv.property || inv.client_address || '');
+    var clientPhone = esc(inv.client_phone || inv.clientPhone || '');
+
+    el.innerHTML = '<div class="pay-cols">'
+
+      // ── Left: invoice details ───────────────────────────────────────
+      + '<div class="inv-card">'
+      + '<div class="inv-header">'
+      + '<div class="inv-header-row">'
+      + '<div><div class="inv-doc-type">Invoice</div><div class="inv-number">#' + esc(inv.invoice_number||inv.invoiceNumber||'') + '</div></div>'
+      + '<div><div class="inv-amount-label">Balance Due</div><div class="inv-amount">' + fmt(balance) + '</div></div>'
+      + '</div></div>'
+
+      + '<div class="inv-meta">'
+      + '<div class="inv-meta-item"><div class="inv-meta-label">Invoice Date</div><div class="inv-meta-val">' + dateStr(inv.issued_date||inv.issuedDate||inv.created_at||inv.createdAt) + '</div></div>'
+      + '<div class="inv-meta-item"><div class="inv-meta-label">Due Date</div><div class="inv-meta-val">' + dateStr(inv.due_date||inv.dueDate) + statusBadge(inv) + '</div></div>'
       + '</div>'
-      + '<div class="card-body">'
-      // Info grid
-      + '<div class="info-grid">'
-      + '<div class="info-item"><label>Invoice Date</label><div class="val">' + dateStr(inv.issued_date || inv.issuedDate || inv.created_at || inv.createdAt) + '</div></div>'
-      + '<div class="info-item"><label>Due Date</label><div class="val">' + dateStr(inv.due_date || inv.dueDate) + '</div></div>'
-      + (inv.subject ? '<div class="info-item" style="grid-column:1/-1"><label>Services</label><div class="val">' + esc(inv.subject) + '</div></div>' : '')
-      + '</div>'
-      // Line items (if any)
+
+      + (clientName ? '<div class="bill-to"><div class="bill-to-label">Bill To</div><div class="bill-to-name">' + clientName + '</div>'
+          + (clientAddr  ? '<div class="bill-to-detail">' + clientAddr  + '</div>' : '')
+          + (clientPhone ? '<div class="bill-to-detail">' + clientPhone + '</div>' : '')
+          + '</div>' : '')
+
+      + (inv.subject ? '<div class="inv-subject">' + esc(inv.subject) + '</div>' : '')
+
       + lineHtml
-      // Tip section
+      + totalsHtml
+      + '</div>' // inv-card
+
+      // ── Right: payment panel ────────────────────────────────────────
+      + '<div class="pay-panel">'
+      + '<div class="pay-panel-header"><h2>Pay Online</h2><div class="pay-panel-amount" id="pay-panel-amount">' + fmt(grandTotal) + '</div></div>'
+      + '<div class="pay-panel-body">'
+
       + '<div class="tip-section">'
       + '<h3>Add a Gratuity</h3>'
-      + '<p class="tip-sub">100% goes directly to the crew — always appreciated but never expected.</p>'
+      + '<p class="tip-sub">100% goes to the crew — appreciated but never expected.</p>'
       + '<div class="tip-options">' + tipBtnsHtml + '</div>'
-      + '<div class="tip-custom-row' + (isCustomActive ? ' show' : '') + '" id="tip-custom-row">'
+      + '<div class="tip-custom-row' + (isCustom ? ' show' : '') + '" id="tip-custom-row">'
       + '<input type="number" id="tip-custom-input" min="0" step="0.01" placeholder="Custom $" oninput="PAY.customTip(this.value)">'
-      + '<button class="tip-custom-btn' + (isCustomActive ? ' active' : '') + '" onclick="PAY.selectTip(-1)">Custom</button>'
+      + '<button class="tip-custom-btn' + (isCustom ? ' active' : '') + '" onclick="PAY.selectTip(-1)">Custom</button>'
       + '</div>'
-      + (!isCustomActive ? '<button class="tip-custom-btn" style="width:100%;margin-top:8px;" onclick="PAY.selectTip(-1)">Enter custom amount</button>' : '')
+      + (!isCustom ? '<button class="tip-custom-btn" style="width:100%;margin-top:8px;" onclick="PAY.selectTip(-1)">Enter custom amount</button>' : '')
       + '</div>'
-      // Totals
-      + '<div class="totals-box">'
-      + '<div class="totals-row"><span>Invoice balance</span><span>' + fmt(balance) + '</span></div>'
-      + (tipAmt > 0 ? '<div class="totals-row tip-row"><span>Gratuity 💚</span><span>+ ' + fmt(tipAmt) + '</span></div>' : '')
-      + '<div class="totals-row grand"><span>Total to pay</span><span id="grand-total">' + fmt(grandTotal) + '</span></div>'
+
+      + '<div class="pay-totals">'
+      + '<div class="pay-total-row"><span>Invoice balance</span><span>' + fmt(balance) + '</span></div>'
+      + (tipAmt > 0 ? '<div class="pay-total-row tip-row"><span>Gratuity 💚</span><span>+ ' + fmt(tipAmt) + '</span></div>' : '')
+      + '<div class="pay-total-row grand"><span>Total to pay</span><span id="grand-total">' + fmt(grandTotal) + '</span></div>'
       + '</div>'
-      // Pay button
+
       + (stripeLink
-        ? '<button class="pay-btn" id="pay-btn" onclick="PAY.payWithCard()">💳 Pay ' + fmt(grandTotal) + ' with Card</button>'
-        : '<button class="pay-btn" disabled>💳 Online payment not set up yet</button>')
-      // Other methods
-      + '<div class="other-methods">'
-      + '<h4>Other ways to pay</h4>'
-      + '<div class="method-row"><div class="method-icon" style="background:#f0f4ff;">📞</div><div><div class="method-label">Questions?</div><div class="method-detail">Call or text ' + esc(BM_CONFIG.phone) + '</div></div></div>'
-      + '<div class="method-row"><div class="method-icon" style="background:#fce4ec;">📞</div><div><div class="method-label">Call or Text</div><div class="method-detail"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#00836c;font-weight:600;">' + esc(BM_CONFIG.phone) + '</a> &nbsp;·&nbsp; ' + esc(BM_CONFIG.ownerName) + '</div></div></div>'
+          ? '<button class="pay-btn" id="pay-btn" onclick="PAY.payWithCard()">💳 Pay ' + fmt(grandTotal) + ' with Card</button>'
+          : '<button class="pay-btn" disabled>💳 Online payment not set up yet</button>')
+
+      + '<div class="other-methods"><h4>Other ways to pay</h4>'
+      + '<div class="method-row"><div class="method-icon" style="background:#f0fdf4;">📞</div><div><div class="method-label">Call or Text</div><div class="method-detail"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#1a3c12;font-weight:600;">' + esc(BM_CONFIG.phone) + '</a></div></div></div>'
       + '</div>'
-      + (stripeLink ? '<div class="secure-badge">🔒 Card payments secured by Stripe &nbsp;·&nbsp; We never store your card info</div>' : '')
-      + '</div></div>';
+
+      + (stripeLink ? '<div class="secure-badge">🔒 Secured by Stripe · We never store your card info</div>' : '')
+      + '</div>' // pay-panel-body
+      + '</div>' // pay-panel
+
+      + '</div>'; // pay-cols
   }
 
   var PAY = window.PAY = {
@@ -233,115 +326,85 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       if (pct === -1) {
         state.tip = 0;
       } else {
-        var balance = parseFloat(inv.balance || inv.total || 0);
-        state.tip = Math.round(balance * pct) / 100;
+        state.tip = Math.round(parseFloat(inv.balance || inv.total || 0) * pct) / 100;
       }
       render();
-      if (pct === -1) {
-        var inp = document.getElementById('tip-custom-input');
-        if (inp) inp.focus();
-      }
+      if (pct === -1) { var inp = document.getElementById('tip-custom-input'); if (inp) inp.focus(); }
     },
 
     customTip: function(val) {
       state.tip = parseFloat(val) || 0;
-      var balance = parseFloat(state.invoice.balance || state.invoice.total || 0);
-      var grandTotal = balance + state.tip;
-      var gt = document.getElementById('grand-total');
-      if (gt) gt.textContent = fmt(grandTotal);
+      var grandTotal = parseFloat(state.invoice.balance || state.invoice.total || 0) + state.tip;
+      var gt  = document.getElementById('grand-total');
+      var pa  = document.getElementById('pay-panel-amount');
       var btn = document.getElementById('pay-btn');
+      if (gt)  gt.textContent  = fmt(grandTotal);
+      if (pa)  pa.textContent  = fmt(grandTotal);
       if (btn) btn.textContent = '💳 Pay ' + fmt(grandTotal) + ' with Card';
     },
 
     payWithCard: function() {
       var inv = state.invoice;
       if (!inv) return;
-      var balance = parseFloat(inv.balance || inv.total || 0);
-      var grandTotal = balance + state.tip;
+      var grandTotal = parseFloat(inv.balance || inv.total || 0) + state.tip;
 
-      // Get payment link: invoice-specific → tenant config → localStorage → URL param
       var stripeLink = inv.stripe_payment_url || inv.stripePaymentUrl || state.tenantBaseLink || '';
-
-      // Fall back to base link stored in localStorage (same domain as main app)
-      if (!stripeLink) {
-        try { stripeLink = localStorage.getItem('bm-stripe-base-link') || ''; } catch(e) {}
-      }
-      // Final fallback: base link passed as URL param
-      if (!stripeLink) {
-        stripeLink = params.get('stripe') || '';
-      }
+      if (!stripeLink) { try { stripeLink = localStorage.getItem('bm-stripe-base-link') || ''; } catch(e) {} }
+      if (!stripeLink) { stripeLink = params.get('stripe') || ''; }
 
       if (!stripeLink) {
         alert('Online card payment is not available for this invoice yet.\n\nPlease call ' + BM_CONFIG.phone + ' to arrange payment.');
         return;
       }
 
-      // Append prefilled_quantity in CENTS so Stripe pre-fills the exact amount.
-      // This works when the Stripe Payment Link product is priced at $0.01 per unit
-      // with "Let customers adjust quantity" enabled.
-      var cents = Math.round(grandTotal * 100);
-      var sep = stripeLink.indexOf('?') >= 0 ? '&' : '?';
-      // client_reference_id lets the stripe-webhook find this invoice by
-      // number when checkout.session.completed fires. Without it the webhook
-      // has no way to know which row to mark paid.
+      var cents  = Math.round(grandTotal * 100);
+      var sep    = stripeLink.indexOf('?') >= 0 ? '&' : '?';
       var invNum = inv.invoice_number || inv.invoiceNumber || '';
-      var ref = invNum ? '&client_reference_id=INV-' + encodeURIComponent(invNum) : '';
+      var ref    = invNum ? '&client_reference_id=INV-' + encodeURIComponent(invNum) : '';
       window.location.href = stripeLink + sep + 'prefilled_quantity=' + cents + ref;
     }
   };
 
-  // Load invoice from Supabase — with fallback by invoice_number for legacy IDs
+  // ── Load invoice ────────────────────────────────────────────────────────
   if (!invId) {
-    document.getElementById('pay-content').innerHTML = '<div class="card"><div class="error-msg"><div class="err-icon">❓</div><h2>No Invoice Specified</h2><p>Please use the link from your invoice email.</p><p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#00836c;font-weight:700;font-size:16px;">📞 ' + BM_CONFIG.phone + '</a></p></div></div>';
-  } else {
-    var hdrs = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+    document.getElementById('pay-content').innerHTML = '<div class="inv-card"><div class="state-center state-err">'
+      + '<div class="s-icon">❓</div><h2>No Invoice Specified</h2><p>Please use the link from your invoice email.</p>'
+      + '<p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#1a3c12;font-weight:700;font-size:16px;">📞 ' + BM_CONFIG.phone + '</a></p>'
+      + '</div></div>';
+    return;
+  }
 
-    // After invoice loads, also fetch tenant config so the Stripe base link
-    // (set by Doug in BM Settings, written to tenants.config.stripe_base_link)
-    // is available to the customer's browser. Without this fetch the Pay
-    // button stays disabled with "Online payment not set up yet".
-    function loadTenantConfig() {
-      var inv = state.invoice;
-      if (!inv || !inv.tenant_id) { render(); return; }
-      fetch(SUPABASE_URL + '/rest/v1/tenants?id=eq.' + encodeURIComponent(inv.tenant_id) + '&select=config&limit=1', { headers: hdrs })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data && data[0] && data[0].config && data[0].config.stripe_base_link) {
-            state.tenantBaseLink = data[0].config.stripe_base_link;
-          }
-        })
-        .catch(function() { /* fall through — render without base link */ })
-        .finally(function() { render(); });
-    }
+  var hdrs = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
 
-    // Primary: lookup by UUID id
-    fetch(SUPABASE_URL + '/rest/v1/invoices?id=eq.' + encodeURIComponent(invId) + '&select=*&limit=1', { headers: hdrs })
+  function loadTenantConfig() {
+    var inv = state.invoice;
+    if (!inv || !inv.tenant_id) { render(); return; }
+    fetch(SUPABASE_URL + '/rest/v1/tenants?id=eq.' + encodeURIComponent(inv.tenant_id) + '&select=config&limit=1', { headers: hdrs })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data && data[0] && data[0].config && data[0].config.stripe_base_link) {
+          state.tenantBaseLink = data[0].config.stripe_base_link;
+        }
+      })
+      .catch(function() {})
+      .finally(function() { render(); });
+  }
+
+  // Primary: UUID
+  fetch(SUPABASE_URL + '/rest/v1/invoices?id=eq.' + encodeURIComponent(invId) + '&select=*&limit=1', { headers: hdrs })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data && data[0]) {
-        state.invoice = data[0];
-        loadTenantConfig();
-        return;
-      }
-      // Fallback 1: try by invoice_number if invId is numeric
+      if (data && data[0]) { state.invoice = data[0]; loadTenantConfig(); return; }
+      // Fallback: invoice_number
       var num = parseInt(invId);
       if (!isNaN(num) && num > 0) {
         return fetch(SUPABASE_URL + '/rest/v1/invoices?invoice_number=eq.' + num + '&select=*&limit=1', { headers: hdrs })
           .then(function(r2) { return r2.json(); })
-          .then(function(data2) {
-            state.invoice = (data2 && data2[0]) ? data2[0] : null;
-            loadTenantConfig();
-          });
+          .then(function(data2) { state.invoice = (data2 && data2[0]) ? data2[0] : null; loadTenantConfig(); });
       }
-      // Fallback 2: not found
-      state.invoice = null;
-      render();
+      state.invoice = null; render();
     })
-    .catch(function() {
-      state.invoice = null;
-      render();
-    });
-  }
+    .catch(function() { state.invoice = null; render(); });
 })();
 </script>
 </body>

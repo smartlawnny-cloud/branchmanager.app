@@ -2062,42 +2062,130 @@ var QuotesPage = {
     if (!q) return '';
     var _co = QuotesPage._co();
     var approvalLink = QuotesPage._getApprovalLink(id);
-    var firstName = (q.clientName || '').split(' ')[0] || 'there';
-    var lineItemsHtml = '';
+    function fmt(n) { n = parseFloat(n)||0; return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    var issuedDate = q.createdAt ? new Date(q.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    var validUntil = q.expiresAt ? new Date(q.expiresAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : new Date(Date.now()+30*86400000).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    var subtotal = parseFloat(q.subtotal||q.total||0);
+    var taxRate  = parseFloat(q.taxRate||0);
+    var taxAmt   = parseFloat(q.taxAmount||0);
+    var total    = parseFloat(q.total||0);
+
+    // ── Line item rows ────────────────────────────────────────────────────
+    var liRows = '';
     if (q.lineItems && q.lineItems.length) {
-      lineItemsHtml = '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">'
-        + '<tr style="background:#f0f9f4;"><th style="padding:8px 12px;text-align:left;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">SERVICE</th><th style="padding:8px 12px;text-align:right;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">AMOUNT</th></tr>';
-      q.lineItems.forEach(function(item) {
-        var amt = item.amount || ((item.qty||1) * (item.rate||0));
-        lineItemsHtml += '<tr><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">' + (item.service||item.description||'Service') + '</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #e0e0e0;font-weight:600;">' + UI.money(amt) + '</td></tr>';
+      q.lineItems.forEach(function(item, i) {
+        var bg  = i%2===0 ? '#ffffff' : '#f8fafc';
+        var qty = parseFloat(item.qty||1);
+        var rate= parseFloat(item.rate||0);
+        var amt = parseFloat(item.amount||(qty*rate));
+        liRows += '<tr style="background:' + bg + ';">'
+          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111;font-size:13px;">'     + esc(item.service||'Tree Service') + '</td>'
+          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;">'                 + esc(item.description||'') + '</td>'
+          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#111;font-size:13px;">'  + qty + '</td>'
+          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:right;color:#111;font-size:13px;">'   + fmt(rate) + '</td>'
+          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#111;font-size:13px;">' + fmt(amt) + '</td>'
+          + '</tr>';
       });
-      if (q.subtotal && q.taxRate) {
-        lineItemsHtml += '<tr><td style="padding:6px 12px;color:#718096;">Subtotal</td><td style="padding:6px 12px;text-align:right;">' + UI.money(q.subtotal) + '</td></tr>';
-        lineItemsHtml += '<tr><td style="padding:6px 12px;color:#718096;">Tax (' + q.taxRate + '%)</td><td style="padding:6px 12px;text-align:right;">' + UI.money(q.taxAmount||0) + '</td></tr>';
-      }
-      lineItemsHtml += '<tr style="background:#f0f9f4;"><td style="padding:10px 12px;font-weight:700;">Quote Total</td><td style="padding:10px 12px;text-align:right;font-weight:800;color:#00836c;font-size:16px;">' + UI.money(q.total) + '</td></tr>';
-      lineItemsHtml += '</table>';
     }
-    return '<div style="background:#f5f6f8;padding:24px 0;">'
-      + '<div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
-      + '<div style="background:linear-gradient(135deg,#1a3c12 0%,#00836c 100%);border-radius:12px 12px 0 0;padding:24px 28px;color:#fff;">'
-      + '<div style="font-size:13px;opacity:.8;margin-bottom:4px;">🌳 ' + _co.name + '</div>'
-      + '<div style="font-size:24px;font-weight:900;letter-spacing:-.5px;">Quote #' + (q.quoteNumber||'') + '</div>'
-      + '<div style="font-size:38px;font-weight:900;margin:6px 0 4px;letter-spacing:-1px;">' + UI.money(q.total||0) + '</div>'
-      + '<div style="font-size:13px;opacity:.75;">' + (q.property ? '📍 ' + q.property : '') + '</div>'
-      + '</div>'
-      + '<div style="background:#fff;border-radius:0 0 12px 12px;padding:24px 28px;">'
-      + '<p style="font-size:15px;color:#2d3748;margin-bottom:12px;">Hi ' + firstName + ',</p>'
-      + '<p style="font-size:14px;color:#4a5568;line-height:1.6;margin-bottom:16px;">Thanks for reaching out to ' + _co.name + '! Here\'s the quote for the work we discussed. You can approve it online — no login required.</p>'
-      + (q.description ? '<p style="font-size:13px;color:#718096;background:#f7fafc;padding:10px 12px;border-radius:6px;margin-bottom:16px;"><strong>Scope:</strong> ' + q.description + '</p>' : '')
-      + lineItemsHtml
-      + '<div style="text-align:center;margin:24px 0;">'
-      + '<a href="' + approvalLink + '" style="display:inline-block;background:linear-gradient(135deg,#00836c,#1a3c12);color:#fff;padding:16px 36px;border-radius:10px;font-size:17px;font-weight:800;text-decoration:none;box-shadow:0 4px 14px rgba(0,131,108,.35);">✅ View & Approve Quote</a>'
-      + '</div>'
-      + '<p style="font-size:12px;color:#a0aec0;text-align:center;margin-bottom:20px;">This quote is valid for 30 days. Click above to approve or request changes.</p>'
-      + '<p style="font-size:13px;color:#718096;">Questions? Reply to this email or call/text <strong>' + _co.phone + '</strong>.</p>'
-      + '<p style="font-size:13px;color:#2d3748;margin-top:12px;">Thanks,<br><strong>Doug Brown</strong><br>' + _co.name + '<br>Licensed & Insured — ' + _co.licenses + '</p>'
-      + '</div></div></div>';
+    // ── Totals rows ───────────────────────────────────────────────────────
+    var totalsRows = '<tr><td style="padding:7px 16px 7px 0;color:#4b5563;font-size:13px;text-align:right;">Subtotal</td>'
+      + '<td style="padding:7px 16px;color:#111;font-size:13px;text-align:right;font-weight:600;min-width:100px;">' + fmt(subtotal) + '</td></tr>';
+    if (taxRate > 0) {
+      totalsRows += '<tr><td style="padding:4px 16px 4px 0;color:#4b5563;font-size:13px;text-align:right;">Tax (' + taxRate + '%)</td>'
+        + '<td style="padding:4px 16px;color:#111;font-size:13px;text-align:right;">' + fmt(taxAmt) + '</td></tr>';
+    }
+    totalsRows += '<tr style="background:#1a3c12;"><td style="padding:10px 16px 10px 0;color:#fff;font-size:14px;font-weight:700;text-align:right;">Total</td>'
+      + '<td style="padding:10px 16px;color:#fff;font-size:15px;font-weight:900;text-align:right;">' + fmt(total) + '</td></tr>';
+
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+      + '<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;">'
+      + '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 0;">'
+      + '<tr><td align="center">'
+      + '<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#fff;border-radius:8px;box-shadow:0 2px 16px rgba(0,0,0,.10);overflow:hidden;">'
+
+      // ── Header: logo + company ─────────────────────────────────────────
+      + '<tr><td style="padding:20px 26px 18px;border-bottom:3px solid #1a3c12;">'
+      + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+      + '<td width="58" style="vertical-align:middle;">'
+      + '<div style="background:#1a3c12;border-radius:10px;width:48px;height:48px;text-align:center;line-height:48px;font-size:24px;">🌳</div>'
+      + '</td>'
+      + '<td style="vertical-align:middle;padding-left:12px;">'
+      + '<div style="font-size:17px;font-weight:800;color:#1a3c12;line-height:1.2;">' + esc(_co.name) + '</div>'
+      + '<div style="font-size:12px;color:#718096;margin-top:3px;">' + esc(_co.phone||'') + ' &nbsp;·&nbsp; ' + esc(_co.email||'') + '</div>'
+      + '</td>'
+      + '<td align="right" style="vertical-align:middle;font-size:11px;color:#a0aec0;white-space:nowrap;">' + esc(_co.website||'') + '</td>'
+      + '</tr></table>'
+      + '</td></tr>'
+
+      // ── Two-column: Bill To / Quote meta ──────────────────────────────
+      + '<tr><td style="padding:0;">'
+      + '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+      + '<tr>'
+      + '<td style="padding:18px 26px;border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;vertical-align:top;width:55%;">'
+      + '<div style="font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px;">BILL TO</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">' + esc(q.clientName||'') + '</div>'
+      + (q.property    ? '<div style="font-size:13px;color:#4b5563;margin-bottom:2px;">' + esc(q.property)    + '</div>' : '')
+      + (q.clientPhone ? '<div style="font-size:13px;color:#4b5563;margin-bottom:2px;">' + esc(q.clientPhone) + '</div>' : '')
+      + (q.clientEmail ? '<div style="font-size:13px;color:#00836c;">'                   + esc(q.clientEmail) + '</div>' : '')
+      + '</td>'
+      + '<td style="background:#1a3c12;padding:18px 22px;vertical-align:top;width:45%;">'
+      + '<div style="font-size:12px;font-weight:800;color:#fff;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;">Quote #' + esc(String(q.quoteNumber||'')) + '</div>'
+      + '<table width="100%" cellpadding="0" cellspacing="0">'
+      + '<tr><td style="font-size:12px;color:rgba(255,255,255,.65);padding-bottom:5px;">Issued</td><td align="right" style="font-size:12px;color:#fff;font-weight:600;padding-bottom:5px;">'     + issuedDate  + '</td></tr>'
+      + '<tr><td style="font-size:12px;color:rgba(255,255,255,.65);">Valid Until</td><td align="right" style="font-size:12px;color:#fff;font-weight:600;">' + validUntil  + '</td></tr>'
+      + '</table>'
+      + '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-top:1px solid rgba(255,255,255,.2);padding-top:12px;">'
+      + '<tr><td style="padding-top:10px;font-size:13px;color:rgba(255,255,255,.8);font-weight:600;">Total</td>'
+      + '<td align="right" style="padding-top:10px;font-size:17px;color:#fff;font-weight:900;">' + fmt(total) + '</td></tr>'
+      + '</table>'
+      + '</td>'
+      + '</tr></table>'
+      + '</td></tr>'
+
+      // ── Service title ─────────────────────────────────────────────────
+      + (q.subject ? '<tr><td style="padding:12px 26px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#374151;">' + esc(q.subject) + '</td></tr>' : '')
+      + (q.description && !q.subject ? '<tr><td style="padding:12px 26px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;font-style:italic;">' + esc(q.description) + '</td></tr>' : '')
+
+      // ── Line items ────────────────────────────────────────────────────
+      + (liRows ? '<tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+        + '<thead><tr style="background:#1a3c12;">'
+        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:left;letter-spacing:.05em;text-transform:uppercase;width:26%;">Service</th>'
+        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:left;letter-spacing:.05em;text-transform:uppercase;">Description</th>'
+        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:center;letter-spacing:.05em;text-transform:uppercase;width:7%;">Qty</th>'
+        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:right;letter-spacing:.05em;text-transform:uppercase;width:14%;">Unit Price</th>'
+        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:right;letter-spacing:.05em;text-transform:uppercase;width:14%;">Total</th>'
+        + '</tr></thead><tbody>' + liRows + '</tbody>'
+        + '</table></td></tr>' : '')
+
+      // ── Totals (right-aligned) ────────────────────────────────────────
+      + '<tr><td style="padding:0;border-top:2px solid #e5e7eb;">'
+      + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+      + '<td></td>'
+      + '<td style="border-left:1px solid #e5e7eb;" width="280">'
+      + '<table width="100%" cellpadding="0" cellspacing="0">' + totalsRows + '</table>'
+      + '</td></tr></table>'
+      + '</td></tr>'
+
+      // ── CTA ───────────────────────────────────────────────────────────
+      + '<tr><td style="padding:28px 26px;text-align:center;background:#f9fafb;border-top:1px solid #e5e7eb;">'
+      + '<p style="font-size:14px;color:#4b5563;margin:0 0 20px 0;line-height:1.5;">Review your quote and approve it online — no login required.</p>'
+      + '<a href="' + approvalLink + '" style="display:inline-block;background:#1a3c12;color:#fff;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:800;text-decoration:none;">'
+      + '&#10003;&nbsp; View &amp; Approve Quote</a>'
+      + '<p style="font-size:12px;color:#9ca3af;margin:14px 0 0;line-height:1.4;">This quote is valid for 30 days. You can approve, request changes, or ask questions by replying to this email.</p>'
+      + '</td></tr>'
+
+      // ── Footer ────────────────────────────────────────────────────────
+      + '<tr><td style="padding:14px 26px;border-top:1px solid #e5e7eb;">'
+      + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+      + '<td style="font-size:12px;color:#6b7280;">Questions? Call or text <strong style="color:#374151;">' + esc(_co.phone||'') + '</strong></td>'
+      + '<td align="right" style="font-size:11px;color:#d1d5db;">Licensed &amp; Insured' + (_co.licenses ? ' &nbsp;·&nbsp; ' + esc(_co.licenses) : '') + '</td>'
+      + '</tr></table>'
+      + '</td></tr>'
+
+      + '</table>' // main card
+      + '</td></tr></table>' // outer wrapper
+      + '</body></html>';
   },
 
   _confirmSend: function(id) {
