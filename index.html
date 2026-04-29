@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 504; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 505; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -949,7 +949,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v504.min.js"></script>
+<script defer src="dist/bm.bundle.v505.min.js"></script>
 
 
 
@@ -1821,6 +1821,7 @@ var QuickCreate = {
       + '<button class="btn btn-outline" style="' + btnStyle + '" onclick="UI.closeModal();QuotesPage.showForm()"><i data-lucide="file-text" style="width:20px;height:20px;"></i> New Quote</button>'
       + '<button class="btn btn-outline" style="' + btnStyle + '" onclick="UI.closeModal();JobsPage.showForm()"><i data-lucide="wrench" style="width:20px;height:20px;"></i> New Job</button>'
       + '<button class="btn btn-outline" style="' + btnStyle + '" onclick="UI.closeModal();InvoicesPage.showForm()"><i data-lucide="receipt" style="width:20px;height:20px;"></i> New Invoice</button>'
+      + '<button class="btn btn-outline" style="' + btnStyle + '" onclick="UI.closeModal();if(typeof TaskReminders!==\'undefined\'){TaskReminders._showForm(null);}else{loadPage(\'taskreminders\');}"><i data-lucide="check-square" style="width:20px;height:20px;"></i> New Task</button>'
       + '<div style="height:1px;background:var(--border);margin:4px 0;"></div>'
       + '<button class="btn btn-outline" style="' + btnStyle + '" onclick="UI.closeModal();loadPage(\'calculators\')"><i data-lucide="calculator" style="width:20px;height:20px;"></i> Quick Estimate</button>'
       + '</div>';
