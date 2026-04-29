@@ -1,5 +1,5 @@
 {
-  "version": 474,
+  "version": 475,
   "released": "2026-04-29",
-  "notes": "Two-way SMS threads in Call Center — thread list, chat bubbles, reply box"
+  "notes": "Dashboard: Call Center card above Today's Jobs, async comms feed from Supabase"
 }
