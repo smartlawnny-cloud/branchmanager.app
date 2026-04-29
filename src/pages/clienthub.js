@@ -104,7 +104,7 @@ var ClientHub = {
         + (pendingQuotes > 0 ? '<span style="font-size:11px;background:#e3f2fd;color:#1565c0;padding:3px 8px;border-radius:10px;font-weight:600;">' + pendingQuotes + ' quote' + (pendingQuotes > 1 ? 's' : '') + '</span>' : '')
         + '<button onclick="ClientHub.showForClient(\'' + c.id + '\')" style="background:var(--green-dark);color:#fff;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">View Portal</button>'
         + '<button onclick="navigator.clipboard.writeText(\'' + link + '\').then(function(){UI.toast(\'Link copied!\');})" style="background:none;border:1px solid var(--border);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;" title="Copy link">🔗</button>'
-        + (c.email ? '<button onclick="window.open(\'mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent(mailSubject) + '&body=' + encodeURIComponent(mailBody) + '\',\'_blank\')" style="background:none;border:1px solid var(--border);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;" title="Send portal link by email">📧</button>' : '')
+        + (c.email ? '<button onclick="ClientHub.sendPortalLink(\'' + c.id + '\')" style="background:none;border:1px solid var(--border);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;" title="Email portal login link">📧</button>' : '')
         + '</div></div>';
     });
 
@@ -123,7 +123,23 @@ var ClientHub = {
 
   // Generate a shareable client portal link
   getLink: function(clientId) {
-    return window.location.origin + window.location.pathname.replace('index.html', '') + 'client.html?id=' + clientId;
+    return window.location.origin + window.location.pathname.replace('index.html', '') + 'portal.html';
+  },
+
+  // Send magic-link login email directly to client via portal-auth edge fn
+  sendPortalLink: function(clientId) {
+    var c = DB.clients.get(clientId);
+    if (!c || !c.email) { UI.toast('No email on file for this client', 'error'); return; }
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    var fnUrl = (sb && sb.functionsUrl) ? sb.functionsUrl : 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1';
+    fetch(fnUrl + '/portal-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: c.email })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() { UI.toast('Portal link sent to ' + c.email + ' ✅'); })
+    .catch(function() { UI.toast('Failed to send portal link', 'error'); });
   },
 
   // Render client hub preview (for the admin to see what client sees)

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Portal — Second Nature Tree</title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f4f0;color:#1d1d1f;min-height:100vh}
+    .page{max-width:660px;margin:0 auto;padding:20px}
+    .header{background:#1a3c12;color:#fff;padding:20px 24px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .header-left h1{font-size:18px;font-weight:700}
+    .header-left p{font-size:12px;opacity:.7;margin-top:3px}
+    .btn-logout{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer}
+    .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:14px;border:1px solid #e8e8e8}
+    .card h3{font-size:14px;font-weight:700;margin-bottom:14px;color:#1a3c12;display:flex;align-items:center;gap:6px}
+    .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+    .badge-sent,.badge-awaiting{background:#fff3e0;color:#e65100}
+    .badge-approved,.badge-paid,.badge-completed{background:#e8f5e9;color:#2e7d32}
+    .badge-overdue{background:#ffebee;color:#c62828}
+    .badge-scheduled,.badge-in_progress{background:#e3f2fd;color:#1565c0}
+    .badge-draft,.badge-cancelled{background:#f5f5f5;color:#666}
+    .badge-changes_requested{background:#fce4ec;color:#880e4f}
+    .row{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid #f5f5f5;gap:12px}
+    .row:last-child{border-bottom:none}
+    .row-label{font-weight:600;font-size:14px}
+    .row-sub{font-size:12px;color:#888;margin-top:2px}
+    .row-right{text-align:right;flex-shrink:0}
+    .row-amount{font-weight:700;font-size:15px;color:#1a3c12}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;text-decoration:none;transition:all .15s;gap:5px}
+    .btn:active{transform:scale(.98)}
+    .btn-primary{background:#1a3c12;color:#fff}
+    .btn-primary:hover{background:#245219}
+    .btn-outline{background:#fff;color:#1a3c12;border:2px solid #1a3c12}
+    .btn-sm{padding:5px 12px;font-size:12px}
+    .empty{text-align:center;padding:20px;color:#888;font-size:13px}
+    .loader{text-align:center;padding:80px 20px}
+    .loader .icon{font-size:48px;margin-bottom:16px;animation:pulse 1.5s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    .login-card{background:#fff;border-radius:12px;padding:32px 24px;box-shadow:0 2px 20px rgba(0,0,0,.1);margin-top:40px;border:1px solid #e8e8e8;text-align:center}
+    .login-card .icon{font-size:48px;margin-bottom:16px}
+    .login-card h2{font-size:20px;font-weight:700;margin-bottom:8px}
+    .login-card p{font-size:14px;color:#666;line-height:1.6;margin-bottom:24px}
+    input[type=email]{width:100%;padding:12px 14px;border:2px solid #ddd;border-radius:8px;font-size:15px;font-family:inherit;outline:none;transition:border-color .15s;margin-bottom:12px}
+    input[type=email]:focus{border-color:#1a3c12}
+    .sent-msg{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:16px;color:#2e7d32;font-size:14px;margin-top:12px;display:none}
+    .error-msg{background:#ffebee;border:1px solid #ef9a9a;border-radius:8px;padding:12px;color:#c62828;font-size:13px;margin-top:8px;display:none}
+    .photos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .photos-grid img{width:100%;height:90px;object-fit:cover;border-radius:8px;cursor:pointer}
+    .summary-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid #e8e8e8;border-radius:10px;overflow:hidden;margin-bottom:16px;background:#fff}
+    .summary-cell{padding:14px 16px}
+    .summary-cell:not(:last-child){border-right:1px solid #e8e8e8}
+    .summary-label{font-size:12px;color:#888}
+    .summary-val{font-size:22px;font-weight:700;margin-top:4px}
+    .tab-bar{display:flex;gap:0;border-bottom:2px solid #e8e8e8;margin-bottom:16px}
+    .tab-btn{padding:10px 16px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:600;color:#888;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s}
+    .tab-btn.active{color:#1a3c12;border-bottom-color:#1a3c12}
+    .footer{text-align:center;font-size:12px;color:#999;padding:8px 0 24px}
+    .footer a{color:#1a3c12;text-decoration:none}
+    @media(max-width:480px){.page{padding:12px}.photos-grid{grid-template-columns:repeat(2,1fr)}.summary-bar{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="page">
+  <div id="root">
+    <div class="loader"><div class="icon">🌳</div><div style="color:#666;font-size:14px;">Loading…</div></div>
+  </div>
+  <div class="footer"><a href="https://branchmanager.app">Powered by Branch Manager</a></div>
+</div>
+
+<script src="config.js"></script>
+<script>
+var PORTAL_API = (window.BM_CONFIG && window.BM_CONFIG.supabaseFunctionsUrl)
+  ? window.BM_CONFIG.supabaseFunctionsUrl
+  : 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1';
+
+var _data = null;
+var _tab = 'invoices';
+
+// ── Token management ─────────────────────────────────────────────────────────
+function getToken() {
+  var p = new URLSearchParams(window.location.search);
+  var t = p.get('t');
+  if (t) {
+    localStorage.setItem('bm-portal-token', t);
+    // Clean URL so token isn't in history
+    history.replaceState({}, '', window.location.pathname);
+  }
+  return localStorage.getItem('bm-portal-token');
+}
+
+function clearToken() {
+  localStorage.removeItem('bm-portal-token');
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+(function init() {
+  var token = getToken();
+  if (token) {
+    verifyAndLoad(token);
+  } else {
+    showLogin();
+  }
+})();
+
+// ── Login flow ────────────────────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('root').innerHTML =
+    '<div style="margin-top:40px;">'
+    + '<div style="text-align:center;margin-bottom:24px;">'
+    + '<div style="background:#1a3c12;color:#fff;width:64px;height:64px;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:12px;">🌳</div>'
+    + '<h1 style="font-size:22px;font-weight:700;">Second Nature Tree</h1>'
+    + '<p style="font-size:13px;color:#888;margin-top:4px;">Customer Portal</p>'
+    + '</div>'
+    + '<div class="login-card">'
+    + '<p style="font-size:14px;color:#444;line-height:1.6;margin-bottom:20px;">Enter the email address on your account and we\'ll send you a secure login link.</p>'
+    + '<input type="email" id="login-email" placeholder="your@email.com" onkeydown="if(event.key===\'Enter\')sendLink()">'
+    + '<button class="btn btn-primary" style="width:100%;padding:13px;" onclick="sendLink()">Send My Link</button>'
+    + '<div class="error-msg" id="login-err"></div>'
+    + '<div class="sent-msg" id="login-sent">✅ Check your email! A secure link is on its way. It\'s valid for 7 days.</div>'
+    + '</div>'
+    + '</div>';
+  setTimeout(function(){ var el=document.getElementById('login-email'); if(el) el.focus(); }, 100);
+}
+
+function sendLink() {
+  var email = (document.getElementById('login-email') || {}).value || '';
+  email = email.trim().toLowerCase();
+  var errEl = document.getElementById('login-err');
+  var sentEl = document.getElementById('login-sent');
+  if (errEl) errEl.style.display = 'none';
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (errEl) { errEl.textContent = 'Please enter a valid email address.'; errEl.style.display = 'block'; }
+    return;
+  }
+  var btn = document.querySelector('.login-card .btn-primary');
+  if (btn) { btn.textContent = 'Sending…'; btn.disabled = true; }
+  fetch(PORTAL_API + '/portal-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function() {
+    if (sentEl) sentEl.style.display = 'block';
+    if (btn) { btn.style.display = 'none'; }
+  })
+  .catch(function() {
+    if (errEl) { errEl.textContent = 'Something went wrong. Please try again.'; errEl.style.display = 'block'; }
+    if (btn) { btn.textContent = 'Send My Link'; btn.disabled = false; }
+  });
+}
+
+// ── Session verify + load data ────────────────────────────────────────────────
+function verifyAndLoad(token) {
+  fetch(PORTAL_API + '/portal-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token })
+  })
+  .then(function(r) {
+    if (r.status === 401) { clearToken(); showLogin(); return null; }
+    return r.json();
+  })
+  .then(function(res) {
+    if (!res || !res.ok) { clearToken(); showLogin(); return; }
+    _data = res;
+    renderDashboard();
+  })
+  .catch(function() {
+    clearToken(); showLogin();
+  });
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  var d = _data;
+  var c = d.client || {};
+  var invoices = d.invoices || [];
+  var quotes = d.quotes || [];
+  var jobs = d.jobs || [];
+  var photos = d.photos || [];
+
+  var unpaidTotal = invoices.filter(function(i){ return i.status !== 'paid'; })
+    .reduce(function(s,i){ return s + (i.balance || i.total || 0); }, 0);
+  var pendingQuotes = quotes.filter(function(q){ return q.status==='sent'||q.status==='awaiting'; }).length;
+  var completedJobs = jobs.filter(function(j){ return j.status==='completed'; }).length;
+
+  var html = '';
+
+  // Header
+  html += '<div class="header">'
+    + '<div class="header-left"><h1>🌳 ' + esc(c.name || 'My Portal') + '</h1>'
+    + '<p>' + esc(c.email || '') + '</p></div>'
+    + '<button class="btn-logout" onclick="logout()">Log out</button>'
+    + '</div>';
+
+  // Summary bar
+  html += '<div class="summary-bar">'
+    + '<div class="summary-cell"><div class="summary-label">Outstanding</div><div class="summary-val" style="color:' + (unpaidTotal>0?'#c62828':'#2e7d32') + ';">' + money(unpaidTotal) + '</div></div>'
+    + '<div class="summary-cell"><div class="summary-label">Pending quotes</div><div class="summary-val" style="color:' + (pendingQuotes>0?'#e65100':'#2e7d32') + ';">' + pendingQuotes + '</div></div>'
+    + '<div class="summary-cell"><div class="summary-label">Jobs completed</div><div class="summary-val">' + completedJobs + '</div></div>'
+    + '</div>';
+
+  // Tab bar
+  var tabs = [
+    {id:'invoices', label:'Invoices ('+invoices.length+')'},
+    {id:'quotes',   label:'Quotes ('+quotes.length+')'},
+    {id:'jobs',     label:'Jobs ('+jobs.length+')'},
+  ];
+  if (photos.length) tabs.push({id:'photos', label:'Photos ('+photos.length+')'});
+
+  html += '<div class="tab-bar">';
+  tabs.forEach(function(t) {
+    html += '<button class="tab-btn' + (t.id===_tab?' active':'') + '" onclick="switchTab(\''+t.id+'\')">' + t.label + '</button>';
+  });
+  html += '</div>';
+
+  // Tab content
+  html += '<div id="portal-tab-content">' + renderTab(_tab, d) + '</div>';
+
+  // Contact card
+  html += '<div class="card" style="margin-top:4px;">'
+    + '<h3>📞 Contact Us</h3>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    + '<a href="tel:9143915233" class="btn btn-outline" style="width:100%;justify-content:center;">Call Us</a>'
+    + '<a href="sms:9143915233" class="btn btn-outline" style="width:100%;justify-content:center;">Text Us</a>'
+    + '</div>'
+    + '</div>';
+
+  document.getElementById('root').innerHTML = html;
+}
+
+function switchTab(tab) {
+  _tab = tab;
+  var tabBtns = document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(function(b){ b.classList.toggle('active', b.textContent.startsWith(tab.charAt(0).toUpperCase())||b.onclick&&b.onclick.toString().indexOf(tab)>-1); });
+  // Re-render active states properly
+  tabBtns.forEach(function(b){ b.className = 'tab-btn' + (b.getAttribute('onclick').indexOf("'"+tab+"'")>-1?' active':''); });
+  var content = document.getElementById('portal-tab-content');
+  if (content) content.innerHTML = renderTab(tab, _data);
+}
+
+function renderTab(tab, d) {
+  if (tab === 'invoices') return renderInvoices(d.invoices || []);
+  if (tab === 'quotes')   return renderQuotes(d.quotes || []);
+  if (tab === 'jobs')     return renderJobs(d.jobs || []);
+  if (tab === 'photos')   return renderPhotos(d.photos || []);
+  return '';
+}
+
+// ── Invoices ──────────────────────────────────────────────────────────────────
+function renderInvoices(invoices) {
+  if (!invoices.length) return '<div class="card"><div class="empty">No invoices yet.</div></div>';
+  var unpaid = invoices.filter(function(i){ return i.status !== 'paid'; });
+  var paid   = invoices.filter(function(i){ return i.status === 'paid'; });
+  var html = '';
+
+  if (unpaid.length) {
+    html += '<div class="card"><h3>💳 Outstanding</h3>';
+    unpaid.forEach(function(inv) {
+      var bal = inv.balance || inv.total || 0;
+      html += '<div class="row">'
+        + '<div><div class="row-label">Invoice #' + esc(inv.number || inv.id.slice(-6)) + '</div>'
+        + '<div class="row-sub">' + (inv.description ? esc(inv.description.slice(0,60)) : '') + (inv.due_date ? ' · Due ' + dateShort(inv.due_date) : '') + '</div>'
+        + '<div style="margin-top:6px;"><span class="badge badge-' + esc(inv.status||'draft') + '">' + esc(inv.status||'draft') + '</span></div>'
+        + '</div>'
+        + '<div class="row-right">'
+        + '<div class="row-amount">' + money(bal) + '</div>'
+        + '<div style="margin-top:6px;"><a href="pay.html?id=' + esc(inv.id) + '" class="btn btn-primary btn-sm">Pay Now</a></div>'
+        + '</div>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
+  if (paid.length) {
+    html += '<div class="card"><h3>✅ Paid</h3>';
+    paid.forEach(function(inv) {
+      html += '<div class="row">'
+        + '<div><div class="row-label">Invoice #' + esc(inv.number || inv.id.slice(-6)) + '</div>'
+        + '<div class="row-sub">' + (inv.description ? esc(inv.description.slice(0,60)) : '') + '</div>'
+        + '</div>'
+        + '<div class="row-right"><div class="row-amount" style="color:#888;">' + money(inv.total||0) + '</div>'
+        + '<span class="badge badge-paid">Paid</span></div>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+// ── Quotes ────────────────────────────────────────────────────────────────────
+function renderQuotes(quotes) {
+  if (!quotes.length) return '<div class="card"><div class="empty">No quotes yet.</div></div>';
+  var html = '<div class="card"><h3>📋 Quotes</h3>';
+  quotes.forEach(function(q) {
+    html += '<div class="row">'
+      + '<div><div class="row-label">Quote #' + esc(q.number || q.id.slice(-6)) + '</div>'
+      + '<div class="row-sub">' + (q.description ? esc(q.description.slice(0,70)) : '') + (q.valid_until ? ' · Valid until ' + dateShort(q.valid_until) : '') + '</div>'
+      + '<div style="margin-top:6px;"><span class="badge badge-' + esc(q.status||'draft') + '">' + esc(q.status||'draft') + '</span></div>'
+      + '</div>'
+      + '<div class="row-right">'
+      + '<div class="row-amount">' + money(q.total||0) + '</div>'
+      + ((q.status==='sent'||q.status==='awaiting')
+          ? '<div style="margin-top:6px;"><a href="approve.html?id=' + esc(q.id) + '" class="btn btn-primary btn-sm">Review</a></div>'
+          : '')
+      + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+function renderJobs(jobs) {
+  if (!jobs.length) return '<div class="card"><div class="empty">No jobs on record.</div></div>';
+  var html = '<div class="card"><h3>🌳 Job History</h3>';
+  jobs.forEach(function(j) {
+    var dateStr = j.scheduled_date ? dateShort(j.scheduled_date) : (j.completed_date ? dateShort(j.completed_date) : '');
+    html += '<div class="row">'
+      + '<div><div class="row-label">' + esc(j.title || 'Service') + '</div>'
+      + '<div class="row-sub">' + dateStr + (j.description ? ' · ' + esc(j.description.slice(0,60)) : '') + '</div>'
+      + '</div>'
+      + '<div class="row-right"><span class="badge badge-' + esc(j.status||'scheduled') + '">' + esc(j.status||'scheduled') + '</span></div>'
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+// ── Photos ────────────────────────────────────────────────────────────────────
+function renderPhotos(photos) {
+  if (!photos.length) return '<div class="card"><div class="empty">No photos yet.</div></div>';
+  var html = '<div class="card"><h3>📸 Photos</h3><div class="photos-grid">';
+  photos.forEach(function(p) {
+    html += '<img src="' + esc(p.url) + '" loading="lazy" alt="' + esc(p.caption||'') + '" onclick="window.open(\'' + esc(p.url) + '\')" onerror="this.style.display=\'none\'">';
+  });
+  html += '</div></div>';
+  return html;
+}
+
+// ── Logout ────────────────────────────────────────────────────────────────────
+function logout() {
+  clearToken();
+  _data = null;
+  showLogin();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function money(n) {
+  return '$' + Number(n||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function dateShort(d) {
+  if (!d) return '';
+  try { return new Date(d).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}); } catch(e) { return d; }
+}
+</script>
+</body>
+</html>
