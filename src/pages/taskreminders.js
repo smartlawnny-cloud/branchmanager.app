@@ -627,104 +627,110 @@ var TaskReminders = {
     var todayStr = now.toDateString();
     var allIncomplete = tasks.filter(function(t) { return !t.completed; });
 
-    // Overdue (past dates, not today) → today → future/no-date, max 6 shown
+    // Overdue → today → future/no-date, max 6 shown
     var overdue = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate) < now && new Date(t.dueDate).toDateString() !== todayStr; });
-    var today = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate).toDateString() === todayStr; });
-    var rest = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
-    var shown = overdue.concat(today).concat(rest).slice(0, 6);
+    var today   = allIncomplete.filter(function(t) { return t.dueDate && new Date(t.dueDate).toDateString() === todayStr; });
+    var rest    = allIncomplete.filter(function(t) { return !t.dueDate || (new Date(t.dueDate) > now && new Date(t.dueDate).toDateString() !== todayStr); });
+    var shown   = overdue.concat(today).concat(rest).slice(0, 6);
 
-    // AI suggestions injected by dashboard.js before calling this
     var aiInsights = window.__bmBriefingInsights || [];
+    var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
 
     var html = '<div style="background:var(--white);border-radius:12px;border:1px solid var(--border);margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">';
 
-    // Header
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:linear-gradient(135deg,#14331a,#1e5428);">';
-    html += '<div style="display:flex;align-items:center;gap:8px;">'
-      + '<span style="font-size:15px;color:#8fe89f;">✦</span>'
-      + '<span style="font-size:15px;font-weight:700;color:#fff;">Tasks for Today</span>';
-    if (allIncomplete.length > 0) {
-      html += '<span style="background:rgba(255,255,255,0.2);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;">' + allIncomplete.length + '</span>';
-    }
-    html += '</div>';
-    html += '<div style="display:flex;align-items:center;gap:10px;">';
-    html += '<a onclick="loadPage(\'taskreminders\')" style="font-size:12px;color:rgba(255,255,255,0.6);cursor:pointer;text-decoration:none;">View All →</a>';
-    html += '<button onclick="TaskReminders._openOverlay()" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);padding:5px 12px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;">+ Add Task</button>';
-    html += '</div></div>';
+    // ── Header (matches Today's Jobs style) ──
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);">'
+      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Tasks for Today</h3>'
+      + (allIncomplete.length > 0
+          ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open task' + (allIncomplete.length !== 1 ? 's' : '') + '</div>'
+          : '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">All clear</div>')
+      + '</div>'
+      + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
+      + '</div>';
 
-    // Manual task rows
+    // ── Task rows ──
     if (shown.length > 0) {
       shown.forEach(function(task) {
-        var isOverdue = task.dueDate && new Date(task.dueDate) < now;
-        var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
+        var isOverdue = task.dueDate && new Date(task.dueDate) < now && new Date(task.dueDate).toDateString() !== todayStr;
         var dot = prioMap[task.priority] || '#6c757d';
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);">';
-        // Complete circle button
-        html += '<button onclick="TaskReminders._toggleComplete(\'' + task.id + '\')" '
-          + 'title="Mark complete" '
-          + 'style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:' + dot + ';"></button>';
-        // Task info (click to edit)
-        html += '<div style="flex:1;min-width:0;cursor:pointer;" onclick="TaskReminders._openOverlay(\'' + task.id + '\')">';
-        html += '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>';
         var meta = [];
-        if (task.assignedTo) meta.push('<span>👤 ' + UI.esc(task.assignedTo) + '</span>');
+        if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
         if (task.dueDate) {
-          var dueLabel = isOverdue
-            ? '<span style="color:var(--red);">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
-            : '<span style="color:var(--text-light);">' + TaskReminders._formatDue(task.dueDate, now) + '</span>';
-          meta.push(dueLabel);
+          meta.push(isOverdue
+            ? '<span style="color:#c62828;">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
+            : TaskReminders._formatDue(task.dueDate, now));
         }
-        if (meta.length > 0) html += '<div style="font-size:11px;display:flex;gap:8px;margin-top:2px;flex-wrap:wrap;">' + meta.join('') + '</div>';
-        html += '</div>';
-        // Action link button (jump to linked record)
-        if (task.actionLink) {
-          html += '<button onclick="' + task.actionLink + '" '
-            + 'title="Open linked record" '
-            + 'style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;color:var(--text-light);flex-shrink:0;white-space:nowrap;">→ View</button>';
+        if (task.category) {
+          var cat = TaskReminders.CATEGORIES.find(function(c){return c.key===task.category;});
+          if (cat) meta.push(cat.icon + ' ' + cat.label);
         }
-        // Edit button
-        html += '<button onclick="TaskReminders._openOverlay(\'' + task.id + '\')" '
-          + 'title="Edit" '
-          + 'style="background:none;border:none;padding:4px;cursor:pointer;color:var(--text-light);font-size:13px;flex-shrink:0;">✏</button>';
-        html += '</div>';
+
+        // Full row click → quick-complete sheet. Circle click → instant complete.
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
+          + '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" title="Mark complete" style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';background:transparent;cursor:pointer;flex-shrink:0;"></button>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
+          + (meta.length ? '<div style="font-size:11px;color:var(--text-light);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;">' + meta.join('<span style="opacity:.4;">·</span>') + '</div>' : '')
+          + '</div>'
+          + '<span style="font-size:18px;color:var(--text-light);">›</span>'
+          + '</div>';
       });
       if (allIncomplete.length > shown.length) {
-        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;border-bottom:1px solid var(--border);">'
-          + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more tasks →</a></div>';
+        html += '<div style="padding:8px 16px;font-size:12px;color:var(--text-light);text-align:center;">'
+          + '<a onclick="loadPage(\'taskreminders\')" style="cursor:pointer;color:var(--green-dark);font-weight:600;">+ ' + (allIncomplete.length - shown.length) + ' more →</a></div>';
       }
     } else if (aiInsights.length === 0) {
-      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks. Hit + Add Task to create one.</div>';
+      html += '<div style="padding:20px 18px;text-align:center;color:var(--text-light);font-size:13px;">No open tasks</div>';
     }
 
-    // AI Suggestions section
+    // ── AI Suggestions ──
     if (aiInsights.length > 0) {
-      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">';
-      html += '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ AI Suggestions</div>';
+      html += '<div style="border-top:2px solid var(--bg);padding:10px 16px 6px;">'
+        + '<div style="font-size:10px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;">✦ Suggestions</div>';
       aiInsights.forEach(function(ins, idx) {
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">';
-        html += '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>';
-        html += '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>';
-        // "+ Task" button — pre-fills form title + actionLink from this insight
-        html += '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" '
-          + 'style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>';
-        html += '</div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">'
+          + '<span style="font-size:14px;flex-shrink:0;">' + ins.icon + '</span>'
+          + '<div onclick="' + ins.action + '" style="flex:1;font-size:12px;color:var(--text);cursor:pointer;line-height:1.4;">' + ins.text + '</div>'
+          + '<button onclick="TaskReminders._openOverlay(null,{title:window.__bmBriefingInsights[' + idx + '].text.slice(0,80),actionLink:window.__bmBriefingInsights[' + idx + '].action,aiLabel:true})" style="background:var(--bg);border:1px solid var(--border);padding:3px 8px;border-radius:6px;font-size:11px;cursor:pointer;flex-shrink:0;white-space:nowrap;color:var(--text);">+ Task</button>'
+          + '</div>';
       });
       html += '</div>';
     }
 
-    // ── AI Quick-Add bar ──
-    html += '<div style="padding:10px 14px 12px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
-      + '<input type="text" id="bm-task-quickadd" placeholder="Quick-add a task… (or tap 🎤)"'
+    // ── Quick-add bar ──
+    html += '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
+      + '<input type="text" id="bm-task-quickadd" placeholder="Add a task…"'
       +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TaskReminders._quickAddSubmit();}"'
       +   ' style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg);color:var(--text);min-width:0;">'
-      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice input"'
-      +   ' style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;flex-shrink:0;padding:0;line-height:1;">🎤</button>'
-      + '<button onclick="TaskReminders._quickAddSubmit()" title="Add with AI enrichment"'
-      +   ' style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">✦ Add</button>'
+      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice" style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:15px;flex-shrink:0;padding:0;">🎤</button>'
+      + '<button onclick="TaskReminders._quickAddSubmit()" style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Add</button>'
       + '</div>';
 
     html += '</div>';
     return html;
+  },
+
+  // ── Quick-complete sheet (tap a task row → this) ──
+  _openQuickComplete: function(id) {
+    var task = TaskReminders._getAll().find(function(t) { return t.id === id; });
+    if (!task) return;
+    var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
+    var dot = prioMap[task.priority] || '#6c757d';
+    var meta = [];
+    if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
+    if (task.dueDate) meta.push('📅 ' + UI.dateShort(task.dueDate));
+    if (task.notes)   meta.push('<span style="color:var(--text-light);">' + UI.esc(task.notes.slice(0,80)) + '</span>');
+
+    var html = '<div style="text-align:center;padding:8px 0 16px;">'
+      + '<div style="width:10px;height:10px;border-radius:50%;background:' + dot + ';display:inline-block;margin-bottom:12px;"></div>'
+      + '<div style="font-size:17px;font-weight:700;margin-bottom:8px;line-height:1.3;">' + UI.esc(task.title) + '</div>'
+      + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-bottom:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' + meta.join('') + '</div>' : '<div style="margin-bottom:16px;"></div>')
+      + '<button onclick="TaskReminders._toggleComplete(\'' + id + '\');UI.closeModal();" style="width:100%;padding:14px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">✅ Mark Complete</button>'
+      + (task.actionLink ? '<button onclick="' + task.actionLink + ';UI.closeModal();" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;color:var(--text);">→ Open Linked Record</button>' : '')
+      + '<button onclick="UI.closeModal();TaskReminders._openOverlay(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Edit task</button>'
+      + '</div>';
+
+    UI.showModal(task.title, html);
   },
 
   // ── AI quick-add methods ──

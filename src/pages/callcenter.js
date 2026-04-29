@@ -16,8 +16,8 @@ var CallCenter = {
       + '<div style="font-size:12px;color:var(--text-light);">Inbound calls, SMS threads, voicemails &amp; bid emails</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
-      + '<button onclick="CallCenter._openDialModal(\'call\')" style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:#1a7a3c;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="phone" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New Call</button>'
-      + '<button onclick="CallCenter._openDialModal(\'sms\')"  style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:var(--green-dark);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="message-square" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New SMS</button>'
+      + '<button onclick="CallCenter._openDialModal(\'call\')" style="padding:7px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">📞 Call</button>'
+      + '<button onclick="CallCenter._openDialModal(\'sms\')"  style="padding:7px 14px;background:none;color:var(--text);border:1px solid var(--border);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">💬 SMS</button>'
       + '</div>'
       + '</div>';
 
@@ -285,21 +285,15 @@ var CallCenter = {
           var subject = c.body || '';
           var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
           var isLast = idx === rows.length - 1;
-          html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-            + '<div style="display:flex;align-items:flex-start;gap:12px;">'
-            + '<div style="flex-shrink:0;width:42px;height:42px;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + bidIcon + '</div>'
+          html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+            + '<div style="flex-shrink:0;width:32px;height:32px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + bidIcon + '</div>'
             + '<div style="flex:1;min-width:0;">'
-            + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
-            + '<span style="font-weight:700;font-size:14px;">' + (agency || 'Unknown Agency') + '</span>'
-            + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+            + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (agency || 'Unknown Agency') + '</div>'
+            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+            + (subject ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + subject.slice(0, 90) + (subject.length > 90 ? '…' : '') + '</div>' : '')
             + '</div>'
-            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:2px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
-            + (subject ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + subject.slice(0, 140) + (subject.length > 140 ? '…' : '') + '</div>' : '')
-            + '</div>'
-            + '</div>'
-            + '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
-            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">🔗 View Bid</a>' : '')
-            + '</div>'
+            + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</div>'
+            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" title="View bid" style="flex-shrink:0;width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:14px;">🔗</a>' : '')
             + '</div>';
           return;
         }
@@ -317,40 +311,23 @@ var CallCenter = {
         var safeId    = (c.client_id||'').replace(/'/g,"\\'");
         var isLast = idx === rows.length - 1;
 
-        html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-          + '<div style="display:flex;align-items:flex-start;gap:12px;">'
-
-          // Avatar / icon
-          + '<div style="flex-shrink:0;width:42px;height:42px;background:var(--surface);border:1.5px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + icon + '</div>'
-
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+          + '<div style="flex-shrink:0;width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + icon + '</div>'
           + '<div style="flex:1;min-width:0;">'
-          // Top row: name + timestamp
-          + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
-          + '<span style="font-weight:700;font-size:14px;">' + name + '</span>'
-          + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+          + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</div>'
+          + '<div style="font-size:12px;color:' + labelColor + ';font-weight:600;margin-top:1px;">'
+          + label + (dur ? ' · ' + dur : '') + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '')
           + '</div>'
-          // Second row: label + phone
-          + '<div style="font-size:12px;color:' + labelColor + ';font-weight:600;margin-top:2px;">'
-          + label
-          + (dur ? ' · ' + dur : '')
-          + (phone ? ' · ' + CallCenter._fmtPhone(phone) : '')
+          + (c.body ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + c.body.slice(0, 90) + (c.body.length > 90 ? '…' : '') + '</div>' : '')
+          + (service ? '<div style="font-size:11px;color:var(--text-light);margin-top:1px;">Wants: ' + service + '</div>' : '')
           + '</div>'
-          // Message/transcript snippet
-          + (c.body ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + c.body.slice(0, 120) + (c.body.length > 120 ? '…' : '') + '</div>' : '')
-          // Service wanted (from sheet import metadata)
-          + (service ? '<div style="font-size:12px;color:var(--text-light);margin-top:3px;">Wants: ' + service + '</div>' : '')
-          + '</div>'
+          + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;flex-shrink:0;">' + ts + '</div>'
+          + (digits ? '<div style="display:flex;gap:4px;flex-shrink:0;">'
+            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'call\')" title="Call back" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">📞</button>'
+            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'sms\')" title="Text back" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">💬</button>'
+            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" title="Listen" style="width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;">▶</a>' : '')
+            + '</div>' : '')
           + '</div>';
-
-        // Action buttons
-        if (digits) {
-          html += '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
-            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'call\')" style="padding:6px 14px;background:#1a7a3c;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📞 Call Back</button>'
-            + '<button onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeName + '\',\'' + safePhone + '\',\'sms\')"  style="padding:6px 14px;background:var(--green-dark);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">💬 Text Back</button>'
-            + (c.recording_url ? '<a href="' + c.recording_url + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:var(--surface);color:var(--accent);border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">▶ Listen</a>' : '')
-            + '</div>';
-        }
-        html += '</div>';
       });
 
       html += '</div>';
