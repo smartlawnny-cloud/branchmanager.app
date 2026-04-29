@@ -1,5 +1,5 @@
 {
-  "version": 470,
+  "version": 471,
   "released": "2026-04-28",
-  "notes": "Perf: skip hidden badge counts on nav, memoize DB._get, single-pass client stats, scope lucide"
+  "notes": "AI quick-add for Tasks for Today widget"
 }

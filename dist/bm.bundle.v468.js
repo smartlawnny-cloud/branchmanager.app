@@ -24966,7 +24966,8 @@ var SettingsPage = {
     // ═══ API Keys & Integrations (collapsible group) ═══
     // Wraps SendGrid, AI, Stripe, Dialpad, Gusto, PlantNet in one foldable section
     // so the Settings page doesn't feel like a mile of cards.
-    var _intCount = ['bm-claude-key','bm-stripe-base-link','bm-dialpad-key','bm-gusto-api-key','bm-plantnet-key']
+    // Resend is always connected (server-side key) so count it as +1 from the start
+    var _intCount = 1 + ['bm-claude-key','bm-stripe-base-link','bm-dialpad-key','bm-gusto-api-key','bm-plantnet-key']
       .filter(function(k){ return (localStorage.getItem(k) || '').length > 5; }).length;
     html += '<details style="background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
       + '<summary style="padding:16px 20px;cursor:pointer;font-size:15px;font-weight:700;color:var(--text);list-style:none;display:flex;justify-content:space-between;align-items:center;">'
@@ -25795,63 +25796,30 @@ var SettingsPage = {
         var result = DashboardPage.syncNow();
         if (result && typeof result.then === 'function') { result.then(done).catch(done); } else { done(); }
       } catch(e) { done(); }
+    } else if (typeof CloudSync !== 'undefined' && CloudSync.init) {
+      // CloudSync.init() is the canonical full-pull from Supabase — use it as the fallback
+      CloudSync.init().then(done).catch(done);
     } else if (typeof SupabaseDB !== 'undefined' && SupabaseDB.resync) {
       try {
         var r = SupabaseDB.resync();
         if (r && typeof r.then === 'function') { r.then(done).catch(done); } else { done(); }
       } catch(e) { done(); }
     } else {
-      // Direct fetch fallback — sequential table sync
-      var url = 'https://ltpivkqahvplapyagljt.supabase.co';
-      var key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0cGl2a3FhaHZwbGFweWFnbGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTgxNzIsImV4cCI6MjA4OTY3NDE3Mn0.bQ-wAx4Uu-FyA2ZwsTVfFoU2ZPbeWCmupqV-6ZR9uFI';
-      var tables = [
-        {local:'bm-clients',remote:'clients'},{local:'bm-jobs',remote:'jobs'},
-        {local:'bm-invoices',remote:'invoices'},{local:'bm-quotes',remote:'quotes'},
-        {local:'bm-services',remote:'services'},{local:'bm-team',remote:'team_members'}
-      ];
-      var total = 0;
-      var idx = 0;
-      function fetchNext() {
-        if (idx >= tables.length) {
-          if (typeof UI !== 'undefined') UI.toast(total + ' records synced from cloud!');
-          done();
-          return;
-        }
-        var t = tables[idx++];
-        fetch(url + '/rest/v1/' + t.remote + '?select=*&limit=5000&order=created_at.desc', {
-          headers: {'apikey': key, 'Authorization': 'Bearer ' + key}
-        }).then(function(resp) {
-          return resp.json();
-        }).then(function(data) {
-          if (data && data.length) {
-            var conv = data.map(function(row) {
-              var n = {};
-              Object.keys(row).forEach(function(k) {
-                n[k.replace(/_([a-z])/g, function(m, p) { return p.toUpperCase(); })] = row[k];
-              });
-              return n;
-            });
-            localStorage.setItem(t.local, JSON.stringify(conv));
-            total += conv.length;
-          }
-          fetchNext();
-        }).catch(function() { fetchNext(); });
-      }
-      fetchNext();
+      UI.toast('Sync module not loaded — reload the page', 'error');
+      done();
     }
   },
 
   auditAIData: function() {
     var host = document.getElementById('audit-result');
     if (host) host.innerHTML = '<span style="color:var(--text-light);">Running audit…</span>';
-    var url = (localStorage.getItem('bm-supabase-url') || '') + '/rest/v1/';
-    var key = localStorage.getItem('bm-supabase-key') || '';
-    if (!url || !key) { host.innerHTML = '<span style="color:var(--red);">Supabase not configured.</span>'; return; }
+    // Use SupabaseDB.client when available (production path — URL/key are hardcoded in source, not localStorage)
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.ready && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { if (host) host.innerHTML = '<span style="color:var(--red);">Supabase not connected.</span>'; return; }
     var tables = ['clients', 'quotes', 'jobs', 'invoices'];
     Promise.all(tables.map(function(t) {
-      return fetch(url + t + '?select=id,name,created_at,created_by_agent,import_source&created_by_agent=not.is.null&order=created_at.desc', {
-        headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
-      }).then(function(r) { return r.ok ? r.json() : []; });
+      return sb.from(t).select('*').not('created_by_agent', 'is', null).order('created_at', { ascending: false }).limit(50)
+        .then(function(r) { return (r && r.data) ? r.data : []; });
     })).then(function(results) {
       var total = results.reduce(function(s, r) { return s + (r ? r.length : 0); }, 0);
       if (total === 0) {
@@ -25864,7 +25832,9 @@ var SettingsPage = {
         if (!rows.length) return;
         out += '<div style="margin-top:10px;font-weight:700;">' + tbl + ' (' + rows.length + ')</div><ul style="margin:4px 0 0 18px;">';
         rows.slice(0, 20).forEach(function(r) {
-          out += '<li style="font-size:11px;margin-bottom:3px;"><strong>' + UI.esc(r.name || r.id || '') + '</strong> — created ' + (r.created_at || '').slice(0, 10) + ' by <code>' + UI.esc(r.created_by_agent || 'unknown') + '</code>' + (r.import_source ? ' · source=' + UI.esc(r.import_source) : '') + '</li>';
+          // clientName/first_name/name varies by table
+          var label = r.name || (r.first_name ? (r.first_name + ' ' + (r.last_name || '')) : '') || r.client_name || r.id || '';
+          out += '<li style="font-size:11px;margin-bottom:3px;"><strong>' + UI.esc(label.trim()) + '</strong> — created ' + (r.created_at || '').slice(0, 10) + ' by <code>' + UI.esc(r.created_by_agent || 'unknown') + '</code>' + (r.import_source ? ' · source=' + UI.esc(r.import_source) : '') + '</li>';
         });
         if (rows.length > 20) out += '<li style="font-size:11px;color:var(--text-light);">… and ' + (rows.length - 20) + ' more</li>';
         out += '</ul>';

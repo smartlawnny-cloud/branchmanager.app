@@ -8,6 +8,8 @@ var TaskReminders = {
   _editing: null,
   _timerStarted: false,
   _overlayPrefill: null,
+  _micActive: false,
+  _micRecognition: null,
 
   STORAGE_KEY: 'bm-tasks',
 
@@ -214,9 +216,9 @@ var TaskReminders = {
       + '<button onclick="TaskReminders._hideForm()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-light);">\u2715</button>'
       + '</div>';
 
-    // If pre-filled from AI suggestion, show a chip
+    // If pre-filled from AI, show a chip
     if (pf.aiLabel) {
-      html += '<div style="background:#e8f5e9;color:#1a3c12;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;margin-bottom:10px;display:inline-block;">\u2726 AI Suggestion</div>';
+      html += '<div style="background:#e8f5e9;color:#1a3c12;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;margin-bottom:10px;display:inline-block;">\u2726 AI-Enriched \u2014 review &amp; save</div>';
     }
 
     // Title
@@ -246,29 +248,32 @@ var TaskReminders = {
     });
     html += '</select></div>';
 
-    // Due date/time
+    // Due date/time (pre-fills from task, then AI prefill.dueDate, then default +30min)
+    var duePrefill = task ? task.dueDate : (pf.dueDate || null);
     html += '<div><label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px;">Due Date / Time</label>'
-      + '<input type="datetime-local" id="task-due" value="' + (task && task.dueDate ? task.dueDate.slice(0, 16) : defaultDate) + '" '
+      + '<input type="datetime-local" id="task-due" value="' + (duePrefill ? duePrefill.slice(0, 16) : defaultDate) + '" '
       + 'style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;box-sizing:border-box;"></div>';
     html += '</div>';
 
     // Row: priority, category, recurrence
     html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">';
 
-    // Priority
+    // Priority (pre-fills from task or AI prefill)
+    var pfPriority = pf.priority || 'medium';
     html += '<div><label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px;">Priority</label>'
       + '<select id="task-priority" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;">';
     TaskReminders.PRIORITIES.forEach(function(p) {
-      var sel = task && task.priority === p.key ? ' selected' : '';
+      var sel = (task ? task.priority === p.key : pfPriority === p.key) ? ' selected' : '';
       html += '<option value="' + p.key + '"' + sel + '>' + p.label + '</option>';
     });
     html += '</select></div>';
 
-    // Category
+    // Category (pre-fills from task or AI prefill)
+    var pfCategory = pf.category || '';
     html += '<div><label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px;">Category</label>'
       + '<select id="task-category" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;">';
     TaskReminders.CATEGORIES.forEach(function(c) {
-      var sel = task && task.category === c.key ? ' selected' : '';
+      var sel = (task ? task.category === c.key : pfCategory === c.key) ? ' selected' : '';
       html += '<option value="' + c.key + '"' + sel + '>' + c.icon + ' ' + c.label + '</option>';
     });
     html += '</select></div>';
@@ -707,8 +712,142 @@ var TaskReminders = {
       html += '</div>';
     }
 
+    // ── AI Quick-Add bar ──
+    html += '<div style="padding:10px 14px 12px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;">'
+      + '<input type="text" id="bm-task-quickadd" placeholder="Quick-add a task… (or tap 🎤)"'
+      +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TaskReminders._quickAddSubmit();}"'
+      +   ' style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg);color:var(--text);min-width:0;">'
+      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice input"'
+      +   ' style="background:none;border:1.5px solid var(--border);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;flex-shrink:0;padding:0;line-height:1;">🎤</button>'
+      + '<button onclick="TaskReminders._quickAddSubmit()" title="Add with AI enrichment"'
+      +   ' style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;">✦ Add</button>'
+      + '</div>';
+
     html += '</div>';
     return html;
+  },
+
+  // ── AI quick-add methods ──
+
+  _quickAddSubmit: function() {
+    var input = document.getElementById('bm-task-quickadd');
+    if (!input) return;
+    var raw = (input.value || '').trim();
+    if (!raw) { input.focus(); return; }
+
+    // Stop mic if active
+    if (TaskReminders._micActive) TaskReminders._toggleMic();
+
+    // Swap button to loading state
+    var btn = input.parentNode ? input.parentNode.querySelector('button[title="Add with AI enrichment"]') : null;
+    var origLabel = '✦ Add';
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+    TaskReminders._aiEnrichTask(raw).then(function(prefill) {
+      if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+      input.value = '';
+      TaskReminders._openOverlay(null, prefill);
+    }).catch(function() {
+      if (btn) { btn.disabled = false; btn.textContent = origLabel; }
+      // Fallback: open overlay with raw title
+      input.value = '';
+      TaskReminders._openOverlay(null, { title: raw.slice(0, 80), aiLabel: false });
+    });
+  },
+
+  _aiEnrichTask: function(description) {
+    return new Promise(function(resolve, reject) {
+      var apiKey = (window.bmClaudeKey ? window.bmClaudeKey() : null)
+                 || localStorage.getItem('bm-claude-key') || '';
+      if (!apiKey) {
+        // No AI key — return minimal prefill
+        return resolve({ title: description.slice(0, 80), aiLabel: false });
+      }
+
+      var systemPrompt = 'You are a task parser for Second Nature Tree Service (tree trimming, removal, cleanups — Westchester NY). '
+        + 'Parse the user\'s natural language task into a structured object.\n\n'
+        + 'Available categories: errand, maintenance, prep, cleanup\n'
+        + 'Available priorities: low, medium, high, urgent\n\n'
+        + 'Respond ONLY with a single JSON object — no markdown, no explanation. Fields:\n'
+        + '  title: string (max 70 chars, imperative action verb first)\n'
+        + '  description: string (optional extra context, max 120 chars, or empty string)\n'
+        + '  category: one of the categories above\n'
+        + '  priority: one of the priorities above\n'
+        + '  dueDate: ISO datetime string (YYYY-MM-DDTHH:mm) if urgency implied, else null\n'
+        + '  actionLink: a JS expression to jump to the relevant BM page if applicable, else null.\n'
+        + '    Valid options: "loadPage(\'jobs\')", "loadPage(\'quotes\')", "loadPage(\'invoices\')",\n'
+        + '    "loadPage(\'clients\')", "loadPage(\'requests\')", "loadPage(\'equipment\')",\n'
+        + '    "loadPage(\'schedule\')", null\n';
+
+      fetch('https://ltpivkqahvplapyagljt.supabase.co/functions/v1/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5',
+          max_tokens: 256,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: description }],
+          apiKey: apiKey
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        var text = (data.content && data.content[0] && data.content[0].text) || '';
+        // Strip any accidental markdown fences
+        text = text.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim();
+        var parsed = JSON.parse(text);
+        parsed.aiLabel = true;
+        resolve(parsed);
+      })
+      .catch(function() {
+        // Parse failed — return raw title
+        resolve({ title: description.slice(0, 80), aiLabel: false });
+      });
+    });
+  },
+
+  _toggleMic: function() {
+    var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      UI.toast('Voice input not supported in this browser', 'error');
+      return;
+    }
+    var btn = document.getElementById('bm-task-mic-btn');
+    if (TaskReminders._micActive) {
+      // Stop
+      if (TaskReminders._micRecognition) TaskReminders._micRecognition.stop();
+      TaskReminders._micActive = false;
+      TaskReminders._micRecognition = null;
+      if (btn) { btn.style.background = 'none'; btn.style.borderColor = 'var(--border)'; }
+      return;
+    }
+    // Start
+    var rec = new SpeechRec();
+    rec.lang = 'en-US';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.onresult = function(e) {
+      var transcript = e.results[0][0].transcript || '';
+      var input = document.getElementById('bm-task-quickadd');
+      if (input) { input.value = transcript; input.focus(); }
+      TaskReminders._micActive = false;
+      TaskReminders._micRecognition = null;
+      if (btn) { btn.style.background = 'none'; btn.style.borderColor = 'var(--border)'; }
+    };
+    rec.onerror = function() {
+      TaskReminders._micActive = false;
+      TaskReminders._micRecognition = null;
+      if (btn) { btn.style.background = 'none'; btn.style.borderColor = 'var(--border)'; }
+    };
+    rec.onend = function() {
+      TaskReminders._micActive = false;
+      TaskReminders._micRecognition = null;
+      if (btn) { btn.style.background = 'none'; btn.style.borderColor = 'var(--border)'; }
+    };
+    rec.start();
+    TaskReminders._micRecognition = rec;
+    TaskReminders._micActive = true;
+    if (btn) { btn.style.background = '#ffebee'; btn.style.borderColor = '#c62828'; }
   },
 
   // --- Team Chat integration ---

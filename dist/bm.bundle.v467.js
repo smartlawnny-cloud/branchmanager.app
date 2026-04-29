@@ -11597,7 +11597,7 @@ var AdminTasks = {
         // Spawn next occurrence 7 days later
         var nextDate = new Date(t.dueDate + 'T12:00:00');
         nextDate.setDate(nextDate.getDate() + 7);
-        var nextDateStr = nextDate.toISOString().split('T')[0];
+        var nextDateStr = SchedulePage._localDateStr(nextDate);
         all.push({
           id: 'at_' + Date.now(),
           title: t.title,
@@ -11611,7 +11611,7 @@ var AdminTasks = {
         // Spawn next occurrence 1 month later
         var nextDate = new Date(t.dueDate + 'T12:00:00');
         nextDate.setMonth(nextDate.getMonth() + 1);
-        var nextDateStr = nextDate.toISOString().split('T')[0];
+        var nextDateStr = SchedulePage._localDateStr(nextDate);
         all.push({
           id: 'at_' + Date.now(),
           title: t.title,

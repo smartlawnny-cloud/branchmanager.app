@@ -11039,6 +11039,14 @@ var SchedulePage = {
   view: 'month', // v388: default to month view (was week)
   currentDate: new Date(),
 
+  // Returns YYYY-MM-DD in LOCAL time (toISOString returns UTC, off-by-one after ~8pm ET)
+  _localDateStr: function(d) {
+    var y = d.getFullYear();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (day < 10 ? '0' : '') + day;
+  },
+
   render: function() {
     var self = SchedulePage;
     var html = '';
@@ -11046,7 +11054,7 @@ var SchedulePage = {
     // "Review media uploads & schedule social posts" task that became stale once
     // Media Center moved into SocialBranch. If you want recurring admin reminders
     // back, build them with explicit user opt-in instead of seeding on every render.
-    var today = new Date().toISOString().split('T')[0];
+    var today = SchedulePage._localDateStr(new Date());
     var allJobs = DB.jobs.getAll();
     var todayJobs = allJobs.filter(function(j) { return j.scheduledDate && j.scheduledDate.substring(0,10) === today; });
 
@@ -11103,7 +11111,7 @@ var SchedulePage = {
     for (var d = 1; d <= 7; d++) {
       var futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + d);
-      var fStr = futureDate.toISOString().split('T')[0];
+      var fStr = SchedulePage._localDateStr(futureDate);
       var fJobs = allJobs.filter(function(j) { return j.scheduledDate && j.scheduledDate.substring(0,10) === fStr; });
       if (fJobs.length > 0) {
         next7.push({ date: futureDate, dateStr: fStr, jobs: fJobs });
@@ -11114,7 +11122,7 @@ var SchedulePage = {
       html += '<div style="margin-top:20px;">'
         + '<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">Upcoming This Week</h3>';
       next7.forEach(function(day) {
-        var isTomorrow = (function() { var t = new Date(); t.setDate(t.getDate()+1); return t.toISOString().split('T')[0] === day.dateStr; })();
+        var isTomorrow = (function() { var t = new Date(); t.setDate(t.getDate()+1); return SchedulePage._localDateStr(t) === day.dateStr; })();
         html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;">'
           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
           + '<div style="font-weight:700;font-size:13px;">' + SchedulePage._formatDate(day.date, 'short') + (isTomorrow ? ' <span style="font-size:11px;font-weight:700;color:var(--green-dark);background:var(--green-bg);padding:2px 6px;border-radius:8px;">TOMORROW</span>' : '') + '</div>'
@@ -11177,7 +11185,7 @@ var SchedulePage = {
   _renderDay: function() {
     var self = SchedulePage;
     var d = SchedulePage.currentDate;
-    var dateStr = d.toISOString().split('T')[0];
+    var dateStr = SchedulePage._localDateStr(d);
     var allJobs = DB.jobs.getAll();
     var dayJobs = allJobs.filter(function(j) { return j.scheduledDate && j.scheduledDate.substring(0,10) === dateStr; });
 
@@ -11262,7 +11270,7 @@ var SchedulePage = {
         + '<div style="padding:14px;text-align:center;"><div style="font-size:11px;color:var(--text-light);text-transform:uppercase;font-weight:600;">Crew</div><div style="font-size:24px;font-weight:800;">' + dayJobs.reduce(function(s,j){return s+(j.crew?j.crew.length:0);},0) + '</div></div>'
         + '</div>';
     } else {
-      html += '<div style="margin-top:16px;text-align:center;padding:24px;color:var(--text-light);font-size:14px;">No jobs scheduled for this day. <button class="btn btn-primary" style="margin-left:8px;" onclick="JobsPage.showForm(null,{date:\'' + SchedulePage.currentDate.toISOString().split('T')[0] + '\'})">+ Schedule Job</button></div>';
+      html += '<div style="margin-top:16px;text-align:center;padding:24px;color:var(--text-light);font-size:14px;">No jobs scheduled for this day. <button class="btn btn-primary" style="margin-left:8px;" onclick="JobsPage.showForm(null,{date:\'' + SchedulePage._localDateStr(SchedulePage.currentDate) + '\'})">+ Schedule Job</button></div>';
     }
 
     // Admin Tasks section for this day
@@ -11361,7 +11369,7 @@ var SchedulePage = {
     var d = new Date(SchedulePage.currentDate);
     d.setDate(d.getDate() - d.getDay());
     var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    var today = new Date().toISOString().split('T')[0];
+    var today = SchedulePage._localDateStr(new Date());
     var allJobs = DB.jobs.getAll();
     var html = '';
 
@@ -11395,7 +11403,7 @@ var SchedulePage = {
     for (var i = 0; i < 7; i++) {
       var dd = new Date(d);
       dd.setDate(dd.getDate() + i);
-      var dateStr = dd.toISOString().split('T')[0];
+      var dateStr = SchedulePage._localDateStr(dd);
       var isToday = dateStr === today;
       html += '<div style="background:' + (isToday ? 'var(--green-dark)' : 'var(--bg)') + ';color:' + (isToday ? '#fff' : 'var(--text)') + ';padding:6px 8px 8px;text-align:center;font-size:12px;font-weight:700;">'
         + (typeof Weather !== 'undefined' ? '<div style="margin-bottom:2px;min-height:16px;">' + Weather.getInline(dateStr) + '</div>' : '')
@@ -11407,7 +11415,7 @@ var SchedulePage = {
     for (var i = 0; i < 7; i++) {
       var dd = new Date(d);
       dd.setDate(dd.getDate() + i);
-      var dateStr = dd.toISOString().split('T')[0];
+      var dateStr = SchedulePage._localDateStr(dd);
       var isToday = dateStr === today;
       var dayJobs = allJobs.filter(function(j) { return j.scheduledDate && j.scheduledDate.substring(0,10) === dateStr; });
 
@@ -11453,7 +11461,7 @@ var SchedulePage = {
     var month = d.getMonth();
     var firstDay = new Date(year, month, 1).getDay();
     var daysInMonth = new Date(year, month + 1, 0).getDate();
-    var today = new Date().toISOString().split('T')[0];
+    var today = SchedulePage._localDateStr(new Date());
     var allJobs = DB.jobs.getAll();
     var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
