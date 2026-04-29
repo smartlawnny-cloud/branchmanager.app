@@ -1,5 +1,5 @@
 {
-  "version": 476,
+  "version": 477,
   "released": "2026-04-29",
-  "notes": "Fleet page: fix Supabase client, auto-refresh, position history in detail modal, deploy bouncie-webhook"
+  "notes": "Claude rename, mic fix, British voice, bug reporter"
 }

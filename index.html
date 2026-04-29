@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 476; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 477; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -924,6 +924,7 @@
               <button onclick="window.open('https://peekskilltree.com','_blank')"><i data-lucide="external-link" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>View Website</button>
               <button id="dark-mode-btn" onclick="toggleDarkMode()"><i data-lucide="moon" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>Dark Mode <span id="dark-mode-state" style="margin-left:auto;font-size:11px;color:var(--text-light);font-weight:600;"></span></button>
               <hr>
+              <button onclick="BugReport.open()"><i data-lucide="bug" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>Report Bug</button>
               <button onclick="Auth.logout()" style="color:var(--red);"><i data-lucide="log-out" style="width:14px;height:14px;stroke:var(--red);vertical-align:middle;margin-right:6px;"></i>Log Out</button>
             </div>
           </div>
@@ -942,7 +943,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v476.min.js"></script>
+<script defer src="dist/bm.bundle.v477.min.js"></script>
 
 
 
@@ -1814,6 +1815,49 @@ var QuickCreate = {
   },
 
   // vCard import moved inside the New Client form (see ClientsPage._importVCard)
+};
+
+// ── Bug Report ──
+var BugReport = {
+  open: function() {
+    var page = (document.getElementById('pageTitle') || {}).textContent || window._currentPage || 'unknown';
+    var html = '<div style="display:grid;gap:12px;">'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">What went wrong?<textarea id="br-desc" rows="4" placeholder="Describe what happened and what you expected…" style="width:100%;margin-top:4px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Type<select id="br-type" style="width:100%;margin-top:4px;padding:9px;border:1px solid var(--border);border-radius:8px;font-size:13px;">'
+      + '<option value="bug">🐛 Bug / broken behavior</option>'
+      + '<option value="feature">💡 Feature request</option>'
+      + '<option value="data">📋 Data / display issue</option>'
+      + '</select></label>'
+      + '<div style="font-size:11px;color:var(--text-light);">Auto-captured: v' + (window.BUNDLED_VERSION||'?') + ' · Page: ' + page + ' · ' + navigator.userAgent.substring(0,60) + '…</div>'
+      + '</div>';
+    UI.showModal('Report an Issue', html, {
+      keepModal: true,
+      footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+        + '<button class="btn btn-primary" onclick="BugReport._submit(\'' + page.replace(/'/g, '') + '\')">Send Report</button>'
+    });
+  },
+  _submit: function(page) {
+    var desc = (document.getElementById('br-desc') || {}).value || '';
+    var type = (document.getElementById('br-type') || {}).value || 'bug';
+    if (!desc.trim()) { UI.toast('Please describe the issue first', 'error'); return; }
+    var body = '<b>Type:</b> ' + type + '<br>'
+      + '<b>Page:</b> ' + page + '<br>'
+      + '<b>Version:</b> v' + (window.BUNDLED_VERSION||'?') + '<br>'
+      + '<b>Time:</b> ' + new Date().toLocaleString() + '<br>'
+      + '<b>UA:</b> ' + navigator.userAgent + '<br><br>'
+      + '<b>Description:</b><br>' + String(desc).replace(/\n/g, '<br>');
+    var FUNC_URL = 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/send-email';
+    var ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0cGl2a3FhaHZwbGFweWFnbGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTgxNzIsImV4cCI6MjA4OTY3NDE3Mn0.bQ-wAx4Uu-FyA2ZwsTVfFoU2ZPbeWCmupqV-6ZR9uFI';
+    UI.closeModal();
+    fetch(FUNC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({ to: 'info@peekskilltree.com', subject: '[BM Bug] ' + type + ' on ' + page + ' (v' + (window.BUNDLED_VERSION||'?') + ')', html: body })
+    }).then(function(r) {
+      if (r.ok) UI.toast('Bug report sent!');
+      else UI.toast('Could not send — saved locally', 'error');
+    }).catch(function() { UI.toast('Could not send report — check connection', 'error'); });
+  }
 };
 
 // Remember the current detail (quote/client/job/invoice) so refresh restores it

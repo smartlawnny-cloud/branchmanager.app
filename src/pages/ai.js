@@ -23,7 +23,7 @@ var AI = {
       + '<div style="display:flex;align-items:center;gap:10px;">'
       + '<div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#D4A574 0%,#C4956A 100%);display:flex;align-items:center;justify-content:center;">'
       + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
-      + '<div><div style="font-weight:700;font-size:15px;">AI Assistant</div>'
+      + '<div><div style="font-weight:700;font-size:15px;">Claude</div>'
       + '<div style="font-size:11px;color:var(--text-light);">Your tree service business assistant</div></div></div>'
       + '<div style="display:flex;gap:4px;">'
       + '<button onclick="AI._copyConversation();" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-light);padding:4px 8px;" title="Copy conversation">📋 Copy</button>'
@@ -197,7 +197,7 @@ var AI = {
       + '<div style="display:flex;align-items:center;gap:10px;">'
       + '<div style="width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#D4A574 0%,#C4956A 100%);display:flex;align-items:center;justify-content:center;">'
       + '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
-      + '<div><div style="font-weight:700;font-size:15px;">AI Assistant</div>'
+      + '<div><div style="font-weight:700;font-size:15px;">Claude</div>'
       + '<div style="font-size:11px;color:var(--text-light);">Your tree service assistant</div></div></div>'
       + '<div style="display:flex;gap:4px;">'
       + '<button onclick="AI._copyConversation()" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-light);padding:4px 8px;" title="Copy conversation">📋</button>'
@@ -285,7 +285,7 @@ var AI = {
       + (isUser ? 'background:var(--accent);color:#fff;' : 'background:linear-gradient(135deg,#D4A574,#C4956A);color:#fff;') + '">'
       + (isUser ? '👤' : '✦') + '</div>'
       + '<div style="flex:1;max-width:calc(100% - 44px);">'
-      + '<div style="font-size:11px;color:var(--text-light);margin-bottom:4px;' + (isUser ? 'text-align:right;' : '') + '">' + (isUser ? 'You' : 'AI Assistant') + '</div>'
+      + '<div style="font-size:11px;color:var(--text-light);margin-bottom:4px;' + (isUser ? 'text-align:right;' : '') + '">' + (isUser ? 'You' : 'Claude') + '</div>'
       + '<div id="' + msgId + '" style="background:' + (isUser ? 'var(--accent)' : 'var(--bg)') + ';color:' + (isUser ? '#fff' : 'var(--text)') + ';padding:10px 14px;border-radius:' + (isUser ? '14px 14px 4px 14px' : '14px 14px 14px 4px') + ';font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;">'
       + AI._formatResponse(msg.content) + '</div>'
       + copyBtn
@@ -376,45 +376,65 @@ var AI = {
 
   startMic: function() {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { UI.toast('Voice input not supported in this browser', 'error'); return; }
-    var recog = new SR();
-    recog.continuous = true;
-    recog.interimResults = true;
-    recog.lang = 'en-US';
-    var input = document.getElementById('ai-input');
-    var existing = input ? input.value : '';
+    if (!SR) { UI.toast('Voice input not supported in this browser. Try Chrome.', 'error'); return; }
 
-    recog.onresult = function(e) {
-      var finalChunk = '';
-      var interimChunk = '';
-      for (var i = e.resultIndex; i < e.results.length; i++) {
-        var r = e.results[i];
-        if (r.isFinal) finalChunk += r[0].transcript;
-        else interimChunk += r[0].transcript;
-      }
-      if (input) {
-        var base = finalChunk ? (existing + (existing ? ' ' : '') + finalChunk).trim() : existing;
-        if (finalChunk) existing = base;
-        input.value = interimChunk ? base + (base ? ' ' : '') + interimChunk : base;
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 100) + 'px';
-      }
-    };
-    recog.onerror = function(e) {
-      if (e.error !== 'no-speech' && e.error !== 'aborted') {
-        UI.toast('Mic error: ' + e.error, 'error');
-      }
-    };
-    recog.onend = function() {
-      // If the user hasn't stopped manually, auto-restart (Chrome cuts off after ~60s silence)
-      if (AI._micOn) { try { recog.start(); } catch(err) { AI._setMicIdle(); } }
+    // Request mic permission explicitly first — avoids silent failures on iOS/Android
+    var doStart = function() {
+      var recog = new SR();
+      recog.continuous = true;
+      recog.interimResults = true;
+      recog.lang = 'en-US';
+      var input = document.getElementById('ai-input');
+      var existing = input ? input.value : '';
+
+      recog.onresult = function(e) {
+        var finalChunk = '';
+        var interimChunk = '';
+        for (var i = e.resultIndex; i < e.results.length; i++) {
+          var r = e.results[i];
+          if (r.isFinal) finalChunk += r[0].transcript;
+          else interimChunk += r[0].transcript;
+        }
+        if (input) {
+          var base = finalChunk ? (existing + (existing ? ' ' : '') + finalChunk).trim() : existing;
+          if (finalChunk) existing = base;
+          input.value = interimChunk ? base + (base ? ' ' : '') + interimChunk : base;
+          input.style.height = 'auto';
+          input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+        }
+      };
+      recog.onerror = function(e) {
+        if (e.error === 'not-allowed') {
+          UI.toast('Microphone permission denied. Enable mic access for this site in your browser settings.', 'error');
+          AI._setMicIdle();
+          AI._micOn = false;
+        } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          UI.toast('Mic error: ' + e.error, 'error');
+        }
+      };
+      recog.onend = function() {
+        if (AI._micOn) { try { recog.start(); } catch(err) { AI._setMicIdle(); AI._micOn = false; } }
+      };
+
+      try { recog.start(); } catch(err) { UI.toast('Could not start mic: ' + err.message, 'error'); return; }
+      AI._recog = recog;
+      AI._micOn = true;
+      var btn = document.getElementById('ai-mic-btn');
+      if (btn) { btn.style.background = '#dc2626'; btn.style.color = '#fff'; btn.textContent = '■'; }
     };
 
-    try { recog.start(); } catch(err) { UI.toast('Could not start mic: ' + err.message, 'error'); return; }
-    AI._recog = recog;
-    AI._micOn = true;
-    var btn = document.getElementById('ai-mic-btn');
-    if (btn) { btn.style.background = '#dc2626'; btn.style.color = '#fff'; btn.innerHTML = '■'; }
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(function(stream) {
+          stream.getTracks().forEach(function(t) { t.stop(); }); // release immediately, just needed for permission
+          doStart();
+        })
+        .catch(function(err) {
+          UI.toast('Mic permission denied: ' + (err.name || err.message) + '. Check browser settings.', 'error');
+        });
+    } else {
+      doStart();
+    }
   },
 
   stopMic: function() {
@@ -429,13 +449,34 @@ var AI = {
   },
 
   // ── Voice output (SpeechSynthesis API) ──
-  _synth: null,
+  _preferredVoice: null,
+  _pickBritishMaleVoice: function() {
+    if (!window.speechSynthesis) return null;
+    var voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    // Priority: named British males → any en-GB male → any en-GB → any English
+    var preferred = ['Daniel', 'Arthur', 'Malcolm', 'Oliver', 'James'];
+    for (var i = 0; i < preferred.length; i++) {
+      var v = voices.find(function(v) { return v.name === preferred[i]; });
+      if (v) return v;
+    }
+    // Partial match: en-GB male-sounding names
+    var gbMale = voices.find(function(v) {
+      return v.lang && v.lang.startsWith('en-GB') && /daniel|arthur|george|harry|james|oliver|thomas|william/i.test(v.name);
+    });
+    if (gbMale) return gbMale;
+    // Any en-GB
+    var gb = voices.find(function(v) { return v.lang && v.lang.startsWith('en-GB'); });
+    if (gb) return gb;
+    // Fallback: en-AU (Australian), then any English
+    var au = voices.find(function(v) { return v.lang && v.lang.startsWith('en-AU'); });
+    if (au) return au;
+    return voices.find(function(v) { return v.lang && v.lang.startsWith('en'); }) || null;
+  },
   speak: function(text) {
     try {
       if (!window.speechSynthesis) return;
-      // Cancel any ongoing speech first
       window.speechSynthesis.cancel();
-      // Strip markdown for cleaner spoken output
       var clean = String(text)
         .replace(/```[\s\S]*?```/g, ' code snippet ')
         .replace(/`([^`]+)`/g, '$1')
@@ -446,8 +487,19 @@ var AI = {
         .trim();
       if (clean.length > 1000) clean = clean.slice(0, 1000) + '. Continued in text.';
       var utter = new SpeechSynthesisUtterance(clean);
-      utter.rate = 1.05;
-      utter.pitch = 1.0;
+      utter.rate = 1.0;
+      utter.pitch = 0.95;
+      // Pick voice — voices may not be loaded yet; retry once after voiceschanged
+      var voice = AI._preferredVoice || AI._pickBritishMaleVoice();
+      if (voice) {
+        AI._preferredVoice = voice;
+        utter.voice = voice;
+      } else if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = function() {
+          window.speechSynthesis.onvoiceschanged = null;
+          AI._preferredVoice = AI._pickBritishMaleVoice();
+        };
+      }
       window.speechSynthesis.speak(utter);
     } catch(e) { /* speech not available */ }
   },
