@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 472; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 473; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -852,6 +852,7 @@
       <button class="nav-item" data-page="invoices"><span class="icon"><i data-lucide="receipt" class="li"></i></span> Invoices <span class="badge" id="badge-invoices"></span></button>
       <!-- v419: Team folded into Payroll (tabs: Payroll / Team / Timesheets / My Pay). Operations moved up to where Team was. -->
       <button class="nav-item" data-page="operations"><span class="icon"><i data-lucide="truck" class="li"></i></span> Operations</button>
+      <button class="nav-item" data-page="callcenter"><span class="icon"><i data-lucide="phone" class="li"></i></span> Call Center</button>
 
       <div style="border-top:1px solid var(--sidebar-border);margin:8px 10px 4px;"></div>
       <button class="nav-item" data-page="reports"><span class="icon"><i data-lucide="pie-chart" class="li"></i></span> Reports</button>
@@ -941,7 +942,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v472.min.js"></script>
+<script defer src="dist/bm.bundle.v473.min.js"></script>
 
 
 
@@ -1403,6 +1404,7 @@ var pageRenderers = {
   search: function() { return SearchPage.render(); },
   payroll: function() { return PayrollHub.render(); },
   permissions: function() { return RBAC.render(); },
+  callcenter: function() { return CallCenter.render(); },
   estimator: function() { return Estimator.render(); },
   cardone: function() { return CardoneTools.render(); },
   calculators: function() {

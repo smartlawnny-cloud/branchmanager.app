@@ -1,5 +1,5 @@
 {
-  "version": 472,
+  "version": 473,
   "released": "2026-04-29",
-  "notes": "Marketing automation edge fn + server section in Automations UI"
+  "notes": "Call Center page — dial pad, client search, recent activity feed; VS Code + tmux dev setup"
 }
