@@ -13,7 +13,7 @@ var CallCenter = {
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">'
       + '<div>'
       + '<h2 style="font-size:22px;font-weight:700;margin:0 0 2px 0;">📞 Call Center</h2>'
-      + '<div style="font-size:12px;color:var(--text-light);">Inbound calls, SMS threads &amp; voicemails</div>'
+      + '<div style="font-size:12px;color:var(--text-light);">Inbound calls, SMS threads, voicemails &amp; bid emails</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'
       + '<button onclick="CallCenter._openDialModal(\'call\')" style="display:flex;align-items:center;gap:6px;padding:9px 16px;background:#1a7a3c;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;"><i data-lucide="phone" style="width:14px;height:14px;stroke:#fff;stroke-width:2.5;"></i> New Call</button>'
@@ -241,9 +241,9 @@ var CallCenter = {
       var { data, error } = await sb.from('communications')
         .select('id,client_id,channel,direction,body,from_number,to_number,status,duration_seconds,recording_url,created_at,metadata')
         .eq('direction', 'inbound')
-        .in('channel', ['call', 'voicemail', 'sms'])
+        .in('channel', ['call', 'voicemail', 'sms', 'email'])
         .order('created_at', { ascending: false })
-        .limit(80);
+        .limit(100);
 
       if (error) throw error;
       var rows = data || [];
@@ -256,7 +256,7 @@ var CallCenter = {
         el.innerHTML = '<div style="padding:80px 24px;text-align:center;color:var(--text-light);">'
           + '<div style="font-size:40px;margin-bottom:12px;">📵</div>'
           + '<div style="font-size:15px;font-weight:600;margin-bottom:6px;">No communications yet</div>'
-          + '<div style="font-size:13px;">Missed calls, voicemails and SMS from Dialpad will appear here once the webhook is active.</div>'
+          + '<div style="font-size:13px;">Missed calls, voicemails, SMS, and bid emails will appear here.</div>'
           + '</div>';
         return;
       }
@@ -266,12 +266,46 @@ var CallCenter = {
       rows.forEach(function(c, idx) {
         var cl = c.client_id ? clientMap[c.client_id] : null;
         var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
-        var phone = c.from_number || '';
-        var digits = phone.replace(/\D/g, '');
-        var name = (cl && cl.name) || meta.name || CallCenter._fmtPhone(phone) || 'Unknown';
+        var isEmail = c.channel === 'email';
         var isVM   = c.channel === 'voicemail';
         var isSMS  = c.channel === 'sms';
         var isMissed = c.status === 'missed' || c.status === 'no-answer' || c.status === 'no_answer';
+        var phone = isEmail ? '' : (c.from_number || '');
+        var digits = phone.replace(/\D/g, '');
+
+        // ── Email / BidNet row ───────────────────────────────────
+        if (isEmail) {
+          var bidType = meta.bidnet_type || 'new_solicitation';
+          var bidIcon = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📧';
+          var bidLabel = bidType === 'award' ? 'Award' : bidType === 'addendum' ? 'Addendum' : 'New Bid';
+          var bidColor = bidType === 'award' ? '#e65100' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
+          var agency = meta.agency || c.from_number || '';
+          var solNum  = meta.solicitation_number || '';
+          var bidUrl  = meta.bidnet_url || '';
+          var subject = c.body || '';
+          var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
+          var isLast = idx === rows.length - 1;
+          html += '<div style="padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+            + '<div style="display:flex;align-items:flex-start;gap:12px;">'
+            + '<div style="flex-shrink:0;width:42px;height:42px;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">' + bidIcon + '</div>'
+            + '<div style="flex:1;min-width:0;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">'
+            + '<span style="font-weight:700;font-size:14px;">' + (agency || 'Unknown Agency') + '</span>'
+            + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+            + '</div>'
+            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:2px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+            + (subject ? '<div style="font-size:13px;color:var(--text);margin-top:4px;line-height:1.4;">' + subject.slice(0, 140) + (subject.length > 140 ? '…' : '') + '</div>' : '')
+            + '</div>'
+            + '</div>'
+            + '<div style="display:flex;gap:6px;margin-top:10px;padding-left:54px;flex-wrap:wrap;">'
+            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" style="padding:6px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">🔗 View Bid</a>' : '')
+            + '</div>'
+            + '</div>';
+          return;
+        }
+
+        // ── Call / SMS / Voicemail row ───────────────────────────
+        var name = (cl && cl.name) || meta.name || CallCenter._fmtPhone(phone) || 'Unknown';
         var icon  = isVM ? '📭' : (isSMS ? '💬' : (isMissed ? '📵' : '📞'));
         var label = isVM ? 'Voicemail' : (isSMS ? 'SMS' : (isMissed ? 'Missed call' : 'Inbound call'));
         var labelColor = isVM ? '#7b1fa2' : (isSMS ? '#1565c0' : (isMissed ? '#c62828' : '#2e7d32'));
@@ -532,17 +566,41 @@ var CallCenter = {
       var html = '<div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-top:16px;">';
       comms.forEach(function(c, idx) {
         var isIn = c.direction === 'inbound';
+        var isEmail = c.channel === 'email';
         var icon = c.channel === 'call' ? '📞' : c.channel === 'sms' ? '💬' : c.channel === 'voicemail' ? '📭' : '📧';
-        var dirColor = isIn ? '#1565c0' : '#2e7d32';
         var cl = c.client_id ? clientMap[c.client_id] : null;
         var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
+        var ts = UI.dateRelative(c.created_at);
+        var isLast = idx === comms.length - 1;
+
+        if (isEmail) {
+          var bidType = meta.bidnet_type || 'new_solicitation';
+          var bidIcon = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📧';
+          var bidLabel = bidType === 'award' ? 'Award' : bidType === 'addendum' ? 'Addendum' : 'New Bid';
+          var agency = meta.agency || c.from_number || 'BidNet';
+          var solNum  = meta.solicitation_number || '';
+          var bidUrl  = meta.bidnet_url || '';
+          html += '<div style="display:flex;gap:12px;padding:13px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+            + '<div style="flex-shrink:0;width:38px;height:38px;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;">' + bidIcon + '</div>'
+            + '<div style="flex:1;min-width:0;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
+            + '<span style="font-weight:600;font-size:13px;">' + agency + '</span>'
+            + '<span style="font-size:11px;color:var(--text-light);">' + ts + '</span>'
+            + '</div>'
+            + '<div style="font-size:11px;color:#1565c0;font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+            + (c.body ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + c.body + '</div>' : '')
+            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" style="display:inline-block;margin-top:4px;font-size:11px;color:#1565c0;font-weight:600;text-decoration:none;">🔗 View Bid</a>' : '')
+            + '</div>'
+            + '</div>';
+          return;
+        }
+
+        var dirColor = isIn ? '#1565c0' : '#2e7d32';
         var who = (cl && cl.name) || meta.name || (isIn ? CallCenter._fmtPhone(c.from_number) : CallCenter._fmtPhone(c.to_number)) || 'Unknown';
         var phone = (isIn ? c.from_number : c.to_number) || '';
-        var ts = UI.dateRelative(c.created_at);
         var safePhone = phone.replace(/\D/g,'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var safeWho = who.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
         var safeId = (c.client_id||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        var isLast = idx === comms.length - 1;
 
         html += '<div ' + (safePhone ? 'onclick="CallCenter._dialFrom(\'' + safeId + '\',\'' + safeWho + '\',\'' + safePhone + '\',\'sms\')"' : '') + ' style="display:flex;gap:12px;padding:13px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + (safePhone?'cursor:pointer;':'') + '"'
           + (safePhone ? ' onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\';"' : '') + '>'
