@@ -23,7 +23,7 @@ var TaskReminders = {
   CATEGORIES: [
     { key: 'errand', label: 'Errand', icon: '\uD83C\uDFC3' },
     { key: 'maintenance', label: 'Maintenance', icon: '\uD83D\uDD27' },
-    { key: 'prep', label: 'Prep', icon: '\uD83D\uDCC4' },
+    { key: 'prep', label: 'Prep', icon: '\uD83D\uDDC2\uFE0F' },
     { key: 'cleanup', label: 'Cleanup', icon: '\uD83E\uDDF9' },
     { key: 'sales', label: 'Sales', icon: '\uD83D\uDCB0' },
     { key: 'order_parts', label: 'Order Parts', icon: '\uD83D\uDED2' }
