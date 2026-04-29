@@ -13,7 +13,7 @@ var CallCenter = {
     // ── Header ──────────────────────────────────────────────────
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">'
       + '<div>'
-      + '<h2 style="font-size:22px;font-weight:700;margin:0 0 2px 0;">📞 Call Center</h2>'
+      + '<h2 style="font-size:22px;font-weight:700;margin:0 0 2px 0;">📞 Leads Center</h2>'
       + '<div style="font-size:12px;color:var(--text-light);">Inbound calls, SMS threads, voicemails &amp; bid emails</div>'
       + '</div>'
       + '<div style="display:flex;gap:8px;">'

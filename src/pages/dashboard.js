@@ -217,7 +217,7 @@ var DashboardPage = {
     var _ccCollapsed = localStorage.getItem('bm-dash-cc-collapsed') === '1';
     html += '<div id="dash-callcenter-widget" style="background:var(--white);border-radius:12px;padding:12px 16px;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (_ccCollapsed ? '0' : '12px') + ';">'
-      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Call Center</h3>'
+      + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Leads Center</h3>'
       + '<div id="dash-cc-badge" style="font-size:12px;color:var(--text-light);margin-top:2px;">Loading…</div>'
       + '</div>'
       + '<div style="display:flex;gap:6px;align-items:center;">'
@@ -651,71 +651,95 @@ var DashboardPage = {
     if (!el) return;
     var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
     if (!sb) {
-      el.innerHTML = '<div style="padding:14px 18px;font-size:13px;color:var(--text-light);">Supabase not connected.</div>';
+      el.innerHTML = '<div style="font-size:13px;color:var(--text-light);padding:4px 0;">Supabase not connected.</div>';
       return;
     }
     try {
-      var cutoff = new Date(Date.now() - 48 * 3600000).toISOString();
+      var cutoff = new Date(Date.now() - 72 * 3600000).toISOString();
       var { data, error } = await sb.from('communications')
         .select('id,channel,direction,from_number,to_number,body,created_at,metadata')
         .gte('created_at', cutoff)
         .order('created_at', { ascending: false })
-        .limit(6);
+        .limit(30);
       if (error) throw error;
 
       var badge = document.getElementById('dash-cc-badge');
       var widget = document.getElementById('dash-callcenter-widget');
 
       if (!data || data.length === 0) {
-        // Collapse to a compact pill like Today's Jobs empty state
         if (widget) {
           widget.style.cssText = 'background:var(--white);border-radius:10px;padding:10px 16px;border:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;color:var(--text-light);';
           widget.onclick = function() { loadPage('callcenter'); };
-          widget.innerHTML = '<span><strong style="color:var(--text);">Call Center</strong> · No recent activity</span>'
+          widget.innerHTML = '<span><strong style="color:var(--text);">Leads Center</strong> · No recent activity</span>'
             + '<span style="color:var(--accent);font-size:12px;">Open →</span>';
         }
         return;
       }
 
-      if (badge) badge.textContent = data.length + ' recent';
-
-      var chanIcon = { sms: '💬', call: '📞', voicemail: '📭', email: '✉️' };
-      var html = '';
       var clients = typeof DB !== 'undefined' ? DB.clients.getAll() : [];
+      var _fp = function(p) { var d=(p||'').replace(/\D/g,''); if(d.length===10) return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6); if(d.length===11&&d[0]==='1') return '('+d.slice(1,4)+') '+d.slice(4,7)+'-'+d.slice(7); return p||'—'; };
+      var _ago = function(d) { var s=Math.floor((Date.now()-new Date(d))/1000); if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m'; if(s<86400) return Math.floor(s/3600)+'h'; return Math.floor(s/86400)+'d'; };
+      var _name = function(c) {
+        var phone = c.direction==='inbound' ? c.from_number : c.to_number;
+        var match = clients.find(function(cl) { var p=(cl.phone||'').replace(/\D/g,''),q=(phone||'').replace(/\D/g,''); return p.length>=7&&q.length>=7&&(p===q||p.endsWith(q)||q.endsWith(p)); });
+        return match ? (match.name||match.firstName+' '+(match.lastName||'')).trim() : _fp(phone);
+      };
 
-      data.forEach(function(c, idx) {
-        var phone = c.direction === 'inbound' ? c.from_number : c.to_number;
-        var match = clients.find(function(cl) {
-          var p = (cl.phone || '').replace(/\D/g, '');
-          var q = (phone || '').replace(/\D/g, '');
-          return p.length >= 7 && q.length >= 7 && (p === q || p.endsWith(q) || q.endsWith(p));
+      // Separate into 3 buckets
+      var texts = data.filter(function(c) { return c.channel === 'sms'; }).slice(0, 4);
+      var calls = data.filter(function(c) { return c.channel === 'call' || c.channel === 'voicemail'; }).slice(0, 4);
+      var emails = data.filter(function(c) { return c.channel === 'email'; }).slice(0, 4);
+
+      var totalCount = texts.length + calls.length + emails.length;
+      if (badge) badge.textContent = totalCount + ' recent';
+
+      var _renderSection = function(key, label, icon, items, dot) {
+        if (items.length === 0) return '';
+        var collapsed = localStorage.getItem('bm-lc-' + key + '-collapsed') === '1';
+        var rows = '';
+        items.forEach(function(c, idx) {
+          var name = _name(c);
+          var preview = c.channel === 'sms' ? (c.body || '').substring(0, 45)
+            : c.channel === 'voicemail' ? 'Voicemail'
+            : (c.direction === 'inbound' ? 'Inbound call' : 'Outbound call');
+          var isLast = idx === items.length - 1;
+          rows += '<div style="display:flex;align-items:center;gap:10px;padding:5px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">'
+            + '<div style="width:8px;height:8px;border-radius:50%;background:' + (c.direction==='inbound'?'#2e7d32':'#1565c0') + ';flex-shrink:0;"></div>'
+            + '<div style="font-size:13px;font-weight:600;flex-shrink:0;white-space:nowrap;">' + UI.esc(name) + '</div>'
+            + '<div style="flex:1;min-width:0;font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(preview) + '</div>'
+            + '<span style="font-size:11px;color:var(--text-light);flex-shrink:0;">' + _ago(c.created_at) + '</span>'
+            + '</div>';
         });
-        var _fp = function(p) { var d=(p||'').replace(/\D/g,''); if(d.length===10) return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6); if(d.length===11&&d[0]==='1') return '('+d.slice(1,4)+') '+d.slice(4,7)+'-'+d.slice(7); return p||'—'; };
-        var name = match ? (match.name || match.firstName + ' ' + (match.lastName || '')).trim() : _fp(phone);
-        var icon = chanIcon[c.channel] || '📞';
-        var dot = c.direction === 'inbound' ? '#2e7d32' : '#1565c0';
-        var preview = c.channel === 'sms' ? (c.body || '').substring(0, 50) : c.channel === 'voicemail' ? 'Voicemail left' : (c.direction === 'inbound' ? 'Inbound call' : 'Outbound call');
-        var ago = (function(d) {
-          var s = Math.floor((Date.now() - new Date(d)) / 1000);
-          if (s < 60) return s + 's ago';
-          if (s < 3600) return Math.floor(s/60) + 'm ago';
-          if (s < 86400) return Math.floor(s/3600) + 'h ago';
-          return Math.floor(s/86400) + 'd ago';
-        })(c.created_at);
-
-        var isLast = idx === data.length - 1;
-        var safeIcon = { sms: 'SMS', call: 'Call', voicemail: 'VM', email: 'Email' }[c.channel] || c.channel;
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">'
-          + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>'
-          + '<div style="font-size:14px;font-weight:600;flex-shrink:0;white-space:nowrap;">' + (typeof UI !== 'undefined' ? UI.esc(name) : name) + '</div>'
-          + '<div style="flex:1;min-width:0;font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + icon + ' ' + (typeof UI !== 'undefined' ? UI.esc(preview) : preview) + '</div>'
-          + '<span style="font-size:11px;color:var(--text-light);flex-shrink:0;">' + ago + '</span>'
+        return '<div style="margin-top:8px;">'
+          + '<div onclick="DashboardPage._toggleLeadSection(\'' + key + '\')" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:3px 0;user-select:none;">'
+          + '<span style="font-size:12px;">' + icon + '</span>'
+          + '<span style="font-size:12px;font-weight:700;color:var(--text);">' + label + '</span>'
+          + '<span style="font-size:11px;color:var(--text-light);margin-left:2px;">(' + items.length + ')</span>'
+          + '<span style="font-size:11px;color:var(--text-light);margin-left:auto;">' + (collapsed ? '▾' : '▴') + '</span>'
+          + '</div>'
+          + '<div id="bm-lc-' + key + '-rows" style="' + (collapsed ? 'display:none;' : '') + '">' + rows + '</div>'
           + '</div>';
-      });
+      };
 
-      el.innerHTML = html;
+      el.innerHTML = _renderSection('texts', 'Texts', '💬', texts)
+        + _renderSection('calls', 'Calls', '📞', calls)
+        + _renderSection('emails', 'Email', '✉️', emails);
+
     } catch(e) {
-      el.innerHTML = '<div style="padding:14px 18px;font-size:13px;color:var(--text-light);">Could not load activity.</div>';
+      el.innerHTML = '<div style="font-size:13px;color:var(--text-light);">Could not load activity.</div>';
+    }
+  },
+
+  _toggleLeadSection: function(key) {
+    var collapsed = localStorage.getItem('bm-lc-' + key + '-collapsed') === '1';
+    collapsed = !collapsed;
+    localStorage.setItem('bm-lc-' + key + '-collapsed', collapsed ? '1' : '0');
+    var rows = document.getElementById('bm-lc-' + key + '-rows');
+    if (rows) rows.style.display = collapsed ? 'none' : '';
+    // Update chevron
+    if (rows && rows.previousElementSibling) {
+      var chevron = rows.previousElementSibling.querySelector('span:last-child');
+      if (chevron) chevron.textContent = collapsed ? '▾' : '▴';
     }
   },
 
