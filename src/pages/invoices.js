@@ -464,6 +464,15 @@ var InvoicesPage = {
       var j = DB.jobs.getById(jobId);
       if (!j) return;
       var invNum = _baseInvCount + count + 1;
+      // Subject = first non-empty of (job description, first line-item service,
+      // job number fallback). Replaces the generic "For Services Rendered" so
+      // invoice list rows show what the work actually was — e.g. "Tree of
+      // Heaven Removal" instead of every row reading the same thing.
+      var firstItem = (j.lineItems && j.lineItems[0]) || {};
+      var derivedSubject = (j.description && j.description.trim())
+        || firstItem.service
+        || firstItem.description
+        || 'Job #' + (j.jobNumber || '');
       DB.invoices.create({
         invoiceNumber: invNum,
         clientId: j.clientId,
@@ -471,7 +480,7 @@ var InvoicesPage = {
         clientEmail: j.clientEmail,
         clientPhone: j.clientPhone,
         jobId: j.id,
-        subject: 'For Services Rendered',
+        subject: derivedSubject,
         lineItems: j.lineItems || [],
         total: j.total || 0,
         balance: j.total || 0,

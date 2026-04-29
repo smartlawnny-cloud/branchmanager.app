@@ -1,5 +1,5 @@
 {
-  "version": 457,
+  "version": 458,
   "released": "2026-04-28",
-  "notes": "v457: 4 HIGH security fixes (Stripe replay, Dialpad sig bypass, quote-notify XSS+validation) + dark-mode toggle in avatar menu"
+  "notes": "v458: Payments tab on Reports + invoice subject auto-from-job + weather schedule first-fetch fix"
 }

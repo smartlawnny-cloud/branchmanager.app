@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 457; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 458; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -941,7 +941,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v457.min.js"></script>
+<script defer src="dist/bm.bundle.v458.min.js"></script>
 
 
 
@@ -1198,6 +1198,7 @@ var ReportsHub = {
   render: function() {
     var tabs = [
       ['insights', 'Overview'],
+      ['payments', 'Payments'],
       ['profitloss', 'Profit & Loss'],
       ['expenses', 'Expenses'],
       ['jobcosting', 'Job Costing'],
@@ -1209,6 +1210,7 @@ var ReportsHub = {
     var body = '';
     try {
       if (r.tab === 'insights') body = InsightsPage.render();
+      else if (r.tab === 'payments') body = (typeof Payments !== 'undefined' ? Payments.render() : '<div style="padding:16px;color:var(--text-light);">Payments module not loaded.</div>');
       else if (r.tab === 'profitloss') body = ProfitLossPage.render();
       else if (r.tab === 'expenses') body = ExpensesPage.render();
       else if (r.tab === 'jobcosting') body = JobCosting.render();

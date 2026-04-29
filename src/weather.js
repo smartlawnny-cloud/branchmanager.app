@@ -49,6 +49,15 @@ var Weather = {
       return;
     }
 
+    // First-fetch detection: schedule's per-day cells call Weather.getInline()
+    // synchronously at render time. If cache is empty (cold load), they all
+    // render blank, then this async fetch lands but there's no per-cell
+    // element to update — the toggle off/on workaround re-renders the page.
+    // We do that automatically: if cache was empty AND we're on schedule,
+    // re-render once after data lands. Cap to once per cold start to avoid
+    // infinite loops if fetch keeps populating an unstable cache.
+    var firstFetch = !Weather.cache;
+
     var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + Weather.LAT + '&longitude=' + Weather.LON
       + '&current=temperature_2m,weather_code,wind_speed_10m,wind_gusts_10m'
       + '&hourly=temperature_2m,precipitation_probability,weather_code'
@@ -59,6 +68,9 @@ var Weather = {
       Weather.cache = data;
       Weather.cacheTime = Date.now();
       Weather._render(data);
+      if (firstFetch && typeof window !== 'undefined' && window._currentPage === 'schedule' && typeof loadPage === 'function') {
+        loadPage('schedule');
+      }
     }).catch(function(e) {
       var el = document.getElementById('weather-data');
       if (el) el.innerHTML = '<span style="color:var(--text-light);">Unable to load weather</span>';
