@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 482; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 483; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -857,6 +857,7 @@
       <button class="nav-item" data-page="invoices"><span class="icon"><i data-lucide="receipt" class="li"></i></span> Invoices <span class="badge" id="badge-invoices"></span></button>
       <!-- v419: Team folded into Payroll (tabs: Payroll / Team / Timesheets / My Pay). Operations moved up to where Team was. -->
       <button class="nav-item" data-page="operations"><span class="icon"><i data-lucide="truck" class="li"></i></span> Operations</button>
+      <button class="nav-item" data-page="permits"><span class="icon"><i data-lucide="landmark" class="li"></i></span> Permits</button>
 
       <div style="border-top:1px solid var(--sidebar-border);margin:8px 10px 4px;"></div>
       <button class="nav-item" data-page="reports"><span class="icon"><i data-lucide="pie-chart" class="li"></i></span> Reports</button>
@@ -947,7 +948,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v482.min.js"></script>
+<script defer src="dist/bm.bundle.v483.min.js"></script>
 
 
 
@@ -1165,6 +1166,7 @@ var pageConfigs = {
   modeselector: { title: 'Branch Manager', action: null },
   taskreminders: { title: 'Tasks & Reminders', action: '+ New Task', actionFn: 'TaskReminders._showForm()' },
   teamchat: { title: 'Team Chat', action: null },
+  permits: { title: 'Permit Research', action: null },
   mediacenter: { title: 'Media Center', action: '+ Upload Photos', actionFn: 'MediaCenter.showUploadForm()' },
   reminders: { title: 'Compliance & Reminders', action: '+ Add Reminder', actionFn: 'Reminders.showForm("other")' },
   comms: { title: 'Communication Log', action: null },
@@ -1393,6 +1395,7 @@ var pageRenderers = {
   modeselector: function() { return ModeSelector.render(); },
   taskreminders: function() { return TaskReminders.render(); },
   teamchat: function() { return TeamChat.render(); },
+  permits: function() { return PermitsPage.render(); },
   mediacenter: function() { return MediaCenter.render(); },
   reminders: function() { return Reminders.render(); },
   comms: function() { return CommsLog.render(); },
