@@ -1,5 +1,5 @@
 {
-  "version": 468,
+  "version": 469,
   "released": "2026-04-28",
-  "notes": "Fix all 11 toISOString schedule dates"
+  "notes": "Settings fixes: auditAI uses SupabaseDB client, syncNow uses CloudSync, Resend counted in integrations"
 }
