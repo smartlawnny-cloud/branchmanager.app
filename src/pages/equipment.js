@@ -253,6 +253,8 @@ var EquipmentPage = {
       html += Photos.renderGallery('equipment', id);
     }
 
+    html += EquipmentPage._renderDocs(id);
+
     UI.showModal(e.name, html, {
       wide: true,
       footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Close</button>'
@@ -507,5 +509,131 @@ var EquipmentPage = {
     localStorage.setItem('bm-equipment-inspections', JSON.stringify(all));
     UI.toast('✅ ' + eq.name + ' inspected (' + checked.length + '/' + items.length + ' items)');
     loadPage('equipment');
+  },
+
+  // ═══ Manuals & Documents ═══
+  _getDocs: function(id) {
+    try {
+      var stored = localStorage.getItem('bm-equipment-docs-' + id);
+      if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    // Pre-seed Bandit 254 Chipper (Giant/1200 w/ Kubota D902-E4B) with Dan Wojick's manuals
+    if (id === 'eq4b') {
+      var seed = [
+        { id: 'doc-g1', name: 'Operator Manual', type: 'manual',
+          url: 'https://drive.google.com/file/d/1kVoAKtIUHbTxxWYZLzCkRPxpxvM_F_xj/view',
+          addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
+        { id: 'doc-g2', name: 'Service Manual', type: 'manual',
+          url: 'https://drive.google.com/file/d/1m4DUs5mDU_twd4fnDkCkvAO6yuxzGm3Q/view',
+          addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
+        { id: 'doc-g3', name: 'Kubota D902-E4B Engine WSM', type: 'manual',
+          url: 'https://drive.google.com/file/d/1WlenKBXvqM9TPj6XSCa405R4iOJBxf9P/view',
+          addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
+        { id: 'doc-g4', name: 'Giant 254 Parts Diagrams', type: 'parts',
+          url: 'https://drive.google.com/file/d/1xTNh5cOtAEbQlfWIry9pwaFGpcOvzod2/view',
+          addedAt: '2026-04-29', note: 'From Dan Wojick @ Belfast Inc.' },
+        { id: 'doc-g5', name: 'Kubota D902-E4B Parts List (PDF)', type: 'parts',
+          url: 'https://ltpivkqahvplapyagljt.supabase.co/storage/v1/object/public/equipment-docs/giant-254t/kubota-d902-e4b-parts-list.pdf',
+          addedAt: '2026-04-29', note: 'Uploaded to BM storage' }
+      ];
+      EquipmentPage._saveDocs(id, seed);
+      return seed;
+    }
+    return [];
+  },
+
+  _saveDocs: function(id, docs) {
+    localStorage.setItem('bm-equipment-docs-' + id, JSON.stringify(docs));
+  },
+
+  _renderDocs: function(id) {
+    var docs = EquipmentPage._getDocs(id);
+    var typeIcon  = { manual: '📕', parts: '🔧', diagram: '📐', cert: '📋', other: '📄' };
+    var typeColor = { manual: '#1565c0', parts: '#e65100', diagram: '#6a1b9a', cert: '#2e7d32', other: '#555' };
+
+    var html = '<div style="margin-top:20px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:10px;">'
+      + '<h4 style="font-size:14px;font-weight:700;">📚 Manuals & Documents</h4>'
+      + '<button onclick="EquipmentPage.addDoc(\'' + id + '\')" style="background:var(--green-dark);color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">+ Add</button>'
+      + '</div>';
+
+    if (docs.length === 0) {
+      html += '<div style="font-size:13px;color:var(--text-light);padding:8px 0;">No documents saved yet.</div>';
+    } else {
+      html += '<div style="display:grid;gap:6px;">';
+      docs.forEach(function(doc) {
+        var icon  = typeIcon[doc.type]  || '📄';
+        var color = typeColor[doc.type] || '#555';
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:#f8f9fa;border-radius:8px;border:1px solid #e8eaed;">'
+          + '<span style="font-size:20px;flex-shrink:0;">' + icon + '</span>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<a href="' + doc.url + '" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:var(--green-dark);text-decoration:none;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + UI.esc(doc.name) + '</a>'
+          + (doc.note ? '<div style="font-size:11px;color:var(--text-light);">' + UI.esc(doc.note) + '</div>' : '')
+          + '</div>'
+          + '<span style="font-size:10px;font-weight:700;color:' + color + ';background:' + color + '18;padding:2px 7px;border-radius:10px;text-transform:uppercase;flex-shrink:0;">' + UI.esc(doc.type || 'doc') + '</span>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+
+    // OEM part number quick-reference for the Giant 254T / Kubota D902-E4B
+    if (id === 'eq4b') {
+      html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
+        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔩 OEM Kubota D902-E4B Part Numbers</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;">'
+        + '<div><strong>Water Pump</strong>: 1E051-73036</div>'
+        + '<div><strong>W/P Gasket</strong>: 16871-73430</div>'
+        + '<div><strong>Thermostat</strong>: 19434-73015</div>'
+        + '<div><strong>T-stat Gasket</strong>: 16221-73270</div>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Order: Diesel Parts Direct · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  },
+
+  addDoc: function(id) {
+    var eq = EquipmentPage.getAll().find(function(e) { return e.id === id; });
+    if (!eq) return;
+    var html = '<div style="display:grid;gap:10px;">'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Document Name *</label>'
+      + '<input type="text" id="doc-name" placeholder="e.g., Operator Manual" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">URL *</label>'
+      + '<input type="url" id="doc-url" placeholder="https://drive.google.com/..." style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Type</label>'
+      + '<select id="doc-type" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;">'
+      + '<option value="manual">Manual</option><option value="parts">Parts List / Diagram</option>'
+      + '<option value="diagram">Wiring / Schematic</option><option value="cert">Certificate</option><option value="other">Other</option>'
+      + '</select></div>'
+      + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Note (optional)</label>'
+      + '<input type="text" id="doc-note" placeholder="e.g., From Dan @ Belfast Inc." style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
+      + '</div>';
+    UI.showModal('Add Document — ' + eq.name, html, {
+      footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+        + ' <button class="btn btn-primary" onclick="EquipmentPage._saveDoc(\'' + id + '\')">Save</button>'
+    });
+  },
+
+  _saveDoc: function(id) {
+    var nameEl = document.getElementById('doc-name');
+    var urlEl  = document.getElementById('doc-url');
+    var name = nameEl ? nameEl.value.trim() : '';
+    var url  = urlEl  ? urlEl.value.trim()  : '';
+    if (!name || !url) { UI.toast('Name and URL are required'); return; }
+    var docs = EquipmentPage._getDocs(id);
+    docs.push({
+      id: 'doc-' + Date.now().toString(36),
+      name: name,
+      type: (document.getElementById('doc-type') || {}).value || 'other',
+      url:  url,
+      note: ((document.getElementById('doc-note') || {}).value || '').trim(),
+      addedAt: new Date().toISOString().split('T')[0]
+    });
+    EquipmentPage._saveDocs(id, docs);
+    UI.closeModal();
+    UI.toast('Document saved');
+    EquipmentPage.showDetail(id);
   }
 };
