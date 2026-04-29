@@ -776,20 +776,91 @@ var SocialBranch = {
       + '</div>'
       + '</div>';
 
-    // Network map
+    // Native compose URLs — open the platform's "new post" UI in a new tab.
+    // Used by the manual-post fallback when no backend is configured. Where a
+    // network has no public web composer (Instagram, TikTok app-only), we
+    // provide the closest workable surface or skip the link.
+    var COMPOSE_URLS = {
+      'gmb':       'https://business.google.com/posts/',
+      'facebook':  'https://www.facebook.com/?ref=composer',
+      'instagram': 'https://www.instagram.com/',
+      'youtube':   'https://www.youtube.com/upload',
+      'linkedin':  'https://www.linkedin.com/feed/?shareActive=true&mini=true',
+      'tiktok':    'https://www.tiktok.com/upload',
+      'x':         'https://twitter.com/intent/tweet'
+    };
+
+    // Network map — honest about what's working
+    var hasWebhook = !!webhook;
+    var bannerColor = hasWebhook ? '#16a34a' : '#d97706';
+    var bannerBg    = hasWebhook ? '#dcfce7' : '#fef3c7';
+    var bannerMsg   = hasWebhook
+      ? 'Webhook backend is configured — posts to checked networks route through Zapier/Make on schedule.'
+      : 'No backend configured — scheduled posts will NOT publish anywhere. Either set a Zapier webhook above OR use the Copy & Post buttons below.';
+
     html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px;">'
-      + '<h3 style="margin:0 0 12px;font-size:16px;">Networks</h3>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">';
+      + '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px;">'
+      +   '<h3 style="margin:0;font-size:16px;">Networks</h3>'
+      +   '<span style="font-size:11px;color:var(--text-light);">Direct OAuth per network is on the roadmap. Today: Webhook OR Manual.</span>'
+      + '</div>'
+      + '<div style="background:' + bannerBg + ';border:1px solid ' + bannerColor + ';border-radius:8px;padding:10px 14px;font-size:12px;color:#444;margin-bottom:14px;">'
+      +   '<strong style="color:' + bannerColor + ';">' + (hasWebhook ? 'Active' : 'Inactive') + '</strong> — ' + bannerMsg
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;">';
     SocialBranch.NETWORKS.forEach(function(n) {
       var isC = connected.indexOf(n.id) >= 0;
+      var stateLabel, stateColor;
+      if (isC) {
+        stateLabel = '✓ Direct OAuth';
+        stateColor = 'var(--green-dark)';
+      } else if (hasWebhook) {
+        stateLabel = 'Routes via Webhook';
+        stateColor = '#16a34a';
+      } else {
+        stateLabel = 'Manual posting';
+        stateColor = 'var(--text-light)';
+      }
+      var composeUrl = COMPOSE_URLS[n.id] || '';
       html += '<div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:' + (isC ? n.color + '10' : 'var(--white)') + ';">'
         + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;"><span style="color:' + n.color + ';">' + SocialBranch._netIcon(n.icon, 20) + '</span><div style="font-weight:700;">' + n.name + '</div></div>'
-        + '<div style="font-size:12px;color:' + (isC ? 'var(--green-dark)' : 'var(--text-light)') + ';font-weight:600;">' + (isC ? 'Reachable' : 'Awaiting backend') + '</div>'
+        + '<div style="font-size:12px;color:' + stateColor + ';font-weight:600;margin-bottom:8px;">' + stateLabel + '</div>'
+        + (composeUrl
+            ? '<button onclick="SocialBranch._manualPost(\'' + n.id + '\',\'' + composeUrl + '\')" '
+              +   'style="background:none;border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;color:var(--text);width:100%;" '
+              +   'title="Copy your latest draft + open ' + n.name + ' compose">'
+              + '📋 Copy & Open ' + n.name + ' →'
+              + '</button>'
+            : '<div style="font-size:11px;color:var(--text-light);font-style:italic;">No web composer — use the mobile app</div>')
         + '</div>';
     });
     html += '</div></div>';
 
     return html;
+  },
+
+  // v463: manual-post fallback — copy latest draft caption to clipboard then
+  // open the network's native compose URL. For networks without OAuth or a
+  // webhook configured, this is the realistic path: Doug copies the post,
+  // pastes into Facebook/X/etc directly. Better than the old "Awaiting backend"
+  // dead-end that left users not knowing posts wouldn't publish.
+  _manualPost: function(networkId, composeUrl) {
+    var posts = SocialBranch._getPosts();
+    var draft = posts.filter(function(p) {
+      return (p.status === 'draft' || p.status === 'scheduled') && p.caption;
+    }).sort(function(a, b) {
+      return new Date(b.scheduledAt || b.createdAt || 0) - new Date(a.scheduledAt || a.createdAt || 0);
+    })[0];
+    var caption = (draft && draft.caption) || '';
+    if (caption && navigator.clipboard) {
+      navigator.clipboard.writeText(caption).then(function() {
+        UI.toast('📋 Copied latest draft to clipboard — paste into ' + networkId);
+      }).catch(function() {
+        UI.toast('Could not copy — opening compose blank');
+      });
+    } else if (!caption) {
+      UI.toast('No draft caption found — opening blank compose');
+    }
+    setTimeout(function() { window.open(composeUrl, '_blank', 'noopener,noreferrer'); }, 250);
   },
 
   // ─────────────────────────────────────────────────────────

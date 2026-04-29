@@ -1,5 +1,5 @@
 {
-  "version": 462,
+  "version": 463,
   "released": "2026-04-28",
-  "notes": "v462: Stale-quote follow-up CTA on quote detail (surface from kebab menu) + fix legacy SendGrid toast"
+  "notes": "v463: Marketing/Networks honest state — webhook/manual indicators + Copy & Open per-network manual post fallback"
 }
