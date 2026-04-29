@@ -486,8 +486,9 @@ var DispatchPage = {
       DispatchPage._refreshFleetMarkers();
       return;
     }
-    if (!window.SB || !SB.from || !DispatchPage._map) return;
-    SB.from('vehicles').select('id, name, last_lat, last_lon, last_seen_at, last_speed_mph, last_ignition, type').eq('active', true).then(function(r) {
+    var _sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!_sb || !DispatchPage._map) return;
+    _sb.from('vehicles').select('id, name, last_lat, last_lon, last_seen_at, last_speed_mph, last_ignition, type').eq('active', true).then(function(r) {
       if (r.error) { console.warn('fleet fetch:', r.error.message); return; }
       DispatchPage._fleetData = r.data || [];
       DispatchPage._refreshFleetMarkers();

@@ -11,7 +11,16 @@ var FleetPage = {
 
   render: function() {
     var self = FleetPage;
+    // Reset fetch flag on every explicit navigation so data is fresh
+    self._fetched = false;
+    self._renderedOnce = false;
     self._kickFetch();
+    // Auto-refresh every 30s while page is visible
+    if (self._refreshTimer) clearInterval(self._refreshTimer);
+    self._refreshTimer = setInterval(function() {
+      if (!document.getElementById('fleet-list')) { clearInterval(self._refreshTimer); return; }
+      self._refresh(false);
+    }, 30000);
 
     var html = '';
 
@@ -61,7 +70,7 @@ var FleetPage = {
     }
 
     // ── List view
-    html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
+    html += '<div id="fleet-list" style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.04);">';
     html += '<div class="data-table">';
     html += '<div class="data-table-header" style="display:grid;grid-template-columns:1.5fr 1fr 110px 110px 1fr 80px;gap:12px;padding:10px 16px;background:var(--bg);font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;">'
       + '<div>Vehicle</div><div>Tracker</div><div>Status</div><div>Speed</div><div>Last Seen</div><div></div></div>';
@@ -73,9 +82,9 @@ var FleetPage = {
         +   (v.nickname ? '<div style="font-size:11px;color:var(--text-light);">' + UI.esc(v.nickname) + '</div>' : '')
         + '</div>'
         + '<div style="font-size:12px;color:var(--text-light);">' + UI.esc(v.tracker_provider || 'none') + (v.tracker_device_id ? ' <span style="opacity:.6;">' + UI.esc(String(v.tracker_device_id).slice(-6)) + '</span>' : '') + '</div>'
-        + '<div><span style="background:' + status.bg + ';color:' + status.fg + ';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">' + status.label + '</span></div>'
-        + '<div>' + (v.last_speed_mph != null ? Math.round(v.last_speed_mph) + ' mph' : '—') + '</div>'
-        + '<div style="font-size:12px;color:var(--text-light);">' + (v.last_seen_at ? UI.timeAgo(v.last_seen_at) : 'never') + '</div>'
+        + '<div><span id="fleet-status-' + v.id + '" style="background:' + status.bg + ';color:' + status.fg + ';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">' + status.label + '</span></div>'
+        + '<div id="fleet-speed-' + v.id + '">' + (v.last_speed_mph != null ? Math.round(v.last_speed_mph) + ' mph' : '—') + '</div>'
+        + '<div id="fleet-seen-' + v.id + '" style="font-size:12px;color:var(--text-light);">' + (v.last_seen_at ? UI.timeAgo(v.last_seen_at) : 'never') + '</div>'
         + '<div style="text-align:right;">' + (v.last_lat ? '<a href="https://maps.apple.com/?ll=' + v.last_lat + ',' + v.last_lon + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;font-size:12px;" onclick="event.stopPropagation();">📍 Map</a>' : '') + '</div>'
         + '</div>';
     });
@@ -107,19 +116,31 @@ var FleetPage = {
     var self = FleetPage;
     self._loading = true;
     self._err = null;
-    if (!window.SB || !SB.from) {
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) {
       self._err = 'Supabase client not ready';
       self._loading = false;
       if (forceRender) loadPage('fleet');
       return;
     }
-    SB.from('vehicles').select('*').eq('active', true).order('name', { ascending: true }).then(function(r) {
+    sb.from('vehicles').select('*').eq('active', true).order('name', { ascending: true }).then(function(r) {
       self._vehicles = r.data || [];
       if (r.error) self._err = r.error.message;
       self._loading = false;
       if (forceRender || !self._renderedOnce) {
         self._renderedOnce = true;
         loadPage('fleet');
+      } else {
+        // Silently update the status badges in-place without full re-render
+        self._vehicles.forEach(function(v) {
+          var badge = document.getElementById('fleet-status-' + v.id);
+          var speed = document.getElementById('fleet-speed-' + v.id);
+          var seen = document.getElementById('fleet-seen-' + v.id);
+          var s = self._statusOf(v);
+          if (badge) { badge.textContent = s.label; badge.style.background = s.bg; badge.style.color = s.fg; }
+          if (speed) speed.textContent = v.last_speed_mph != null ? Math.round(v.last_speed_mph) + ' mph' : '—';
+          if (seen) seen.textContent = v.last_seen_at ? UI.timeAgo(v.last_seen_at) : 'never';
+        });
       }
     });
   },
@@ -159,7 +180,9 @@ var FleetPage = {
       tracker_device_id: document.getElementById('fleet-device').value.trim() || null,
       active: true
     };
-    SB.from('vehicles').insert(row).then(function(r) {
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { UI.toast('Supabase not ready', 'error'); return; }
+    sb.from('vehicles').insert(row).then(function(r) {
       if (r.error) { UI.toast('Save failed: ' + r.error.message, 'error'); return; }
       UI.toast('Vehicle added');
       UI.closeModal();
@@ -168,27 +191,86 @@ var FleetPage = {
     });
   },
 
-  showDetail: function(id) {
+  showDetail: async function(id) {
     FleetPage._selectedId = id;
     var v = FleetPage._vehicles.filter(function(x) { return x.id === id; })[0];
     if (!v) return;
     var status = FleetPage._statusOf(v);
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+
+    var baseHtml = '<div style="font-size:13px;line-height:1.7;">'
+      + '<div><b>Status:</b> <span style="background:' + status.bg + ';color:' + status.fg + ';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">' + status.label + '</span></div>'
+      + (v.last_seen_at ? '<div><b>Last seen:</b> ' + UI.timeAgo(v.last_seen_at) + '</div>' : '')
+      + (v.last_lat ? '<div><b>Last position:</b> <a href="https://maps.apple.com/?ll=' + v.last_lat + ',' + v.last_lon + '&q=' + encodeURIComponent(v.name) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">' + v.last_lat.toFixed(5) + ', ' + v.last_lon.toFixed(5) + ' ↗</a></div>' : '')
+      + (v.last_speed_mph != null ? '<div><b>Speed:</b> ' + Math.round(v.last_speed_mph) + ' mph</div>' : '')
+      + (v.license_plate ? '<div><b>Plate:</b> ' + UI.esc(v.license_plate) + '</div>' : '')
+      + (v.type ? '<div><b>Type:</b> ' + UI.esc(v.type) + '</div>' : '')
+      + (v.tracker_provider ? '<div><b>Tracker:</b> ' + UI.esc(v.tracker_provider) + (v.tracker_device_id ? ' <code style="background:var(--bg);padding:1px 4px;border-radius:3px;font-size:11px;">' + UI.esc(v.tracker_device_id) + '</code>' : '') + '</div>' : '<div style="color:var(--text-light);"><b>Tracker:</b> not configured</div>')
+      + '</div>'
+      + '<div id="fleet-detail-extra" style="margin-top:12px;"><div style="color:var(--text-light);font-size:12px;">Loading history…</div></div>';
+
     UI.modal({
       title: v.name + (v.nickname ? ' — ' + v.nickname : ''),
-      html: '<div style="font-size:13px;line-height:1.7;">'
-        + '<div><b>Status:</b> <span style="background:' + status.bg + ';color:' + status.fg + ';padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">' + status.label + '</span></div>'
-        + (v.last_seen_at ? '<div><b>Last seen:</b> ' + UI.timeAgo(v.last_seen_at) + '</div>' : '')
-        + (v.last_lat ? '<div><b>Last position:</b> <a href="https://maps.apple.com/?ll=' + v.last_lat + ',' + v.last_lon + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">' + v.last_lat.toFixed(5) + ', ' + v.last_lon.toFixed(5) + ' →</a></div>' : '')
-        + (v.last_speed_mph != null ? '<div><b>Speed:</b> ' + Math.round(v.last_speed_mph) + ' mph</div>' : '')
-        + (v.license_plate ? '<div><b>Plate:</b> ' + UI.esc(v.license_plate) + '</div>' : '')
-        + (v.type ? '<div><b>Type:</b> ' + UI.esc(v.type) + '</div>' : '')
-        + (v.tracker_provider ? '<div><b>Tracker:</b> ' + UI.esc(v.tracker_provider) + (v.tracker_device_id ? ' (' + UI.esc(v.tracker_device_id) + ')' : '') + '</div>' : '<div style="color:var(--text-light);"><b>Tracker:</b> not configured</div>')
-        + '</div>',
+      html: baseHtml,
       buttons: [
         { label: 'Close', action: 'close' },
         { label: 'Archive', action: 'FleetPage.archive(\'' + id + '\')' }
       ]
     });
+
+    // Async: load position history + open maintenance alerts
+    if (!sb) return;
+    try {
+      var [posRes, maintRes] = await Promise.all([
+        sb.from('vehicle_positions').select('ts,lat,lon,speed_mph,ignition').eq('vehicle_id', id).order('ts', { ascending: false }).limit(12),
+        sb.from('vehicle_maintenance').select('title,severity,kind,created_at').eq('vehicle_id', id).eq('status', 'open').order('created_at', { ascending: false }).limit(5)
+      ]);
+
+      var extra = document.getElementById('fleet-detail-extra');
+      if (!extra) return;
+      var out = '';
+
+      if (maintRes.data && maintRes.data.length > 0) {
+        out += '<div style="margin-bottom:10px;">';
+        out += '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">⚠ Open Alerts</div>';
+        maintRes.data.forEach(function(m) {
+          var sev = m.severity === 'warning' ? '#e65100' : m.severity === 'critical' ? '#c62828' : '#1565c0';
+          out += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+            + '<span style="color:' + sev + ';font-weight:700;">' + (m.severity === 'warning' ? '⚠' : m.severity === 'critical' ? '🔴' : 'ℹ') + '</span>'
+            + '<span>' + UI.esc(m.title) + '</span>'
+            + '</div>';
+        });
+        out += '</div>';
+      }
+
+      if (posRes.data && posRes.data.length > 0) {
+        out += '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Recent Positions</div>';
+        out += '<div style="max-height:180px;overflow-y:auto;">';
+        posRes.data.forEach(function(p) {
+          var ago = (function(d) {
+            var s = Math.floor((Date.now() - new Date(d)) / 1000);
+            if (s < 60) return s + 's ago';
+            if (s < 3600) return Math.floor(s/60) + 'm ago';
+            if (s < 86400) return Math.floor(s/3600) + 'h ago';
+            return Math.floor(s/86400) + 'd ago';
+          })(p.ts);
+          out += '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+            + '<a href="https://maps.apple.com/?ll=' + p.lat + ',' + p.lon + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">'
+            + p.lat.toFixed(4) + ', ' + p.lon.toFixed(4) + ' ↗'
+            + '</a>'
+            + '<span style="color:var(--text-light);">' + (p.speed_mph != null ? Math.round(p.speed_mph) + ' mph · ' : '') + ago + '</span>'
+            + '</div>';
+        });
+        out += '</div>';
+      } else {
+        out += '<div style="color:var(--text-light);font-size:12px;">No position history yet — waiting for first Bouncie event.</div>';
+      }
+
+      extra.innerHTML = out;
+    } catch(e) {
+      var extra2 = document.getElementById('fleet-detail-extra');
+      if (extra2) extra2.innerHTML = '<div style="color:var(--text-light);font-size:12px;">Could not load history.</div>';
+    }
   },
 
   _map: null,
@@ -235,7 +317,9 @@ var FleetPage = {
 
   archive: function(id) {
     if (!confirm('Archive this vehicle? It will no longer receive position updates from its tracker.')) return;
-    SB.from('vehicles').update({ active: false }).eq('id', id).then(function(r) {
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { UI.toast('Supabase not ready', 'error'); return; }
+    sb.from('vehicles').update({ active: false }).eq('id', id).then(function(r) {
       if (r.error) { UI.toast('Archive failed: ' + r.error.message, 'error'); return; }
       UI.toast('Vehicle archived');
       UI.closeModal();
