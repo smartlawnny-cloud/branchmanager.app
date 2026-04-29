@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 481; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 482; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -947,7 +947,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v481.min.js"></script>
+<script defer src="dist/bm.bundle.v482.min.js"></script>
 
 
 
@@ -1164,7 +1164,7 @@ var pageConfigs = {
   beforeafter: { title: 'Before & After', action: null },
   modeselector: { title: 'Branch Manager', action: null },
   taskreminders: { title: 'Tasks & Reminders', action: '+ New Task', actionFn: 'TaskReminders._showForm()' },
-  teamchat: { title: 'Team Chat (Beta — UI only, no persistence)', action: null },
+  teamchat: { title: 'Team Chat', action: null },
   mediacenter: { title: 'Media Center', action: '+ Upload Photos', actionFn: 'MediaCenter.showUploadForm()' },
   reminders: { title: 'Compliance & Reminders', action: '+ Add Reminder', actionFn: 'Reminders.showForm("other")' },
   comms: { title: 'Communication Log', action: null },
@@ -2538,6 +2538,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof Biometric !== 'undefined' && Biometric.initGate) Biometric.initGate();
     // Check for auto review requests
     if (typeof ReviewsPage !== 'undefined' && ReviewsPage.checkAutoReviews) ReviewsPage.checkAutoReviews();
+    // Initialize TeamChat real-time subscription
+    if (typeof TeamChat !== 'undefined' && TeamChat._init) TeamChat._init();
   }, 3000);
 });
 // Initialize Lucide icons after DOM is ready
