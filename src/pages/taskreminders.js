@@ -628,24 +628,22 @@ var TaskReminders = {
       shown.forEach(function(task, idx) {
         var isOverdue = task.dueDate && new Date(task.dueDate) < now && new Date(task.dueDate).toDateString() !== todayStr;
         var dot = prioMap[task.priority] || '#6c757d';
-        var meta = [];
-        if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
-        if (task.dueDate) {
-          meta.push(isOverdue
-            ? '<span style="color:#c62828;">⚠ ' + TaskReminders._formatDue(task.dueDate, now) + '</span>'
-            : TaskReminders._formatDue(task.dueDate, now));
-        }
+        var midParts = [];
+        if (task.assignedTo) midParts.push(UI.esc(task.assignedTo));
         if (task.category) {
           var cat = TaskReminders.CATEGORIES.find(function(c){return c.key===task.category;});
-          if (cat) meta.push(cat.icon + ' ' + cat.label);
+          if (cat) midParts.push(cat.label);
         }
+        var dueLabel = task.dueDate ? TaskReminders._formatDue(task.dueDate, now) : '';
+        var dueHtml = dueLabel
+          ? '<span style="font-size:11px;flex-shrink:0;color:' + (isOverdue ? '#c62828' : 'var(--text-light)') + ';">' + (isOverdue ? '⚠ ' : '') + dueLabel + '</span>'
+          : '';
         var isLast = idx === shown.length - 1 && allIncomplete.length <= shown.length;
-        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
           + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>'
-          + '<div style="flex:1;min-width:0;">'
-          + '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
-          + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + meta.join(' · ') + '</div>' : '')
-          + '</div>'
+          + '<div style="font-size:14px;font-weight:600;flex-shrink:0;white-space:nowrap;">' + UI.esc(task.title) + '</div>'
+          + (midParts.length ? '<div style="flex:1;min-width:0;font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + midParts.join(' · ') + '</div>' : '<div style="flex:1;"></div>')
+          + dueHtml
           + '</div>';
       });
       if (allIncomplete.length > shown.length) {

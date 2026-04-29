@@ -703,14 +703,13 @@ var DashboardPage = {
         })(c.created_at);
 
         var isLast = idx === data.length - 1;
-        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">';
-        html += '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>';
-        html += '<div style="flex:1;min-width:0;">';
-        html += '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (typeof UI !== 'undefined' ? UI.esc(name) : name) + '</div>';
-        if (preview) html += '<div style="font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (typeof UI !== 'undefined' ? UI.esc(preview) : preview) + '</div>';
-        html += '</div>';
-        html += '<span style="font-size:11px;color:var(--text-light);flex-shrink:0;">' + ago + '</span>';
-        html += '</div>';
+        var safeIcon = { sms: 'SMS', call: 'Call', voicemail: 'VM', email: 'Email' }[c.channel] || c.channel;
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">'
+          + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>'
+          + '<div style="font-size:14px;font-weight:600;flex-shrink:0;white-space:nowrap;">' + (typeof UI !== 'undefined' ? UI.esc(name) : name) + '</div>'
+          + '<div style="flex:1;min-width:0;font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + icon + ' ' + (typeof UI !== 'undefined' ? UI.esc(preview) : preview) + '</div>'
+          + '<span style="font-size:11px;color:var(--text-light);flex-shrink:0;">' + ago + '</span>'
+          + '</div>';
       });
 
       el.innerHTML = html;
