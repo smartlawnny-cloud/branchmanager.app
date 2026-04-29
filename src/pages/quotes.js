@@ -2033,9 +2033,71 @@ var QuotesPage = {
 
     UI.showModal('Send Quote #' + q.quoteNumber, html, {
       footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
-        + ' <button class="btn btn-outline" onclick="PDF.generateQuote(\'' + id + '\')">👁 Preview PDF</button>'
+        + ' <button class="btn btn-outline" onclick="QuotesPage._previewEmail(\'' + id + '\')">👁 Preview Email</button>'
         + ' <button class="btn btn-primary" onclick="QuotesPage._confirmSend(\'' + id + '\')">📧 Send Quote</button>'
     });
+  },
+
+  _previewEmail: function(id) {
+    var q = DB.quotes.getById(id);
+    if (!q) return;
+    var old = document.getElementById('bm-email-preview-overlay');
+    if (old) old.remove();
+    var htmlBody = QuotesPage._buildEmailHtml(id);
+    var overlay = document.createElement('div');
+    overlay.id = 'bm-email-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;display:flex;flex-direction:column;';
+    overlay.innerHTML = '<div style="background:#1a1a2e;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">'
+      + '<span style="color:#fff;font-weight:700;font-size:14px;">Email Preview — Quote #' + (q.quoteNumber||'') + '</span>'
+      + '<button onclick="document.getElementById(\'bm-email-preview-overlay\').remove()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:24px;cursor:pointer;line-height:1;">×</button>'
+      + '</div>'
+      + '<iframe id="bm-email-preview-frame" style="flex:1;border:none;background:#f5f6f8;" sandbox="allow-same-origin"></iframe>';
+    document.body.appendChild(overlay);
+    var frame = document.getElementById('bm-email-preview-frame');
+    if (frame) frame.srcdoc = htmlBody;
+  },
+
+  _buildEmailHtml: function(id) {
+    var q = DB.quotes.getById(id);
+    if (!q) return '';
+    var _co = QuotesPage._co();
+    var approvalLink = QuotesPage._getApprovalLink(id);
+    var firstName = (q.clientName || '').split(' ')[0] || 'there';
+    var lineItemsHtml = '';
+    if (q.lineItems && q.lineItems.length) {
+      lineItemsHtml = '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">'
+        + '<tr style="background:#f0f9f4;"><th style="padding:8px 12px;text-align:left;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">SERVICE</th><th style="padding:8px 12px;text-align:right;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">AMOUNT</th></tr>';
+      q.lineItems.forEach(function(item) {
+        var amt = item.amount || ((item.qty||1) * (item.rate||0));
+        lineItemsHtml += '<tr><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">' + (item.service||item.description||'Service') + '</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #e0e0e0;font-weight:600;">' + UI.money(amt) + '</td></tr>';
+      });
+      if (q.subtotal && q.taxRate) {
+        lineItemsHtml += '<tr><td style="padding:6px 12px;color:#718096;">Subtotal</td><td style="padding:6px 12px;text-align:right;">' + UI.money(q.subtotal) + '</td></tr>';
+        lineItemsHtml += '<tr><td style="padding:6px 12px;color:#718096;">Tax (' + q.taxRate + '%)</td><td style="padding:6px 12px;text-align:right;">' + UI.money(q.taxAmount||0) + '</td></tr>';
+      }
+      lineItemsHtml += '<tr style="background:#f0f9f4;"><td style="padding:10px 12px;font-weight:700;">Quote Total</td><td style="padding:10px 12px;text-align:right;font-weight:800;color:#00836c;font-size:16px;">' + UI.money(q.total) + '</td></tr>';
+      lineItemsHtml += '</table>';
+    }
+    return '<div style="background:#f5f6f8;padding:24px 0;">'
+      + '<div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
+      + '<div style="background:linear-gradient(135deg,#1a3c12 0%,#00836c 100%);border-radius:12px 12px 0 0;padding:24px 28px;color:#fff;">'
+      + '<div style="font-size:13px;opacity:.8;margin-bottom:4px;">🌳 ' + _co.name + '</div>'
+      + '<div style="font-size:24px;font-weight:900;letter-spacing:-.5px;">Quote #' + (q.quoteNumber||'') + '</div>'
+      + '<div style="font-size:38px;font-weight:900;margin:6px 0 4px;letter-spacing:-1px;">' + UI.money(q.total||0) + '</div>'
+      + '<div style="font-size:13px;opacity:.75;">' + (q.property ? '📍 ' + q.property : '') + '</div>'
+      + '</div>'
+      + '<div style="background:#fff;border-radius:0 0 12px 12px;padding:24px 28px;">'
+      + '<p style="font-size:15px;color:#2d3748;margin-bottom:12px;">Hi ' + firstName + ',</p>'
+      + '<p style="font-size:14px;color:#4a5568;line-height:1.6;margin-bottom:16px;">Thanks for reaching out to ' + _co.name + '! Here\'s the quote for the work we discussed. You can approve it online — no login required.</p>'
+      + (q.description ? '<p style="font-size:13px;color:#718096;background:#f7fafc;padding:10px 12px;border-radius:6px;margin-bottom:16px;"><strong>Scope:</strong> ' + q.description + '</p>' : '')
+      + lineItemsHtml
+      + '<div style="text-align:center;margin:24px 0;">'
+      + '<a href="' + approvalLink + '" style="display:inline-block;background:linear-gradient(135deg,#00836c,#1a3c12);color:#fff;padding:16px 36px;border-radius:10px;font-size:17px;font-weight:800;text-decoration:none;box-shadow:0 4px 14px rgba(0,131,108,.35);">✅ View & Approve Quote</a>'
+      + '</div>'
+      + '<p style="font-size:12px;color:#a0aec0;text-align:center;margin-bottom:20px;">This quote is valid for 30 days. Click above to approve or request changes.</p>'
+      + '<p style="font-size:13px;color:#718096;">Questions? Reply to this email or call/text <strong>' + _co.phone + '</strong>.</p>'
+      + '<p style="font-size:13px;color:#2d3748;margin-top:12px;">Thanks,<br><strong>Doug Brown</strong><br>' + _co.name + '<br>Licensed & Insured — ' + _co.licenses + '</p>'
+      + '</div></div></div>';
   },
 
   _confirmSend: function(id) {
@@ -2053,45 +2115,7 @@ var QuotesPage = {
     UI.closeModal();
 
     // Build branded HTML email
-    var approvalLink = QuotesPage._getApprovalLink(id);
-    var firstName = (q && q.clientName ? q.clientName.split(' ')[0] : 'there');
-
-    var lineItemsHtml = '';
-    if (q && q.lineItems && q.lineItems.length) {
-      lineItemsHtml = '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">'
-        + '<tr style="background:#f0f9f4;"><th style="padding:8px 12px;text-align:left;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">SERVICE</th><th style="padding:8px 12px;text-align:right;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">AMOUNT</th></tr>';
-      q.lineItems.forEach(function(item) {
-        var amt = item.amount || ((item.qty||1) * (item.rate||0));
-        lineItemsHtml += '<tr><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">' + (item.service||item.description||'Service') + '</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #e0e0e0;font-weight:600;">' + UI.money(amt) + '</td></tr>';
-      });
-      if (q.subtotal && q.taxRate) {
-        lineItemsHtml += '<tr><td style="padding:6px 12px;color:#718096;">Subtotal</td><td style="padding:6px 12px;text-align:right;">' + UI.money(q.subtotal) + '</td></tr>';
-        lineItemsHtml += '<tr><td style="padding:6px 12px;color:#718096;">Tax (' + q.taxRate + '%)</td><td style="padding:6px 12px;text-align:right;">' + UI.money(q.taxAmount || 0) + '</td></tr>';
-      }
-      lineItemsHtml += '<tr style="background:#f0f9f4;"><td style="padding:10px 12px;font-weight:700;">Quote Total</td><td style="padding:10px 12px;text-align:right;font-weight:800;color:#00836c;font-size:16px;">' + UI.money(q.total) + '</td></tr>';
-      lineItemsHtml += '</table>';
-    }
-
-    var htmlBody = '<div style="background:#f5f6f8;padding:24px 0;">'
-      + '<div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
-      + '<div style="background:linear-gradient(135deg,#1a3c12 0%,#00836c 100%);border-radius:12px 12px 0 0;padding:24px 28px;color:#fff;">'
-      + '<div style="font-size:13px;opacity:.8;margin-bottom:4px;">🌳 ' + _co.name + '</div>'
-      + '<div style="font-size:24px;font-weight:900;letter-spacing:-.5px;">Quote #' + (q ? q.quoteNumber : '') + '</div>'
-      + '<div style="font-size:38px;font-weight:900;margin:6px 0 4px;letter-spacing:-1px;">' + UI.money(q ? q.total : 0) + '</div>'
-      + '<div style="font-size:13px;opacity:.75;">' + (q && q.property ? '📍 ' + q.property : '') + '</div>'
-      + '</div>'
-      + '<div style="background:#fff;border-radius:0 0 12px 12px;padding:24px 28px;">'
-      + '<p style="font-size:15px;color:#2d3748;margin-bottom:12px;">Hi ' + firstName + ',</p>'
-      + '<p style="font-size:14px;color:#4a5568;line-height:1.6;margin-bottom:16px;">Thanks for reaching out to ' + _co.name + '! Here\'s the quote for the work we discussed. You can approve it online — no login required.</p>'
-      + (q && q.description ? '<p style="font-size:13px;color:#718096;background:#f7fafc;padding:10px 12px;border-radius:6px;margin-bottom:16px;"><strong>Scope:</strong> ' + q.description + '</p>' : '')
-      + lineItemsHtml
-      + '<div style="text-align:center;margin:24px 0;">'
-      + '<a href="' + approvalLink + '" style="display:inline-block;background:linear-gradient(135deg,#00836c,#1a3c12);color:#fff;padding:16px 36px;border-radius:10px;font-size:17px;font-weight:800;text-decoration:none;box-shadow:0 4px 14px rgba(0,131,108,.35);">✅ View & Approve Quote</a>'
-      + '</div>'
-      + '<p style="font-size:12px;color:#a0aec0;text-align:center;margin-bottom:20px;">This quote is valid for 30 days. Click above to approve or request changes.</p>'
-      + '<p style="font-size:13px;color:#718096;">Questions? Reply to this email or call/text <strong>' + _co.phone + '</strong>.</p>'
-      + '<p style="font-size:13px;color:#2d3748;margin-top:12px;">Thanks,<br><strong>Doug Brown</strong><br>' + _co.name + '<br>Licensed & Insured — ' + _co.licenses + '</p>'
-      + '</div></div></div>';
+    var htmlBody = QuotesPage._buildEmailHtml(id);
 
     if (typeof Email !== 'undefined') {
       Email.send(to, subject, body, { htmlBody: htmlBody }).then(function(result) {
