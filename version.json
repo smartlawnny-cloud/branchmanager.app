@@ -1,5 +1,5 @@
 {
-  "version": 459,
+  "version": 460,
   "released": "2026-04-28",
-  "notes": "v459: Dashboard daily briefing → individual dismissible task list, shown after Today's Jobs only when no jobs / all jobs done"
+  "notes": "v460: Auto-draft invoice on batch/crew/dispatch job-complete (solo still prompts)"
 }

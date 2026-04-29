@@ -424,8 +424,11 @@ var DispatchPage = {
   },
 
   completeJob: function(jobId) {
-    DB.jobs.update(jobId, { status: 'completed', completedAt: new Date().toISOString() });
-    UI.toast('Job completed!');
+    // v460: auto-draft on dispatch complete (no prompt opportunity here).
+    var r = (typeof Workflow !== 'undefined' && Workflow.completeAndDraft)
+      ? Workflow.completeAndDraft(jobId)
+      : (DB.jobs.update(jobId, { status: 'completed', completedAt: new Date().toISOString() }), { invoice: null });
+    UI.toast(r.invoice ? 'Job completed · Invoice #' + r.invoice.invoiceNumber + ' draft ready' : 'Job completed!');
     loadPage('dispatch');
   },
 

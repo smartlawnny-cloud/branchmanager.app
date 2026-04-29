@@ -309,11 +309,16 @@ var JobsPage = {
     var all = DB.jobs.getAll().filter(function(j) { return !j.scheduledDate && j.status !== 'completed' && j.status !== 'cancelled'; });
     if (!all.length) { UI.toast('Nothing to close', 'error'); return; }
     if (!confirm('Mark ' + all.length + ' orphaned jobs as completed?\n\nThis cannot be undone individually (but you can reopen each job.)')) return;
-    var now = new Date().toISOString();
+    var draftedCount = 0;
     all.forEach(function(j) {
-      DB.jobs.update(j.id, { status: 'completed', completedAt: now });
+      var r = (typeof Workflow !== 'undefined' && Workflow.completeAndDraft)
+        ? Workflow.completeAndDraft(j.id, { silent: true })
+        : { invoice: null };
+      if (r.invoice) draftedCount++;
     });
-    UI.toast('✓ ' + all.length + ' jobs marked completed');
+    var msg = '✓ ' + all.length + ' jobs marked completed';
+    if (draftedCount > 0) msg += ' · ' + draftedCount + ' invoice draft' + (draftedCount > 1 ? 's' : '') + ' created';
+    UI.toast(msg);
     loadPage('jobs');
   },
   _goPage: function(p) { var t = Math.ceil(JobsPage._getFiltered().length / JobsPage._perPage); JobsPage._page = Math.max(0, Math.min(p, t - 1)); loadPage('jobs'); },
@@ -449,7 +454,8 @@ var JobsPage = {
     if (!j) return;
     DB.jobs.update(id, { status: 'completed', completedAt: new Date().toISOString() });
 
-    // previous system-style: prompt to create invoice after completing a job
+    // Solo path: prompt to create invoice (Option C — preserves the decision).
+    // Batch/crew/system flows auto-draft via Workflow.completeAndDraft.
     if (!j.invoiceId && j.total > 0) {
       UI.confirm('Job #' + j.jobNumber + ' complete! Create invoice for ' + UI.money(j.total) + '?', function() {
         if (typeof Workflow !== 'undefined') {
@@ -467,9 +473,19 @@ var JobsPage = {
     var ids = Array.from(document.querySelectorAll('.job-check:checked')).map(function(cb) { return cb.value; });
     if (ids.length === 0) return;
     UI.confirm('Mark ' + ids.length + ' job' + (ids.length > 1 ? 's' : '') + ' as completed?', function() {
-      var now = new Date().toISOString();
-      ids.forEach(function(id) { DB.jobs.update(id, { status: 'completed', completedAt: now }); });
-      UI.toast(ids.length + ' job' + (ids.length > 1 ? 's' : '') + ' marked complete');
+      // v460: silently auto-draft each job's invoice (only when no invoice yet
+      // and total > 0). Bulk completion previously left every job's invoice
+      // unmade — biggest source of "completed but uninvoiced" jobs.
+      var draftedCount = 0;
+      ids.forEach(function(id) {
+        var r = (typeof Workflow !== 'undefined' && Workflow.completeAndDraft)
+          ? Workflow.completeAndDraft(id, { silent: true })
+          : { invoice: null };
+        if (r.invoice) draftedCount++;
+      });
+      var msg = ids.length + ' job' + (ids.length > 1 ? 's' : '') + ' marked complete';
+      if (draftedCount > 0) msg += ' · ' + draftedCount + ' invoice draft' + (draftedCount > 1 ? 's' : '') + ' created';
+      UI.toast(msg);
       loadPage('jobs');
     });
   },
@@ -1171,7 +1187,9 @@ var JobsPage = {
       ? ' <button class="btn btn-outline" onclick="UI.closeModal();AutomationsPage.runReviewRequests();">📧 Send Review Request</button>'
       : '';
 
-    // Prompt to create invoice
+    // Solo path keeps the prompt (Option C). On Yes → invoice is created and
+    // user lands on invoice detail. On Not Yet → job completes, no invoice.
+    // Batch/crew/system flows auto-draft via Workflow.completeAndDraft.
     if (!j.invoiceId) {
       var modal = '<div style="text-align:center;padding:8px 0;">'
         + '<div style="font-size:48px;margin-bottom:12px;">💰</div>'

@@ -303,11 +303,15 @@ var CrewView = {
 
   _doCompleteJob: function(jobId) {
     var notes = (document.getElementById('complete-notes') || {}).value || '';
-    var updates = { status: 'completed', completedAt: new Date().toISOString() };
-    if (notes.trim()) updates.crewNotes = notes.trim();
-    DB.jobs.update(jobId, updates);
+    // Save notes first (Workflow.completeAndDraft will preserve them).
+    if (notes.trim()) DB.jobs.update(jobId, { crewNotes: notes.trim() });
+    // v460: crew app auto-drafts the invoice — crew shouldn't be prompted to
+    // make billing decisions, owner reviews drafts later in Invoices.
+    var r = (typeof Workflow !== 'undefined' && Workflow.completeAndDraft)
+      ? Workflow.completeAndDraft(jobId)
+      : (DB.jobs.update(jobId, { status: 'completed', completedAt: new Date().toISOString() }), { invoice: null });
     UI.closeModal();
-    UI.toast('Job completed! ✅');
+    UI.toast(r.invoice ? 'Job completed ✅ · Invoice draft created' : 'Job completed! ✅');
     loadPage('crewview');
   },
 

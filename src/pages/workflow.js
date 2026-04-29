@@ -144,13 +144,23 @@ var Workflow = {
     var job = DB.jobs.getById(jobId);
     if (!job) { UI.toast('Job not found', 'error'); return; }
 
+    // Subject derivation matches invoices.js bulk path (v458): real description
+    // first, then first line-item, then "Job #N" fallback. Replaces the older
+    // generic "For Services Rendered" so invoice list rows show what the
+    // work actually was.
+    var firstItem = (job.lineItems && job.lineItems[0]) || {};
+    var derivedSubject = (job.description && job.description.trim())
+      || firstItem.service
+      || firstItem.description
+      || 'Job #' + (job.jobNumber || '');
+
     var invoice = DB.invoices.create({
       clientName: job.clientName,
       clientId: job.clientId || '',
       clientEmail: job.clientEmail || '',
       clientPhone: job.clientPhone || '',
       property: job.property || '',
-      subject: job.description || 'Job #' + (job.jobNumber || ''),
+      subject: derivedSubject,
       total: job.total || 0,
       balance: job.total || 0,
       amountPaid: 0,
@@ -165,6 +175,42 @@ var Workflow = {
 
     UI.toast('Job → Invoice #' + invoice.invoiceNumber + ' created!');
     return invoice;
+  },
+
+  // Mark a job complete + auto-create a draft invoice (per Doug's rule:
+  // every mark-complete should create the next draft, no prompt). Idempotent:
+  // if the job already has an invoiceId or total <= 0, skips invoice creation.
+  // Returns { job, invoice, alreadyHadInvoice, skippedNoTotal }.
+  // Used by every call site that flips a job to 'completed': _markComplete,
+  // _quickComplete, _batchComplete, dispatch, crewview, dashboard, visits,
+  // bulk-close-unscheduled. Each call site keeps its own UI flow (toast,
+  // modal, route) — this just guarantees the invoice draft exists.
+  completeAndDraft: function(jobId, opts) {
+    opts = opts || {};
+    var job = DB.jobs.getById(jobId);
+    if (!job) return { job: null, invoice: null };
+    var alreadyHadInvoice = !!job.invoiceId;
+    var skippedNoTotal = !alreadyHadInvoice && !((job.total || 0) > 0);
+
+    // Always flip status + stamp completedAt (idempotent — repeat completes
+    // just refresh the timestamp). Don't overwrite invoiceId if one exists.
+    var updates = { status: 'completed', completedAt: new Date().toISOString() };
+    DB.jobs.update(jobId, updates);
+
+    var invoice = null;
+    if (!alreadyHadInvoice && !skippedNoTotal && !opts.skipInvoice) {
+      // jobToInvoice handles subject derivation, due date, line items.
+      // It also re-updates the job to set invoiceId.
+      // Suppress its toast if caller wants silent mode (batch flows).
+      var origToast = UI.toast;
+      if (opts.silent) UI.toast = function() {};
+      try {
+        invoice = Workflow.jobToInvoice(jobId);
+      } finally {
+        if (opts.silent) UI.toast = origToast;
+      }
+    }
+    return { job: DB.jobs.getById(jobId), invoice: invoice, alreadyHadInvoice: alreadyHadInvoice, skippedNoTotal: skippedNoTotal };
   },
 
   // Mark invoice as paid
