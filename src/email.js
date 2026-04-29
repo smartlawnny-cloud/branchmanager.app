@@ -60,7 +60,7 @@ var Email = {
       }
 
       if (response.ok) {
-        UI.toast('Email sent to ' + to);
+        if (!options.silent) UI.toast('Email sent to ' + to);
         return { success: true, method: 'resend', status: response.status };
       }
 
@@ -71,13 +71,21 @@ var Email = {
       else if (response.status === 429) hint = 'Rate limited — try later';
       else hint = 'Resend ' + response.status;
       console.warn('[Email] send failed:', response.status, errText);
-      UI.toast('Email failed: ' + hint + ' — opening mail app', 'error');
-      Email._mailto(to, subject, body);
+      // Silent mode (batch automations): don't toast, don't open mailto on every failure.
+      // The async toast/mailto used to fire AFTER UI.toast was restored in
+      // automations._autoRun's finally block — turning a key-broken Resend into a
+      // 21-toast + 21-mailto-popup avalanche on app startup.
+      if (!options.silent) {
+        UI.toast('Email failed: ' + hint + ' — opening mail app', 'error');
+        Email._mailto(to, subject, body);
+      }
       return { success: false, method: 'resend_error', status: response.status, error: errText, hint: hint };
     } catch (e) {
       console.warn('[Email] network error:', e);
-      UI.toast('Email failed: network — opening mail app', 'error');
-      Email._mailto(to, subject, body);
+      if (!options.silent) {
+        UI.toast('Email failed: network — opening mail app', 'error');
+        Email._mailto(to, subject, body);
+      }
       return { success: false, method: 'mailto_fallback', error: e.message };
     }
   },

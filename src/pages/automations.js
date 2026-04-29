@@ -217,7 +217,7 @@ var AutomationsPage = {
           + '👉 View & approve online:\n' + approvalLink + '\n\n'
           + 'Happy to answer any questions — just reply or call ' + AutomationsPage._co().phone + '.\n\n'
           + 'Thanks,\nDoug Brown\n' + AutomationsPage._co().name;
-        if (typeof Email !== 'undefined') Email.send(email, sub1, body1);
+        if (typeof Email !== 'undefined') Email.send(email, sub1, body1, { silent: !!AutomationsPage._silentMode });
         DB.quotes.update(q.id, { followup1SentAt: new Date().toISOString(), status: 'awaiting' });
         sent++;
       }
@@ -230,7 +230,7 @@ var AutomationsPage = {
           + '👉 ' + approvalLink + '\n\n'
           + 'If the timing isn\'t right, no worries at all — we\'ll be here when you need us.\n\n'
           + 'Thanks,\nDoug Brown\n' + AutomationsPage._co().name + '\n' + AutomationsPage._co().phone;
-        if (typeof Email !== 'undefined') Email.send(email, sub2, body2);
+        if (typeof Email !== 'undefined') Email.send(email, sub2, body2, { silent: !!AutomationsPage._silentMode });
         DB.quotes.update(q.id, { followup2SentAt: new Date().toISOString() });
         sent++;
       }
@@ -265,7 +265,7 @@ var AutomationsPage = {
           + '👉 Pay online:\n' + payLink + '\n\n'
           + 'We accept credit card, check, or cash. If you have any questions, please call ' + AutomationsPage._co().phone + '.\n\n'
           + 'Thanks,\nDoug Brown\n' + AutomationsPage._co().name;
-        if (typeof Email !== 'undefined') Email.send(email, sub1, body1);
+        if (typeof Email !== 'undefined') Email.send(email, sub1, body1, { silent: !!AutomationsPage._silentMode });
         DB.invoices.update(inv.id, { followup1SentAt: new Date().toISOString(), status: 'overdue' });
         sent++;
       }
@@ -278,7 +278,7 @@ var AutomationsPage = {
           + '👉 ' + payLink + '\n\n'
           + 'Please reach out if there\'s an issue — ' + AutomationsPage._co().phone + ' or reply to this email.\n\n'
           + 'Thanks,\nDoug Brown\n' + AutomationsPage._co().name;
-        if (typeof Email !== 'undefined') Email.send(email, sub2, body2);
+        if (typeof Email !== 'undefined') Email.send(email, sub2, body2, { silent: !!AutomationsPage._silentMode });
         DB.invoices.update(inv.id, { followup2SentAt: new Date().toISOString() });
         sent++;
       }
@@ -337,7 +337,7 @@ var AutomationsPage = {
         + (job.crew && job.crew.length ? '👷 Crew: ' + job.crew.join(', ') + '\n' : '')
         + '\nIf you need to reschedule, please call ' + AutomationsPage._co().phone + ' as soon as possible.\n\n'
         + 'Thank you,\nDoug Brown\n' + AutomationsPage._co().name + '\n' + AutomationsPage._co().phone;
-      if (typeof Email !== 'undefined') Email.send(email, subject, body);
+      if (typeof Email !== 'undefined') Email.send(email, subject, body, { silent: !!AutomationsPage._silentMode });
       DB.jobs.update(job.id, { reminderSentAt: new Date().toISOString() });
       sent++;
     });
@@ -384,7 +384,7 @@ var AutomationsPage = {
         + '⭐ Leave a Review: ' + reviewLink + '\n\n'
         + 'It takes less than a minute and means the world to our small business.\n\n'
         + 'Thank you for your support,\nDoug Brown\n' + AutomationsPage._co().name + '\n' + AutomationsPage._co().phone + '\n' + AutomationsPage._co().website;
-      if (typeof Email !== 'undefined') Email.send(email, subject, body);
+      if (typeof Email !== 'undefined') Email.send(email, subject, body, { silent: !!AutomationsPage._silentMode });
       DB.jobs.update(job.id, { reviewSentAt: new Date().toISOString() });
       sent++;
     });
@@ -522,7 +522,13 @@ var AutomationsPage = {
     localStorage.setItem('bm-automations-last-run', today);
     AutomationsPage._logActivity('Auto-run started — ' + today);
 
-    // Run silently (no toasts) using a quiet flag
+    // Run silently (no toasts) using a quiet flag.
+    // The UI.toast override below catches sync toasts. Email.send is async —
+    // by the time fetches resolve, finally has restored UI.toast — so
+    // _silentMode is read by Email.send itself to suppress its own toasts +
+    // mailto fallback. Without it, a broken Resend key produced 21+ stacked
+    // toasts and 21+ mailto: popups on app startup.
+    AutomationsPage._silentMode = true;
     var origToast = UI.toast;
     var origModal = UI.showModal;
     UI.toast = function() {};
@@ -536,6 +542,9 @@ var AutomationsPage = {
     } finally {
       UI.toast = origToast;
       UI.showModal = origModal;
+      // Keep _silentMode = true for ~10s to cover async fetch resolutions,
+      // then clear so manual user-initiated sends toast normally again.
+      setTimeout(function() { AutomationsPage._silentMode = false; }, 10000);
     }
     AutomationsPage._logActivity('Auto-run complete — ' + today);
     console.debug('[Automations] Daily run complete:', today);

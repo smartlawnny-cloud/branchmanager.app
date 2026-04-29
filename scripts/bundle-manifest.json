@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-04-25T13:16:49.401Z",
-  "generatedFrom": "dist/bm.bundle.v381.js (recovered)",
+  "generatedAt": "2026-04-28T20:00:00Z",
+  "generatedFrom": "manifest patched to add fleet.js (v456)",
   "scripts": [
     "config.js",
     "src/auth.js",
@@ -36,6 +36,7 @@
     "src/pages/recurring.js",
     "src/pages/notifications.js",
     "src/pages/expenses.js",
+    "src/pages/fleet.js",
     "src/dialpad.js",
     "src/email.js",
     "src/pages/reports.js",
