@@ -1,5 +1,5 @@
 {
-  "version": 477,
+  "version": 478,
   "released": "2026-04-29",
-  "notes": "Claude rename, mic fix, British voice, bug reporter"
+  "notes": "Support contact info — settings about section + bug reporter"
 }
