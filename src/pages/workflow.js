@@ -218,14 +218,32 @@ var Workflow = {
     var inv = DB.invoices.getById(invoiceId);
     if (!inv) return;
     method = method || 'cash';
+    var nowIso = new Date().toISOString();
 
     DB.invoices.update(invoiceId, {
       status: 'paid',
       amountPaid: inv.total,
       balance: 0,
-      paidDate: new Date().toISOString(),
+      paidDate: nowIso,
       paymentMethod: method
     });
+
+    // v464: cross-record propagation. Was a one-line invoice update — left
+    // the linked job stuck at 'completed' forever. Per Doug:
+    // "make sure all the pages and flow mark one another if need be."
+    // Now markPaid also flips the originating job to 'invoiced' (workflow
+    // progress bar's terminal state).
+    // Client-level roll-ups (lifetime paid, last-paid) intentionally NOT
+    // written here — the cloud clients schema doesn't have those columns
+    // and cloud upserts would 400. Roll-ups are computed at query time
+    // from SUM(invoices.amount_paid WHERE client_id = X). If we ever want
+    // them denormalized, add a migration first.
+    if (inv.jobId) {
+      var job = DB.jobs.getById(inv.jobId);
+      if (job && job.status !== 'invoiced') {
+        DB.jobs.update(inv.jobId, { status: 'invoiced' });
+      }
+    }
 
     // Log to payment history so Payments.renderForInvoice() shows it
     var pKey = 'bm-payments-' + invoiceId;
@@ -233,11 +251,11 @@ var Workflow = {
     try { allPmts = JSON.parse(localStorage.getItem(pKey)) || []; } catch(e) {}
     allPmts.unshift({
       id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
-      invoiceId: invoiceId, amount: inv.total, method: method, note: '', date: new Date().toISOString(), user: 'Doug'
+      invoiceId: invoiceId, amount: inv.total, method: method, note: '', date: nowIso, user: 'Doug'
     });
     localStorage.setItem(pKey, JSON.stringify(allPmts));
 
-    UI.toast('Invoice #' + (inv.invoiceNumber || '') + ' marked paid — ' + UI.money(inv.total));
+    UI.toast('Invoice #' + (inv.invoiceNumber || '') + ' paid — ' + UI.money(inv.total) + (inv.jobId ? ' · job marked invoiced' : ''));
   },
 
   // Render conversion buttons

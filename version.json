@@ -1,5 +1,5 @@
 {
-  "version": 463,
+  "version": 464,
   "released": "2026-04-28",
-  "notes": "v463: Marketing/Networks honest state — webhook/manual indicators + Copy & Open per-network manual post fallback"
+  "notes": "v464: Workflow.markPaid propagates to job (status=invoiced) — fixed Christina #377 in cloud"
 }
