@@ -23,7 +23,7 @@ var CallCenter = {
       + '</div>';
 
     // ── Tab bar ─────────────────────────────────────────────────
-    var _tabs = [['missed','📵 Missed'],['threads','💬 Messages'],['activity','📋 All Activity']];
+    var _tabs = [['missed','📵 Missed'],['emails','📧 Emails'],['threads','💬 Messages'],['activity','📋 All Activity']];
     html += '<div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:0;gap:0;">';
     _tabs.forEach(function(t) {
       var active = CallCenter._activeTab === t[0];
@@ -61,7 +61,7 @@ var CallCenter = {
     }
     CallCenter._activeTab = tab;
     CallCenter._activeThread = null;
-    ['missed','threads','activity'].forEach(function(t) {
+    ['missed','emails','threads','activity'].forEach(function(t) {
       var btn = document.getElementById('cc-tab-' + t);
       if (!btn) return;
       var active = t === tab;
@@ -74,6 +74,7 @@ var CallCenter = {
   _loadPanel: function() {
     if (CallCenter._activeTab === 'threads') CallCenter._loadThreads();
     else if (CallCenter._activeTab === 'missed') CallCenter._loadMissed();
+    else if (CallCenter._activeTab === 'emails') CallCenter._loadEmails();
     else CallCenter._loadActivity();
   },
 
@@ -248,7 +249,7 @@ var CallCenter = {
       var { data, error } = await sb.from('communications')
         .select('id,client_id,channel,direction,body,from_number,to_number,status,duration_seconds,recording_url,created_at,metadata')
         .eq('direction', 'inbound')
-        .in('channel', ['call', 'voicemail', 'sms', 'email'])
+        .in('channel', ['call', 'voicemail', 'sms'])
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -341,6 +342,64 @@ var CallCenter = {
       el.innerHTML = html;
     } catch(e) {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light);">Failed to load. ' + e.message + '</div>';
+    }
+  },
+
+  // ── Email Leads ──────────────────────────────────────────────
+
+  _loadEmails: async function() {
+    var el = document.getElementById('cc-panel');
+    if (!el) return;
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { el.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text-light);">Sign in to view emails.</div>'; return; }
+
+    try {
+      var { data, error } = await sb.from('communications')
+        .select('id,client_id,channel,direction,body,from_number,to_number,status,created_at,metadata')
+        .eq('channel', 'email')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      var rows = data || [];
+
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:80px 24px;text-align:center;color:var(--text-light);">'
+          + '<div style="font-size:40px;margin-bottom:12px;">📧</div>'
+          + '<div style="font-size:15px;font-weight:600;margin-bottom:6px;">No emails yet</div>'
+          + '<div style="font-size:13px;">Bid solicitations and email leads will appear here.</div>'
+          + '</div>';
+        return;
+      }
+
+      var html = '<div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-top:16px;">';
+      rows.forEach(function(c, idx) {
+        var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
+        var bidType  = meta.bidnet_type || 'new_solicitation';
+        var bidIcon  = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📧';
+        var bidLabel = bidType === 'award' ? 'Award' : bidType === 'addendum' ? 'Addendum' : 'New Bid';
+        var bidColor = bidType === 'award' ? '#e65100' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
+        var agency   = meta.agency || c.from_number || '';
+        var solNum   = meta.solicitation_number || '';
+        var bidUrl   = meta.bidnet_url || '';
+        var subject  = c.body || '';
+        var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
+        var isLast = idx === rows.length - 1;
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
+          + '<div style="flex-shrink:0;width:32px;height:32px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + bidIcon + '</div>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (agency || 'Unknown Sender') + '</div>'
+          + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+          + (subject ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + subject.slice(0, 90) + (subject.length > 90 ? '…' : '') + '</div>' : '')
+          + '</div>'
+          + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</div>'
+          + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" title="View bid" style="flex-shrink:0;width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:14px;">🔗</a>' : '')
+          + '</div>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    } catch(e) {
+      el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light);">Failed to load emails. ' + e.message + '</div>';
     }
   },
 

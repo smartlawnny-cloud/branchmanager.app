@@ -21,13 +21,18 @@ var TaskReminders = {
   ],
 
   CATEGORIES: [
-    { key: 'errand', label: 'Errand', icon: '\uD83C\uDFC3' },
-    { key: 'maintenance', label: 'Maintenance', icon: '\uD83D\uDD27' },
-    { key: 'prep', label: 'Prep', icon: '\uD83D\uDDC2\uFE0F' },
-    { key: 'cleanup', label: 'Cleanup', icon: '\uD83E\uDDF9' },
-    { key: 'sales', label: 'Sales', icon: '\uD83D\uDCB0' },
-    { key: 'order_parts', label: 'Order Parts', icon: '\uD83D\uDED2' }
+    { key: 'errand', label: 'Errand', icon: 'map-pin' },
+    { key: 'maintenance', label: 'Maintenance', icon: 'wrench' },
+    { key: 'prep', label: 'Prep', icon: 'clipboard-list' },
+    { key: 'cleanup', label: 'Cleanup', icon: 'trash-2' },
+    { key: 'sales', label: 'Sales', icon: 'dollar-sign' },
+    { key: 'order_parts', label: 'Order Parts', icon: 'package' }
   ],
+
+  _catIcon: function(iconName, size) {
+    size = size || 13;
+    return '<i data-lucide="' + iconName + '" style="width:' + size + 'px;height:' + size + 'px;vertical-align:middle;stroke-width:2;display:inline-block;"></i>';
+  },
 
   RECURRENCE: [
     { key: 'none', label: 'One-time' },
@@ -55,6 +60,8 @@ var TaskReminders = {
     rec.start();
   },
 
+  _search: '',
+
   render: function() {
     // One-time: remove seeded sample tasks if present
     if (!localStorage.getItem('bm-seed-tasks-cleaned')) {
@@ -68,15 +75,16 @@ var TaskReminders = {
 
     var tasks = TaskReminders._getAll();
     var now = new Date();
-    var overdue = tasks.filter(function(t) { return !t.completed && t.dueDate && new Date(t.dueDate) < now; }).length;
-    var dueToday = tasks.filter(function(t) {
-      if (t.completed || !t.dueDate) return false;
-      return new Date(t.dueDate).toDateString() === now.toDateString();
-    }).length;
     var active = tasks.filter(function(t) { return !t.completed; }).length;
+    var dueToday = tasks.filter(function(t) { return !t.completed && t.dueDate && new Date(t.dueDate).toDateString() === now.toDateString(); }).length;
+    var overdue = tasks.filter(function(t) { return !t.completed && t.dueDate && new Date(t.dueDate) < now && new Date(t.dueDate).toDateString() !== now.toDateString(); }).length;
     var completedCount = tasks.filter(function(t) { return t.completed; }).length;
 
+    var q = (TaskReminders._search || '').toLowerCase();
     var filtered = TaskReminders._applyFilter(tasks);
+    if (q) filtered = filtered.filter(function(t) {
+      return (t.title||'').toLowerCase().indexOf(q) !== -1 || (t.description||'').toLowerCase().indexOf(q) !== -1;
+    });
     filtered.sort(function(a, b) {
       if (a.completed && !b.completed) return 1;
       if (!a.completed && b.completed) return -1;
@@ -92,23 +100,36 @@ var TaskReminders = {
 
     var html = '';
 
-    // Summary pills
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">';
-    var summaries = [
-      { label: 'Open', val: active, color: active > 0 ? 'var(--text)' : 'var(--text-light)' },
-      { label: 'Today', val: dueToday, color: dueToday > 0 ? '#1565c0' : 'var(--text-light)' },
-      { label: 'Overdue', val: overdue, color: overdue > 0 ? '#c62828' : 'var(--text-light)' },
-      { label: 'Done', val: completedCount, color: '#2e7d32' }
+    // ── Stats grid ──
+    var stats = [
+      { label: 'Open',    val: active,         color: '#1565c0', bg: '#e3f2fd' },
+      { label: 'Today',   val: dueToday,        color: '#e07c24', bg: '#fff3e0' },
+      { label: 'Overdue', val: overdue,          color: '#c62828', bg: '#ffebee' },
+      { label: 'Done',    val: completedCount,   color: '#2e7d32', bg: '#e8f5e9' }
     ];
-    summaries.forEach(function(s) {
-      html += '<div style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:6px;">'
-        + '<span style="font-size:18px;font-weight:800;color:' + s.color + ';">' + s.val + '</span>'
-        + '<span style="font-size:12px;color:var(--text-light);">' + s.label + '</span>'
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">';
+    stats.forEach(function(s) {
+      html += '<div onclick="TaskReminders._filter=\'' + (s.label==='Open'?'all':s.label.toLowerCase()) + '\';loadPage(\'taskreminders\')" '
+        + 'style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;position:relative;overflow:hidden;">'
+        + '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:' + s.color + ';"></div>'
+        + '<div style="font-size:30px;font-weight:800;color:' + s.color + ';line-height:1;">' + s.val + '</div>'
+        + '<div style="font-size:12px;color:var(--text-light);margin-top:4px;">' + s.label + '</div>'
         + '</div>';
     });
     html += '</div>';
 
-    // Filter pills
+    // ── Bulk bar (fixed bottom) ──
+    html += '<div id="task-bulk-bar" style="display:none;position:fixed;bottom:0;left:var(--sidebar-w,0);right:0;z-index:500;background:#1a1a2e;color:#fff;padding:12px 24px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+      + '<span id="task-bulk-count" style="font-weight:700;font-size:14px;">0 selected</span>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      + '<button onclick="TaskReminders._bulkComplete()" style="background:#2e7d32;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="check" style="width:14px;height:14px;"></i>Complete</button>'
+      + '<button onclick="TaskReminders._bulkArchive()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Archive</button>'
+      + '<button onclick="TaskReminders._bulkDelete()" style="background:#c62828;color:#fff;border:none;padding:7px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Delete</button>'
+      + '<button onclick="TaskReminders._clearBulk()" style="background:none;color:rgba(255,255,255,.6);border:none;font-size:13px;cursor:pointer;padding:7px 0;">Cancel</button>'
+      + '</div>'
+      + '</div>';
+
+    // ── Header: filters + search + actions ──
     var filters = [
       { key: 'all', label: 'All' },
       { key: 'today', label: 'Today' },
@@ -116,30 +137,71 @@ var TaskReminders = {
       { key: 'mine', label: 'Mine' },
       { key: 'completed', label: 'Done' }
     ];
-    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">';
+    html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+    html += '<h3 style="font-size:16px;font-weight:700;margin:0;">Tasks</h3>';
+    html += '<span style="font-size:13px;color:var(--text-light);">(' + filtered.length + ')</span>';
     filters.forEach(function(f) {
       var on = TaskReminders._filter === f.key;
       html += '<button onclick="TaskReminders._filter=\'' + f.key + '\';loadPage(\'taskreminders\')" '
-        + 'style="padding:6px 14px;border-radius:20px;font-size:13px;font-weight:' + (on?'700':'500') + ';cursor:pointer;'
+        + 'style="padding:5px 12px;border-radius:20px;font-size:12px;font-weight:' + (on?'700':'500') + ';cursor:pointer;'
         + 'border:' + (on?'2px solid var(--green-dark)':'1px solid var(--border)') + ';'
         + 'background:' + (on?'var(--green-dark)':'var(--white)') + ';'
         + 'color:' + (on?'#fff':'var(--text)') + ';">' + f.label + '</button>';
     });
     html += '</div>';
+    html += '<div style="display:flex;gap:6px;align-items:center;">'
+      + '<div class="search-box" style="min-width:180px;">'
+      + '<span style="color:var(--text-light);display:flex;align-items:center;"><i data-lucide="search" style="width:14px;height:14px;"></i></span>'
+      + '<input type="text" placeholder="Search tasks…" value="' + UI.esc(TaskReminders._search||'') + '" '
+      + 'oninput="TaskReminders._search=this.value;loadPage(\'taskreminders\')" '
+      + 'style="border:none;outline:none;background:transparent;font-size:13px;width:100%;color:var(--text);"></div>'
+      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice input" style="width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i data-lucide="mic" style="width:16px;height:16px;"></i></button>'
+      + '<button onclick="TaskReminders._openOverlay(null)" style="background:var(--green-dark);color:#fff;border:none;padding:0 16px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">+ New</button>'
+      + '</div>';
+    html += '</div>';
 
-    // Task list card
+    // ── Table ──
     html += '<div style="background:var(--white);border-radius:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">';
 
     if (filtered.length === 0) {
       html += '<div style="padding:48px 24px;text-align:center;color:var(--text-light);">'
-        + '<div style="font-size:32px;margin-bottom:8px;">✅</div>'
+        + '<div style="margin-bottom:8px;"><i data-lucide="check-circle-2" style="width:40px;height:40px;color:var(--text-light);"></i></div>'
         + '<div style="font-size:15px;font-weight:600;margin-bottom:4px;">No tasks</div>'
-        + '<div style="font-size:13px;">Use the + button to add one</div>'
+        + '<div style="font-size:13px;">Use + New or type below to add one</div>'
         + '</div>';
     } else {
+      // Desktop table
+      html += '<div class="desktop-only">';
+      html += '<table class="data-table"><thead><tr>'
+        + '<th style="width:32px;"><input type="checkbox" onchange="TaskReminders._selectAll(this)"></th>'
+        + '<th>Task</th><th>Category</th><th>Priority</th><th>Due</th><th>Assigned</th>'
+        + '</tr></thead><tbody>';
+      filtered.forEach(function(task) {
+        var now2 = new Date();
+        var isOverdue = !task.completed && task.dueDate && new Date(task.dueDate) < now2 && new Date(task.dueDate).toDateString() !== now2.toDateString();
+        var pri = TaskReminders.PRIORITIES.find(function(p){return p.key===task.priority;})||TaskReminders.PRIORITIES[0];
+        var cat = task.category ? TaskReminders.CATEGORIES.find(function(c){return c.key===task.category;}) : null;
+        var dueLabel = task.dueDate ? TaskReminders._formatDue(task.dueDate, now2) : '—';
+        html += '<tr style="cursor:pointer;' + (task.completed?'opacity:.55;':'') + '" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">'
+          + '<td onclick="event.stopPropagation()"><input type="checkbox" class="task-check" value="' + task.id + '" onchange="TaskReminders._updateBulk()"></td>'
+          + '<td><strong style="' + (task.completed?'text-decoration:line-through;':'') + '">' + UI.esc(task.title) + '</strong>'
+          + (task.description ? '<div style="font-size:12px;color:var(--text-light);">' + UI.esc(task.description.slice(0,60)) + '</div>' : '')
+          + '</td>'
+          + '<td>' + (cat ? TaskReminders._catIcon(cat.icon) + ' ' + cat.label : '—') + '</td>'
+          + '<td><span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:' + pri.bg + ';color:' + pri.color + ';">' + pri.label + '</span></td>'
+          + '<td style="color:' + (isOverdue?'#c62828':'var(--text)') + ';font-weight:' + (isOverdue?'600':'400') + ';">' + (isOverdue ? '<i data-lucide="alert-triangle" style="width:12px;height:12px;vertical-align:middle;margin-right:2px;"></i>' : '') + dueLabel + '</td>'
+          + '<td style="color:var(--text-light);">' + UI.esc(task.assignedTo||'—') + '</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table></div>';
+
+      // Mobile cards
+      html += '<div class="mobile-only">';
       filtered.forEach(function(task, idx) {
         html += TaskReminders._renderRow(task, now, idx === filtered.length - 1);
       });
+      html += '</div>';
     }
 
     // Quick-add bar
@@ -147,7 +209,6 @@ var TaskReminders = {
       + '<input type="text" id="bm-task-quickadd" placeholder="Quick add a task…"'
       + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();TaskReminders._quickAddSubmit();}"'
       + ' style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg);color:var(--text);min-width:0;">'
-      + '<button id="bm-task-mic-btn" onclick="TaskReminders._toggleMic()" title="Voice input" style="width:34px;height:34px;border-radius:8px;border:1.5px solid var(--border);background:none;cursor:pointer;font-size:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">🎤</button>'
       + '<button onclick="TaskReminders._quickAddSubmit()" style="background:var(--green-dark);color:#fff;border:none;padding:0 14px;height:34px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;">Add</button>'
       + '</div>';
 
@@ -155,50 +216,76 @@ var TaskReminders = {
     return html;
   },
 
+  _updateBulk: function() {
+    var checked = document.querySelectorAll('.task-check:checked');
+    var bar = document.getElementById('task-bulk-bar');
+    var cnt = document.getElementById('task-bulk-count');
+    if (bar) bar.style.display = checked.length > 0 ? 'flex' : 'none';
+    if (cnt) cnt.textContent = checked.length + ' selected';
+  },
+
+  _selectAll: function(cb) {
+    document.querySelectorAll('.task-check').forEach(function(c) { c.checked = cb.checked; });
+    TaskReminders._updateBulk();
+  },
+
+  _clearBulk: function() {
+    document.querySelectorAll('.task-check').forEach(function(c) { c.checked = false; });
+    TaskReminders._updateBulk();
+  },
+
+  _selectedIds: function() {
+    return Array.from(document.querySelectorAll('.task-check:checked')).map(function(c) { return c.value; });
+  },
+
+  _bulkComplete: function() {
+    TaskReminders._selectedIds().forEach(function(id) { TaskReminders._toggleComplete(id, true); });
+    TaskReminders._clearBulk();
+    loadPage('taskreminders');
+  },
+
+  _bulkArchive: function() {
+    var ids = TaskReminders._selectedIds();
+    var tasks = TaskReminders._getAll();
+    tasks.forEach(function(t) { if (ids.indexOf(t.id) !== -1) { t.archived = true; t.updatedAt = new Date().toISOString(); } });
+    TaskReminders._saveAll(tasks);
+    TaskReminders._clearBulk();
+    loadPage('taskreminders');
+  },
+
+  _bulkDelete: function() {
+    var ids = TaskReminders._selectedIds();
+    if (!ids.length) return;
+    if (!confirm('Delete ' + ids.length + ' task' + (ids.length>1?'s':'') + '?')) return;
+    var tasks = TaskReminders._getAll().filter(function(t) { return ids.indexOf(t.id) === -1; });
+    TaskReminders._saveAll(tasks);
+    TaskReminders._clearBulk();
+    loadPage('taskreminders');
+  },
+
   _renderRow: function(task, now, isLast) {
-    var isOverdue = !task.completed && task.dueDate && new Date(task.dueDate) < now;
+    var isOverdue = !task.completed && task.dueDate && new Date(task.dueDate) < now && new Date(task.dueDate).toDateString() !== now.toDateString();
     var pri = TaskReminders.PRIORITIES.find(function(p) { return p.key === task.priority; }) || TaskReminders.PRIORITIES[0];
     var dot = task.completed ? '#ccc' : (isOverdue ? '#c62828' : pri.color);
+    var cat = task.category ? TaskReminders.CATEGORIES.find(function(c) { return c.key === task.category; }) : null;
+    var dueLabel = task.dueDate ? TaskReminders._formatDue(task.dueDate, now) : '';
 
-    var meta = [];
-    if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
-    if (task.dueDate) {
-      var dueStr = TaskReminders._formatDue(task.dueDate, now);
-      meta.push(isOverdue ? '<span style="color:#c62828;">⚠ ' + dueStr + '</span>' : dueStr);
-    }
-    if (task.category) {
-      var cat = TaskReminders.CATEGORIES.find(function(c) { return c.key === task.category; });
-      if (cat) meta.push(cat.icon + ' ' + cat.label);
-    }
-    if (task.recurrence && task.recurrence !== 'none') {
-      var recur = TaskReminders.RECURRENCE.find(function(r) { return r.key === task.recurrence; });
-      if (recur) meta.push('🔁 ' + recur.label);
-    }
-
-    var html = '<div style="display:flex;align-items:center;gap:12px;padding:12px 20px;'
+    var html = '<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;'
       + (isLast ? '' : 'border-bottom:1px solid var(--border);')
-      + (task.completed ? 'opacity:0.6;' : '')
-      + 'cursor:pointer;" onclick="TaskReminders._editTask(\'' + task.id + '\')">';
+      + (task.completed ? 'opacity:0.55;' : '')
+      + 'cursor:pointer;" onclick="TaskReminders._openQuickComplete(\'' + task.id + '\')">';
 
-    html += '<button onclick="event.stopPropagation();TaskReminders._toggleComplete(\'' + task.id + '\')" '
-      + 'style="width:22px;height:22px;border-radius:50%;border:2px solid ' + dot + ';'
-      + 'background:' + (task.completed ? dot : 'transparent') + ';'
-      + 'color:#fff;font-size:12px;cursor:pointer;flex-shrink:0;padding:0;display:flex;align-items:center;justify-content:center;">'
-      + (task.completed ? '✓' : '') + '</button>';
-
+    html += '<input type="checkbox" class="task-check" value="' + task.id + '" onclick="event.stopPropagation()" onchange="TaskReminders._updateBulk()" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">';
+    html += '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>';
     html += '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:14px;font-weight:600;' + (task.completed ? 'text-decoration:line-through;' : '') + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>';
-    if (meta.length || task.description) {
-      html += '<div style="font-size:12px;color:var(--text-light);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">';
-      if (task.description) html += UI.esc(task.description.slice(0, 60));
-      if (task.description && meta.length) html += ' · ';
-      if (meta.length) html += meta.join(' · ');
-      html += '</div>';
-    }
-    html += '</div>';
-
+      + '<div style="font-size:14px;font-weight:600;' + (task.completed?'text-decoration:line-through;':'') + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(task.title) + '</div>'
+      + (cat || dueLabel ? '<div style="font-size:12px;color:var(--text-light);margin-top:1px;display:flex;align-items:center;gap:3px;">'
+          + (cat ? TaskReminders._catIcon(cat.icon, 11) + ' ' + cat.label : '')
+          + (cat && dueLabel ? '<span style="margin:0 2px;">·</span>' : '')
+          + (dueLabel ? '<span style="color:' + (isOverdue?'#c62828':'inherit') + ';display:inline-flex;align-items:center;gap:2px;">' + (isOverdue ? '<i data-lucide="alert-triangle" style="width:11px;height:11px;"></i>' : '') + dueLabel + '</span>' : '')
+          + '</div>' : '')
+      + '</div>';
     html += '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:' + pri.bg + ';color:' + pri.color + ';white-space:nowrap;flex-shrink:0;">' + pri.label + '</span>';
-    html += '<span style="font-size:14px;color:var(--text-light);flex-shrink:0;">›</span>';
     html += '</div>';
     return html;
   },
@@ -278,7 +365,7 @@ var TaskReminders = {
       + '<select id="task-category" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;">';
     TaskReminders.CATEGORIES.forEach(function(c) {
       var sel = (task ? task.category === c.key : pfCategory === c.key) ? ' selected' : '';
-      html += '<option value="' + c.key + '"' + sel + '>' + c.icon + ' ' + c.label + '</option>';
+      html += '<option value="' + c.key + '"' + sel + '>' + c.label + '</option>';
     });
     html += '</select></div>';
 
@@ -726,15 +813,15 @@ var TaskReminders = {
     var prioMap = { urgent: '#c62828', high: '#e65100', medium: '#1976d2', low: '#6c757d' };
     var dot = prioMap[task.priority] || '#6c757d';
     var meta = [];
-    if (task.assignedTo) meta.push('👤 ' + UI.esc(task.assignedTo));
-    if (task.dueDate) meta.push('📅 ' + UI.dateShort(task.dueDate));
+    if (task.assignedTo) meta.push('<span style="display:inline-flex;align-items:center;gap:3px;"><i data-lucide="user" style="width:12px;height:12px;"></i>' + UI.esc(task.assignedTo) + '</span>');
+    if (task.dueDate) meta.push('<span style="display:inline-flex;align-items:center;gap:3px;"><i data-lucide="calendar" style="width:12px;height:12px;"></i>' + UI.dateShort(task.dueDate) + '</span>');
     if (task.notes)   meta.push('<span style="color:var(--text-light);">' + UI.esc(task.notes.slice(0,80)) + '</span>');
 
     var html = '<div style="text-align:center;padding:8px 0 16px;">'
       + '<div style="width:10px;height:10px;border-radius:50%;background:' + dot + ';display:inline-block;margin-bottom:12px;"></div>'
       + '<div style="font-size:17px;font-weight:700;margin-bottom:8px;line-height:1.3;">' + UI.esc(task.title) + '</div>'
       + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-bottom:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' + meta.join('') + '</div>' : '<div style="margin-bottom:16px;"></div>')
-      + '<button onclick="TaskReminders._toggleComplete(\'' + id + '\');UI.closeModal();" style="width:100%;padding:14px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">✅ Mark Complete</button>'
+      + '<button onclick="TaskReminders._toggleComplete(\'' + id + '\');UI.closeModal();" style="width:100%;padding:14px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;"><i data-lucide="check-circle" style="width:18px;height:18px;"></i>Mark Complete</button>'
       + (task.actionLink ? '<button onclick="' + task.actionLink + ';UI.closeModal();" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;color:var(--text);">→ Open Linked Record</button>' : '')
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">'
       + '<button onclick="UI.closeModal();TaskReminders._openOverlay(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Edit</button>'
@@ -746,6 +833,7 @@ var TaskReminders = {
       + '</div>';
 
     UI.showModal(task.title, html);
+    setTimeout(function() { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 0);
   },
 
   // ── AI quick-add methods ──

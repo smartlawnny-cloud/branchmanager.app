@@ -629,7 +629,7 @@ var QuotesPage = {
     // Render as full page (not modal)
     var pageHtml = '<div style="max-width:680px;margin:0 auto;padding-bottom:80px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
-      + '<button class="btn btn-outline" onclick="loadPage(\'quotes\')" style="font-size:13px;">← Back to Quotes</button>'
+      + '<button class="btn btn-outline" onclick="QuotesPage._clearAutoSave();loadPage(\'quotes\')" style="font-size:13px;">← Back to Quotes</button>'
       + '<div style="display:flex;gap:8px;">'
       + '<button class="btn btn-outline" onclick="QuotesPage.saveAs(\'draft\')">Save Draft</button>'
       + '<button class="btn btn-primary" onclick="QuotesPage.saveAs(\'sent\')">Save & Send</button>'
@@ -638,7 +638,7 @@ var QuotesPage = {
       + '<div id="q-save-status" style="font-size:11px;color:var(--text-light);margin-bottom:12px;font-style:italic;">Not saved yet — start typing to auto-save.</div>'
       + html
       + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">'
-      + '<button class="btn btn-outline" onclick="loadPage(\'quotes\')">Cancel</button>'
+      + '<button class="btn btn-outline" onclick="QuotesPage._clearAutoSave();loadPage(\'quotes\')">Cancel</button>'
       + '<button class="btn btn-outline" onclick="QuotesPage.saveAs(\'draft\')">Save Draft</button>'
       + '<button class="btn btn-primary" onclick="QuotesPage.saveAs(\'sent\')">Save & Send</button>'
       + '</div></div>';
