@@ -146,25 +146,21 @@ var FleetPage = {
   },
 
   showAdd: function() {
-    UI.modal({
-      title: 'Add Vehicle',
-      html: '<div style="display:grid;gap:10px;">'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Name<input id="fleet-name" placeholder="e.g. Bucket Truck #1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Nickname<input id="fleet-nick" placeholder="e.g. The Beast" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">License Plate<input id="fleet-plate" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Type<select id="fleet-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
-        +   '<option value="bucket">Bucket Truck</option><option value="dump">Dump Truck</option><option value="pickup">Pickup</option><option value="chipper">Chipper</option><option value="trailer">Trailer</option><option value="other">Other</option>'
-        + '</select></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Provider<select id="fleet-tracker" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
-        +   '<option value="">— None yet —</option><option value="bouncie">Bouncie OBD-II</option><option value="trak4">Trak-4 Portable</option><option value="manual">Manual entry</option>'
-        + '</select></label>'
-        + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Device ID<input id="fleet-device" placeholder="IMEI / VIN / serial — leave blank to auto-register on first event" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
-        + '</div>',
-      buttons: [
-        { label: 'Cancel', action: 'close' },
-        { label: 'Save', primary: true, action: 'FleetPage.saveAdd()' }
-      ]
-    });
+    var body = '<div style="display:grid;gap:10px;">'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Name<input id="fleet-name" placeholder="e.g. Bucket Truck #1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Nickname<input id="fleet-nick" placeholder="e.g. The Beast" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">License Plate<input id="fleet-plate" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Type<select id="fleet-type" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
+      +   '<option value="bucket">Bucket Truck</option><option value="dump">Dump Truck</option><option value="pickup">Pickup</option><option value="chipper">Chipper</option><option value="trailer">Trailer</option><option value="other">Other</option>'
+      + '</select></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Provider<select id="fleet-tracker" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
+      +   '<option value="">— None yet —</option><option value="bouncie">Bouncie OBD-II</option><option value="trak4">Trak-4 Portable</option><option value="manual">Manual entry</option>'
+      + '</select></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Device ID (IMEI)<input id="fleet-device" placeholder="Leave blank — auto-registers on first Bouncie event" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;"></label>'
+      + '</div>';
+    var footer = '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+      + '<button class="btn btn-primary" onclick="FleetPage.saveAdd()">Save</button>';
+    UI.showModal('Add Vehicle', body, { footer: footer });
   },
 
   saveAdd: function() {
@@ -209,14 +205,13 @@ var FleetPage = {
       + '</div>'
       + '<div id="fleet-detail-extra" style="margin-top:12px;"><div style="color:var(--text-light);font-size:12px;">Loading history…</div></div>';
 
-    UI.modal({
-      title: v.name + (v.nickname ? ' — ' + v.nickname : ''),
-      html: baseHtml,
-      buttons: [
-        { label: 'Close', action: 'close' },
-        { label: 'Archive', action: 'FleetPage.archive(\'' + id + '\')' }
-      ]
-    });
+    var assignBtn = !v.tracker_device_id
+      ? '<button class="btn btn-outline" style="font-size:12px;" onclick="FleetPage.showAssignTracker(\'' + id + '\')">🔗 Assign Tracker</button>'
+      : '';
+    var footer = assignBtn
+      + '<button class="btn btn-outline" style="color:#c62828;" onclick="FleetPage.archive(\'' + id + '\')">Archive</button>'
+      + '<button class="btn btn-outline" onclick="UI.closeModal()">Close</button>';
+    UI.showModal(v.name + (v.nickname ? ' — ' + v.nickname : ''), baseHtml, { footer: footer });
 
     // Async: load position history + open maintenance alerts
     if (!sb) return;
@@ -312,6 +307,36 @@ var FleetPage = {
         b.extend([-73.9210, 41.2847]);
         FleetPage._map.fitBounds(b, { padding: 40, maxZoom: 14 });
       }
+    });
+  },
+
+  showAssignTracker: function(id) {
+    var body = '<div style="display:grid;gap:12px;">'
+      + '<div style="font-size:13px;color:var(--text-light);">Enter the IMEI printed on the Bouncie device label. On first Bouncie event, this vehicle row will be claimed automatically. You can also paste it here now to pre-link it.</div>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tracker Provider<select id="fat-provider" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;">'
+      +   '<option value="bouncie">Bouncie OBD-II</option><option value="trak4">Trak-4 Portable</option><option value="manual">Manual</option>'
+      + '</select></label>'
+      + '<label style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;">Device ID / IMEI<input id="fat-imei" placeholder="e.g. 123456789012345" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin-top:4px;" onkeydown="if(event.key===\'Enter\')FleetPage.saveAssignTracker(\'' + id + '\')"></label>'
+      + '</div>';
+    var footer = '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+      + '<button class="btn btn-primary" onclick="FleetPage.saveAssignTracker(\'' + id + '\')">Save</button>';
+    UI.showModal('Assign Tracker', body, { footer: footer });
+    setTimeout(function(){ var el = document.getElementById('fat-imei'); if(el) el.focus(); }, 100);
+  },
+
+  saveAssignTracker: function(id) {
+    var imei = (document.getElementById('fat-imei') || {}).value || '';
+    var provider = (document.getElementById('fat-provider') || {}).value || 'bouncie';
+    imei = imei.trim();
+    if (!imei) { UI.toast('IMEI is required', 'error'); return; }
+    var sb = (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) ? SupabaseDB.client : null;
+    if (!sb) { UI.toast('Supabase not ready', 'error'); return; }
+    sb.from('vehicles').update({ tracker_device_id: imei, tracker_provider: provider }).eq('id', id).then(function(r) {
+      if (r.error) { UI.toast('Save failed: ' + r.error.message, 'error'); return; }
+      UI.toast('Tracker assigned');
+      UI.closeModal();
+      FleetPage._fetched = false;
+      FleetPage._refresh(true);
     });
   },
 
