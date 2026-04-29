@@ -175,6 +175,104 @@ var Weather = {
     return '';
   },
 
+  // Full detail modal — 5-day forecast + today's hourly breakdown
+  showModal: function() {
+    var data = Weather.cache;
+    if (!data) {
+      Weather.fetch();
+      setTimeout(function() { if (Weather.cache) Weather.showModal(); }, 2500);
+      return;
+    }
+    var dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var html = '';
+
+    // ── Current conditions ──
+    if (data.current) {
+      var cur = data.current;
+      var curIcon = Weather._icon(cur.weather_code);
+      var curTemp = Math.round(cur.temperature_2m);
+      var windSpd = Math.round(cur.wind_speed_10m);
+      var gustSpd = Math.round(cur.wind_gusts_10m);
+      html += '<div style="display:flex;align-items:center;gap:16px;padding:12px 16px;background:#f8f9fa;border-radius:10px;margin-bottom:16px;">'
+        + '<div style="font-size:48px;line-height:1;">' + curIcon + '</div>'
+        + '<div>'
+        + '<div style="font-size:32px;font-weight:800;line-height:1;">' + curTemp + '°F</div>'
+        + '<div style="font-size:13px;color:var(--text-light);margin-top:4px;">Wind ' + windSpd + ' mph' + (gustSpd > windSpd ? ' · Gusts ' + gustSpd + ' mph' : '') + '</div>'
+        + (gustSpd > 25 ? '<div style="font-size:12px;color:#c62828;font-weight:600;margin-top:2px;">⚠ High gusts — caution with aerial work</div>' : '')
+        + '</div>'
+        + '</div>';
+    }
+
+    // ── 5-day forecast ──
+    if (data.daily) {
+      var days = data.daily;
+      html += '<div style="font-size:12px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">5-Day Forecast</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center;margin-bottom:20px;">';
+      for (var i = 0; i < 5; i++) {
+        var d = new Date(days.time[i] + 'T12:00:00');
+        var dName = i === 0 ? 'Today' : dayNames[d.getDay()];
+        var dDate = monthNames[d.getMonth()] + ' ' + d.getDate();
+        var hi = Math.round(days.temperature_2m_max[i]);
+        var lo = Math.round(days.temperature_2m_min[i]);
+        var rain = days.precipitation_probability_max[i];
+        var code = days.weathercode[i];
+        var ic = Weather._icon(code);
+        var bg = rain > 60 ? '#fff3e0' : (i === 0 ? '#e8f5e9' : 'transparent');
+        html += '<div style="padding:8px 4px;border-radius:8px;background:' + bg + ';border:1px solid var(--border);">'
+          + '<div style="font-size:11px;font-weight:700;color:var(--text);">' + dName + '</div>'
+          + '<div style="font-size:10px;color:var(--text-light);">' + dDate + '</div>'
+          + '<div style="font-size:24px;margin:6px 0;">' + ic + '</div>'
+          + '<div style="font-size:14px;font-weight:700;">' + hi + '°</div>'
+          + '<div style="font-size:11px;color:var(--text-light);">' + lo + '°</div>'
+          + (rain > 0 ? '<div style="font-size:10px;color:' + (rain > 60 ? '#e65100' : '#1976d2') + ';margin-top:3px;">💧 ' + rain + '%</div>' : '<div style="font-size:10px;color:transparent;">·</div>')
+          + '</div>';
+      }
+      html += '</div>';
+    }
+
+    // ── Today's hourly breakdown (6am–8pm) ──
+    if (data.hourly) {
+      var h = data.hourly;
+      var todayStr = new Date().toISOString().split('T')[0];
+      var nowHour = new Date().getHours();
+      var hourRows = '';
+      var count = 0;
+      for (var j = 0; j < h.time.length; j++) {
+        var tStr = h.time[j];
+        if (tStr.indexOf(todayStr) !== 0) continue;
+        var hour = parseInt(tStr.split('T')[1].split(':')[0], 10);
+        if (hour < 6 || hour > 20) continue;
+        var isPast = hour < nowHour;
+        var temp = Math.round(h.temperature_2m[j]);
+        var precip = h.precipitation_probability ? h.precipitation_probability[j] : 0;
+        var hIcon = Weather._icon(h.weather_code[j]);
+        var ampm = hour === 0 ? '12am' : hour < 12 ? hour + 'am' : hour === 12 ? '12pm' : (hour - 12) + 'pm';
+        var isNow = hour === nowHour;
+        hourRows += '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;'
+          + (count > 0 ? 'border-top:1px solid var(--border);' : '')
+          + (isPast ? 'opacity:0.45;' : '')
+          + (isNow ? 'background:#f0faf0;border-radius:6px;padding-left:8px;padding-right:8px;margin:0 -8px;' : '')
+          + '">'
+          + '<div style="width:36px;font-size:12px;font-weight:' + (isNow ? '700' : '500') + ';color:' + (isNow ? 'var(--green-dark)' : 'var(--text-light)') + ';flex-shrink:0;">' + ampm + '</div>'
+          + '<div style="font-size:18px;flex-shrink:0;">' + hIcon + '</div>'
+          + '<div style="font-size:14px;font-weight:600;flex-shrink:0;width:38px;">' + temp + '°</div>'
+          + '<div style="flex:1;">'
+          + (precip > 10 ? '<div style="font-size:11px;color:' + (precip > 60 ? '#e65100' : '#1976d2') + ';">💧 ' + precip + '% rain</div>' : '')
+          + '</div>'
+          + (isNow ? '<div style="font-size:10px;color:var(--green-dark);font-weight:700;">NOW</div>' : '')
+          + '</div>';
+        count++;
+      }
+      if (hourRows) {
+        html += '<div style="font-size:12px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Today\'s Hourly</div>';
+        html += '<div style="background:#f8f9fa;border-radius:10px;padding:8px 12px;">' + hourRows + '</div>';
+      }
+    }
+
+    UI.showModal('🌤️ Peekskill, NY — Weather', html);
+  },
+
   _icon: function(code) {
     if (code === 0) return '☀️';
     if (code <= 3) return '⛅';
