@@ -277,10 +277,11 @@ var QuotesPage = {
         + 'Quote #' + q.quoteNumber + ' — ' + UI.money(q.total) + '\n\n'
         + 'Do you have any questions or would you like to move forward? Just reply to this email or give me a call at ' + _co2.phone + '.\n\n'
         + 'Thanks,\nDoug Brown\n' + _co2.name + '\n' + _co2.phone + '\n' + _co2.website;
-      Email.send(email, subject, body).then(function() {
-        UI.toast('Follow-up sent to ' + email);
+      Email.send(email, subject, body).then(function(r) {
+        if (r && r.success) UI.toast('Follow-up sent to ' + email);
+        else UI.toast('Follow-up logged — email failed (' + ((r && r.hint) || 'check Resend key in Supabase secrets') + ')');
       }).catch(function() {
-        UI.toast('Follow-up logged (email send failed — check SendGrid key in Settings)');
+        UI.toast('Follow-up logged (network error — try again)');
       });
     } else {
       UI.toast('Follow-up logged for ' + UI.esc(q.clientName || 'client') + (email ? '' : ' — no email on file'));
@@ -1795,6 +1796,26 @@ var QuotesPage = {
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">'
       + '<button class="btn btn-outline" onclick="loadPage(\'quotes\')" style="padding:6px 12px;font-size:12px;">← Back to Quotes</button>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
+      // v461: stale follow-up CTA — surface when quote has been awaiting 5+ days
+      // and either no follow-up sent yet OR last follow-up > 3 days ago.
+      // Was buried in the kebab menu; per funnel audit this is the biggest
+      // pipeline-unlocker (44 stale quotes worth of money sitting).
+      + (function(){
+          if (q.status !== 'sent' && q.status !== 'awaiting') return '';
+          var sentTs = q.sentAt ? new Date(q.sentAt).getTime() : (q.createdAt ? new Date(q.createdAt).getTime() : 0);
+          if (!sentTs) return '';
+          var daysSince = Math.floor((Date.now() - sentTs) / 86400000);
+          if (daysSince < 5) return '';
+          var fuTs = q.lastFollowUp ? new Date(q.lastFollowUp).getTime() : 0;
+          var daysSinceFu = fuTs ? Math.floor((Date.now() - fuTs) / 86400000) : 999;
+          if (daysSinceFu < 3) return ''; // Don't pester
+          var label = fuTs ? 'Send Another Follow-Up · ' + daysSince + 'd' : 'Send Follow-Up · ' + daysSince + 'd';
+          return '<button onclick="QuotesPage._quickFollowUp(\'' + id + '\')" '
+            +    'style="background:#f59e0b;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;" '
+            +    'title="Quote sent ' + daysSince + ' days ago — nudge the client">'
+            +  '📧 ' + label
+            + '</button>';
+        })()
       + '<button class="btn btn-outline" onclick="QuotesPage._copyApprovalLink(\'' + id + '\')" style="font-size:12px;">Copy Link</button>'
       + (q.status !== 'converted' && q.status !== 'declined'
           ? '<button class="btn btn-outline" onclick="QuotesPage._sendQuote(\'' + id + '\')" style="font-size:12px;">Send Quote</button>' : '')

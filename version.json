@@ -1,5 +1,5 @@
 {
-  "version": 461,
+  "version": 462,
   "released": "2026-04-28",
-  "notes": "v461: Fast Quote button on Request detail (one-click request → draft quote with all fields prefilled)"
+  "notes": "v462: Stale-quote follow-up CTA on quote detail (surface from kebab menu) + fix legacy SendGrid toast"
 }
