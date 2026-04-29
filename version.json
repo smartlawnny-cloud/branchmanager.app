@@ -1,5 +1,5 @@
 {
-  "version": 464,
+  "version": 466,
   "released": "2026-04-28",
-  "notes": "v464: Workflow.markPaid propagates to job (status=invoiced) — fixed Christina #377 in cloud"
+  "notes": "Tasks for Today: interactive widget with edit, add, complete + AI suggestions"
 }

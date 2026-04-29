@@ -185,6 +185,9 @@ var DashboardPage = {
       briefingInsights = briefingInsights.slice(0, 5);
     }
 
+    // Expose insights to TaskReminders.getDashboardWidget (reads window.__bmBriefingInsights)
+    window.__bmBriefingInsights = briefingInsights;
+
     // Jobber-style Workflow cards (2x2 grid)
     var overdueInvoices = unpaidInvoices.filter(function(i) { return i.dueDate && new Date(i.dueDate) < now; });
     var unapprovedQuotes = allQuotes.filter(function(q) { return q.status === 'sent' || q.status === 'awaiting'; });
@@ -241,41 +244,11 @@ var DashboardPage = {
       html += '</div>';
     }
 
-    // ── Daily Briefing Tasks ── (after Today's Jobs, only when no jobs OR all done)
-    // Per Doug: don't surface this when crew is in the middle of the day's work.
-    // Show only when there's no active work to focus on, so the tasks list
-    // becomes "what to do with this time" rather than noise during operations.
-    var __briefingShouldShow = briefingInsights.length > 0
-      && (__todayJobs.length === 0 || __todayDone === __todayJobs.length);
-    if (__briefingShouldShow) {
-      html += '<div id="daily-briefing" style="background:linear-gradient(135deg,#14331a 0%,#1e5428 50%,#1a3c12 100%);border-radius:12px;padding:20px;color:#fff;margin-bottom:20px;">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
-        +   '<div style="display:flex;align-items:center;gap:8px;">'
-        +     '<span style="font-size:18px;color:#8fe89f;">✦</span>'
-        +     '<h3 style="font-size:16px;font-weight:700;margin:0;">'
-        +       (__todayJobs.length === 0 ? 'Tasks for Today' : 'Day\'s Work Complete — Tasks')
-        +     '</h3>'
-        +   '</div>'
-        +   '<a href="#" onclick="DashboardPage.dismissAllInsights();return false;" style="font-size:12px;color:rgba(255,255,255,.5);text-decoration:none;">Dismiss All</a>'
-        + '</div>';
-      briefingInsights.forEach(function(insight, idx) {
-        var borderTop = idx > 0 ? 'border-top:1px solid rgba(255,255,255,.1);' : '';
-        // Each row: clickable area for the action + separate X button.
-        // stopPropagation on the X so it doesn't also fire the action onclick.
-        html += '<div data-bf-id="' + insight.id + '" style="display:flex;align-items:center;gap:10px;padding:10px 0;' + borderTop + '">'
-          +   '<div onclick="' + insight.action + '" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0;">'
-          +     '<span style="font-size:16px;flex-shrink:0;">' + insight.icon + '</span>'
-          +     '<span style="font-size:13px;line-height:1.4;opacity:.95;flex:1;min-width:0;">' + insight.text + '</span>'
-          +     '<span style="font-size:14px;opacity:.4;flex-shrink:0;">›</span>'
-          +   '</div>'
-          +   '<button onclick="event.stopPropagation();DashboardPage.dismissInsight(\'' + insight.id + '\');" '
-          +     'aria-label="Dismiss task" '
-          +     'style="background:none;border:none;color:rgba(255,255,255,.45);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px;flex-shrink:0;border-radius:4px;" '
-          +     'onmouseover="this.style.background=\'rgba(255,255,255,.1)\';this.style.color=\'#fff\';" '
-          +     'onmouseout="this.style.background=\'none\';this.style.color=\'rgba(255,255,255,.45)\';">×</button>'
-          + '</div>';
-      });
-      html += '</div>';
+    // ── Tasks for Today widget (replaces old briefing card) ──
+    // Shows manual tasks from TaskReminders + AI suggestions in one card.
+    // Always visible; AI suggestions shown at the bottom so real tasks stay primary.
+    if (typeof TaskReminders !== 'undefined') {
+      html += TaskReminders.getDashboardWidget();
     }
 
     html += '<h3 style="font-size:18px;font-weight:700;margin-bottom:12px;">Workflow</h3>';
