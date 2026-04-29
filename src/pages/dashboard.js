@@ -214,14 +214,18 @@ var DashboardPage = {
     var overdueTotal = overdueInvoices.reduce(function(s,i){return s+(i.balance||0);},0);
 
     // ── Call Center snapshot (async-filled after render) ──
+    var _ccCollapsed = localStorage.getItem('bm-dash-cc-collapsed') === '1';
     html += '<div id="dash-callcenter-widget" style="background:var(--white);border-radius:12px;padding:18px 20px;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (_ccCollapsed ? '0' : '12px') + ';">'
       + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Call Center</h3>'
       + '<div id="dash-cc-badge" style="font-size:12px;color:var(--text-light);margin-top:2px;">Loading…</div>'
       + '</div>'
+      + '<div style="display:flex;gap:6px;align-items:center;">'
       + '<button onclick="loadPage(\'callcenter\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">Open →</button>'
+      + '<button id="dash-cc-collapse-btn" onclick="DashboardPage._toggleCCCollapse()" title="Collapse" style="background:none;border:1px solid var(--border);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;">' + (_ccCollapsed ? '▾' : '▴') + '</button>'
       + '</div>'
-      + '<div id="dash-cc-items"></div>'
+      + '</div>'
+      + '<div id="dash-cc-items" style="' + (_ccCollapsed ? 'display:none;' : '') + '"></div>'
       + '</div>';
     setTimeout(function() { if (typeof DashboardPage !== 'undefined') DashboardPage._fillCallCenterWidget(); }, 80);
     setTimeout(function() { if (typeof DashboardPage !== 'undefined') DashboardPage._fillDateWeather(); }, 120);
@@ -600,6 +604,18 @@ var DashboardPage = {
     } catch(e) { /* optional widget */ }
 
     return html;
+  },
+
+  _toggleCCCollapse: function() {
+    var collapsed = localStorage.getItem('bm-dash-cc-collapsed') === '1';
+    collapsed = !collapsed;
+    localStorage.setItem('bm-dash-cc-collapsed', collapsed ? '1' : '0');
+    var items = document.getElementById('dash-cc-items');
+    var btn = document.getElementById('dash-cc-collapse-btn');
+    var header = items && items.previousElementSibling;
+    if (items) items.style.display = collapsed ? 'none' : '';
+    if (btn) btn.textContent = collapsed ? '▾' : '▴';
+    if (header) header.style.marginBottom = collapsed ? '0' : '12px';
   },
 
   _fillDateWeather: function() {
