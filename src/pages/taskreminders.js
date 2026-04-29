@@ -34,29 +34,33 @@ var TaskReminders = {
     { key: 'monthly', label: 'Monthly' }
   ],
 
-  _seedSamples: function() {
-    if (localStorage.getItem('bm-tasks-seeded')) return;
-    var now = new Date();
-    var d = function(offsetDays, hour) {
-      var dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays, hour, 0, 0);
-      return dt.toISOString();
+  // Voice-to-task: listen via mic, open overlay with transcribed title
+  _voiceNewTask: function() {
+    if (typeof UI !== 'undefined') UI.closeModal();
+    var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) { TaskReminders._openOverlay(null); return; }
+    var gotResult = false;
+    UI.toast('🎤 Listening — say the task name');
+    var rec = new SpeechRec();
+    rec.lang = 'en-US'; rec.continuous = false; rec.interimResults = false;
+    rec.onresult = function(e) {
+      gotResult = true;
+      var title = ((e.results[0][0].transcript) || '').trim();
+      TaskReminders._openOverlay(null, { title: title });
     };
-    var samples = [
-      { id: 'task_seed_1', title: 'Pick up chainsaw chains from dealer', description: '', assignedTo: '', dueDate: d(0, 10), priority: 'high', category: 'errand', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
-      { id: 'task_seed_2', title: 'Service the chipper (Bandit 254 — oil + belts)', description: '', assignedTo: '', dueDate: d(1, 8), priority: 'medium', category: 'maintenance', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
-      { id: 'task_seed_3', title: 'Order fuel filters for trucks', description: '', assignedTo: '', dueDate: d(0, 12), priority: 'medium', category: 'errand', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
-      { id: 'task_seed_4', title: 'Prep estimate docs for Johnson property', description: '', assignedTo: '', dueDate: d(1, 9), priority: 'high', category: 'prep', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() },
-      { id: 'task_seed_5', title: 'Clean up yard waste — 45 Main St', description: '', assignedTo: '', dueDate: d(-1, 17), priority: 'urgent', category: 'cleanup', recurrence: 'none', completed: false, completedAt: null, notified: false, createdAt: now.toISOString(), updatedAt: now.toISOString() }
-    ];
-    var existing = TaskReminders._getAll();
-    if (existing.length === 0) {
-      TaskReminders._saveAll(samples);
-    }
-    localStorage.setItem('bm-tasks-seeded', '1');
+    rec.onerror = function() { if (!gotResult) { gotResult = true; TaskReminders._openOverlay(null); } };
+    rec.onend   = function() { if (!gotResult) { gotResult = true; TaskReminders._openOverlay(null); } };
+    rec.start();
   },
 
   render: function() {
-    TaskReminders._seedSamples();
+    // One-time: remove seeded sample tasks if present
+    if (!localStorage.getItem('bm-seed-tasks-cleaned')) {
+      var cleaned = TaskReminders._getAll().filter(function(t) { return t.id.indexOf('task_seed_') !== 0; });
+      TaskReminders._saveAll(cleaned);
+      localStorage.removeItem('bm-tasks-seeded');
+      localStorage.setItem('bm-seed-tasks-cleaned', '1');
+    }
     TaskReminders._startChecker();
     TaskReminders._requestNotificationPermission();
 
@@ -620,7 +624,13 @@ var TaskReminders = {
   // --- Dashboard widget (call from dashboard) ---
 
   getDashboardWidget: function() {
-    TaskReminders._seedSamples();
+    // Clean seeded tasks if not already done
+    if (!localStorage.getItem('bm-seed-tasks-cleaned')) {
+      var c = TaskReminders._getAll().filter(function(t) { return t.id.indexOf('task_seed_') !== 0; });
+      TaskReminders._saveAll(c);
+      localStorage.removeItem('bm-tasks-seeded');
+      localStorage.setItem('bm-seed-tasks-cleaned', '1');
+    }
     var tasks = TaskReminders._getAll();
     var now = new Date();
     var todayStr = now.toDateString();
@@ -631,7 +641,7 @@ var TaskReminders = {
       return '<div style="background:var(--white);border-radius:10px;padding:10px 16px;border:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text-light);">'
         + '<span><strong style="color:var(--text);">Tasks</strong> · All clear</span>'
         + '<div style="display:flex;gap:6px;">'
-        + '<button onclick="TaskReminders._showForm(null)" style="background:var(--green-dark);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">+ New</button>'
+        + '<button onclick="TaskReminders._openOverlay(null)" style="background:var(--green-dark);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">+ New</button>'
         + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
         + '</div>'
         + '</div>';
@@ -653,7 +663,7 @@ var TaskReminders = {
       + '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + allIncomplete.length + ' open</div>'
       + '</div>'
       + '<div style="display:flex;gap:6px;align-items:center;">'
-      + '<button onclick="TaskReminders._showForm(null)" style="background:var(--green-dark);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">+ New</button>'
+      + '<button onclick="TaskReminders._openOverlay(null)" style="background:var(--green-dark);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">+ New</button>'
       + '<button onclick="loadPage(\'taskreminders\')" style="background:none;border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--accent);">View All →</button>'
       + '</div>'
       + '</div>';

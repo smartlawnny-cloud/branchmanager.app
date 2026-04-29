@@ -215,7 +215,7 @@ var DashboardPage = {
 
     // ── Call Center snapshot (async-filled after render) ──
     var _ccCollapsed = localStorage.getItem('bm-dash-cc-collapsed') === '1';
-    html += '<div id="dash-callcenter-widget" style="background:var(--white);border-radius:12px;padding:18px 20px;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+    html += '<div id="dash-callcenter-widget" style="background:var(--white);border-radius:12px;padding:12px 16px;border:1px solid var(--border);margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (_ccCollapsed ? '0' : '12px') + ';">'
       + '<div><h3 style="font-size:16px;font-weight:700;margin:0;">Call Center</h3>'
       + '<div id="dash-cc-badge" style="font-size:12px;color:var(--text-light);margin-top:2px;">Loading…</div>'
@@ -704,7 +704,7 @@ var DashboardPage = {
 
         var isLast = idx === data.length - 1;
         var safeIcon = { sms: 'SMS', call: 'Call', voicemail: 'VM', email: 'Email' }[c.channel] || c.channel;
-        html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">'
+        html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;" onclick="loadPage(\'callcenter\')">'
           + '<div style="width:8px;height:8px;border-radius:50%;background:' + dot + ';flex-shrink:0;"></div>'
           + '<div style="font-size:14px;font-weight:600;flex-shrink:0;white-space:nowrap;">' + (typeof UI !== 'undefined' ? UI.esc(name) : name) + '</div>'
           + '<div style="flex:1;min-width:0;font-size:12px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + icon + ' ' + (typeof UI !== 'undefined' ? UI.esc(preview) : preview) + '</div>'
