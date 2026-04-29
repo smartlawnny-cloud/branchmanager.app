@@ -461,9 +461,22 @@ var TaskReminders = {
 
   _deleteTask: function(id) {
     if (!confirm('Delete this task?')) return;
+    UI.closeModal();
     var tasks = TaskReminders._getAll().filter(function(t) { return t.id !== id; });
     TaskReminders._saveAll(tasks);
     TaskReminders._editing = null;
+    var overlay = document.getElementById('bm-task-overlay');
+    if (overlay) overlay.remove();
+    loadPage(window._currentPage || 'taskreminders');
+  },
+
+  _archiveTask: function(id) {
+    UI.closeModal();
+    var tasks = TaskReminders._getAll();
+    for (var i = 0; i < tasks.length; i++) {
+      if (tasks[i].id === id) { tasks[i].archived = true; tasks[i].updatedAt = new Date().toISOString(); break; }
+    }
+    TaskReminders._saveAll(tasks);
     var overlay = document.getElementById('bm-task-overlay');
     if (overlay) overlay.remove();
     loadPage(window._currentPage || 'taskreminders');
@@ -564,9 +577,10 @@ var TaskReminders = {
 
   // --- Data helpers ---
 
-  _getAll: function() {
+  _getAll: function(includeArchived) {
     try {
-      return JSON.parse(localStorage.getItem(TaskReminders.STORAGE_KEY) || '[]');
+      var all = JSON.parse(localStorage.getItem(TaskReminders.STORAGE_KEY) || '[]');
+      return includeArchived ? all : all.filter(function(t) { return !t.archived; });
     } catch (e) { return []; }
   },
 
@@ -722,7 +736,13 @@ var TaskReminders = {
       + (meta.length ? '<div style="font-size:12px;color:var(--text-light);margin-bottom:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">' + meta.join('') + '</div>' : '<div style="margin-bottom:16px;"></div>')
       + '<button onclick="TaskReminders._toggleComplete(\'' + id + '\');UI.closeModal();" style="width:100%;padding:14px;background:var(--green-dark);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;">✅ Mark Complete</button>'
       + (task.actionLink ? '<button onclick="' + task.actionLink + ';UI.closeModal();" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:8px;color:var(--text);">→ Open Linked Record</button>' : '')
-      + '<button onclick="UI.closeModal();TaskReminders._openOverlay(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Edit task</button>'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">'
+      + '<button onclick="UI.closeModal();TaskReminders._openOverlay(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Edit</button>'
+      + '<div style="display:flex;gap:12px;">'
+      + '<button onclick="TaskReminders._archiveTask(\'' + id + '\')" style="background:none;border:none;color:var(--text-light);font-size:13px;cursor:pointer;padding:4px 0;">Archive</button>'
+      + '<button onclick="TaskReminders._deleteTask(\'' + id + '\')" style="background:none;border:none;color:#c62828;font-size:13px;cursor:pointer;padding:4px 0;">Delete</button>'
+      + '</div>'
+      + '</div>'
       + '</div>';
 
     UI.showModal(task.title, html);
