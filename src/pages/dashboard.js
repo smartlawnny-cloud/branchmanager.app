@@ -690,7 +690,8 @@ var DashboardPage = {
           var q = (phone || '').replace(/\D/g, '');
           return p.length >= 7 && q.length >= 7 && (p === q || p.endsWith(q) || q.endsWith(p));
         });
-        var name = match ? (match.name || match.firstName + ' ' + (match.lastName || '')).trim() : (phone ? phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : '—');
+        var _fp = function(p) { var d=(p||'').replace(/\D/g,''); if(d.length===10) return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6); if(d.length===11&&d[0]==='1') return '('+d.slice(1,4)+') '+d.slice(4,7)+'-'+d.slice(7); return p||'—'; };
+        var name = match ? (match.name || match.firstName + ' ' + (match.lastName || '')).trim() : _fp(phone);
         var icon = chanIcon[c.channel] || '📞';
         var dot = c.direction === 'inbound' ? '#2e7d32' : '#1565c0';
         var preview = c.channel === 'sms' ? (c.body || '').substring(0, 50) : c.channel === 'voicemail' ? 'Voicemail left' : (c.direction === 'inbound' ? 'Inbound call' : 'Outbound call');
