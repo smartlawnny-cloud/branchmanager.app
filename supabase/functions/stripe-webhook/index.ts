@@ -41,6 +41,16 @@ serve(async (req: Request) => {
     const timestamp = parts.find((p: string) => p.startsWith('t='))?.split('=')[1] ?? '';
     const sigHex = parts.find((p: string) => p.startsWith('v1='))?.split('=')[1] ?? '';
 
+    // Replay protection: reject events older than 5 minutes (Stripe's standard
+    // tolerance window). Without this, an attacker who captures any signed
+    // payment_intent.succeeded payload can re-POST it weeks later and mark
+    // arbitrary invoices paid for free.
+    const ts = parseInt(timestamp, 10);
+    if (!ts || Math.abs(Date.now() / 1000 - ts) > 300) {
+      console.error('Webhook timestamp stale:', timestamp);
+      return new Response('Timestamp out of tolerance', { status: 401 });
+    }
+
     const signedPayload = `${timestamp}.${body}`;
     const key = await crypto.subtle.importKey(
       'raw',

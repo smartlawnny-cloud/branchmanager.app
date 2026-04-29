@@ -63,6 +63,26 @@ function money(n: number): string {
   return '$' + (+(n || 0)).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+// HTML-escape to prevent XSS in mail clients. Customer-supplied fields
+// (changeNotes, clientName, property) flowed straight into innerHTML-style
+// template literals — a malicious approve.html POST could embed
+// <img src=x onerror=...> and execute JS when the team viewed the alert.
+function esc(s: any): string {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Cap user-supplied strings to defend against megabyte-payload abuse.
+function trunc(s: any, max: number): string {
+  const v = String(s ?? '');
+  return v.length > max ? v.slice(0, max) : v;
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS });
@@ -70,13 +90,47 @@ serve(async (req: Request) => {
 
   try {
     const data = await req.json();
-    const { event, quoteId, quoteNumber, clientName, total, property, changeNotes, clientEmail } = data;
 
+    // Validate event whitelist before doing any work — quote-notify only
+    // accepts two events. Anything else gets a 400 (was: silently no-op'd).
+    if (data.event !== 'approved' && data.event !== 'changes_requested') {
+      return new Response(JSON.stringify({ error: 'Invalid event' }),
+        { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+
+    // Cap user-controlled strings — protect downstream mail clients + the DB
+    // from megabyte payloads. esc() neutralizes HTML in templates below.
+    const event = data.event;
+    const quoteId = trunc(data.quoteId, 64);
+    const quoteNumber = trunc(data.quoteNumber, 32);
+    const clientName = trunc(data.clientName, 200);
+    const property = trunc(data.property, 300);
+    const changeNotes = trunc(data.changeNotes, 4000);
+    const total = Number(data.total) || 0;
+    const clientEmail = trunc(data.clientEmail, 200);
+
+    // Light email-format gate — doesn't replace Resend's own validation but
+    // blocks obvious junk that would still cost a Resend send attempt.
+    const emailOk = !clientEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail);
+    if (!emailOk) {
+      return new Response(JSON.stringify({ error: 'Invalid clientEmail' }),
+        { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
+
+    // qNum/cName/propFmt/firstName are RAW (truncated) — safe in plain-text
+    // emails which most templates use. HTML templates use the *Html versions
+    // which are HTML-escaped to prevent XSS in mail clients.
     const qNum = quoteNumber || quoteId || '—';
     const cName = clientName || 'Customer';
-    const firstName = cName.split(' ')[0] || 'there';
-    const totalFmt = money(total || 0);
+    const firstName = (cName.split(' ')[0]) || 'there';
+    const totalFmt = money(total);
     const propFmt = property || '—';
+
+    const qNumHtml = esc(qNum);
+    const cNameHtml = esc(cName);
+    const firstNameHtml = esc(firstName);
+    const propFmtHtml = esc(propFmt);
+    const changeNotesEsc = esc(changeNotes || '(no notes provided)');
 
     if (event === 'approved') {
       // ── Team notification ──────────────────────────────────────────────
@@ -95,9 +149,9 @@ ${APP_URL}`;
         '#1a3c12',
         `<div style="color:#fff;font-size:22px;font-weight:800;">✅ Quote Approved</div>
     <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px;">Second Nature Tree Service</div>`,
-        `<h2 style="color:#1a3c12;font-size:20px;margin:0 0 16px;">Quote #${qNum} — ${cName}</h2>
+        `<h2 style="color:#1a3c12;font-size:20px;margin:0 0 16px;">Quote #${qNumHtml} — ${cNameHtml}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;">
-      <tr><td style="color:#888;padding:5px 0;width:110px;">Property</td><td style="font-weight:600;">${propFmt}</td></tr>
+      <tr><td style="color:#888;padding:5px 0;width:110px;">Property</td><td style="font-weight:600;">${propFmtHtml}</td></tr>
       <tr><td style="color:#888;padding:5px 0;">Total</td><td style="font-weight:700;font-size:18px;color:#1a3c12;">${totalFmt}</td></tr>
     </table>
     <div style="background:#e8f5e9;border-left:3px solid #1a3c12;border-radius:0 8px 8px 0;padding:14px 16px;margin:16px 0;font-size:14px;color:#333;">
@@ -127,8 +181,8 @@ peekskilltree.com`;
           `<div style="color:#fff;font-size:22px;font-weight:800;">🌳 Second Nature Tree Service</div>
     <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px;">Peekskill, NY · (914) 391-5233</div>`,
           `<h2 style="color:#1a3c12;font-size:20px;margin:0 0 12px;">Quote Confirmed! ✅</h2>
-    <p style="color:#444;font-size:15px;line-height:1.6;">Hi ${firstName},</p>
-    <p style="color:#444;font-size:15px;line-height:1.6;">Thank you for approving <strong>Quote #${qNum}</strong>. We'll be in touch shortly to confirm your scheduling and any prep needed before we arrive.</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;">Hi ${firstNameHtml},</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;">Thank you for approving <strong>Quote #${qNumHtml}</strong>. We'll be in touch shortly to confirm your scheduling and any prep needed before we arrive.</p>
     <div style="background:#f0f7f0;border-left:3px solid #1a3c12;border-radius:0 8px 8px 0;padding:14px 16px;margin:16px 0;font-size:14px;color:#333;">
       Questions? Reply to this email or call/text us directly:
     </div>
@@ -157,13 +211,13 @@ ${APP_URL}`;
         '#b45309',
         `<div style="color:#fff;font-size:22px;font-weight:800;">💬 Changes Requested</div>
     <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px;">Second Nature Tree Service</div>`,
-        `<h2 style="color:#92400e;font-size:20px;margin:0 0 16px;">Quote #${qNum} — ${cName}</h2>
+        `<h2 style="color:#92400e;font-size:20px;margin:0 0 16px;">Quote #${qNumHtml} — ${cNameHtml}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px;">
-      <tr><td style="color:#888;padding:5px 0;width:110px;">Property</td><td style="font-weight:600;">${propFmt}</td></tr>
+      <tr><td style="color:#888;padding:5px 0;width:110px;">Property</td><td style="font-weight:600;">${propFmtHtml}</td></tr>
       <tr><td style="color:#888;padding:5px 0;">Total</td><td style="font-weight:700;font-size:18px;color:#92400e;">${totalFmt}</td></tr>
     </table>
     <div style="font-size:12px;color:#999;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:6px;">Customer Notes</div>
-    <div style="background:#fff7ed;border-left:3px solid #b45309;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:16px;font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap;">${changeNotes || '(no notes provided)'}</div>
+    <div style="background:#fff7ed;border-left:3px solid #b45309;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:16px;font-size:14px;color:#333;line-height:1.6;white-space:pre-wrap;">${changeNotesEsc}</div>
     <div style="font-size:14px;color:#555;margin-bottom:16px;">Review and send a revised quote.</div>
     <a href="${APP_URL}" style="display:inline-block;background:#b45309;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;">Open Branch Manager</a>`
       );
@@ -189,8 +243,8 @@ peekskilltree.com`;
           `<div style="color:#fff;font-size:22px;font-weight:800;">🌳 Second Nature Tree Service</div>
     <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px;">Peekskill, NY · (914) 391-5233</div>`,
           `<h2 style="color:#1a3c12;font-size:20px;margin:0 0 12px;">Feedback Received 💬</h2>
-    <p style="color:#444;font-size:15px;line-height:1.6;">Hi ${firstName},</p>
-    <p style="color:#444;font-size:15px;line-height:1.6;">Thanks for your feedback on <strong>Quote #${qNum}</strong>. We'll review your request and send a revised quote soon.</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;">Hi ${firstNameHtml},</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;">Thanks for your feedback on <strong>Quote #${qNumHtml}</strong>. We'll review your request and send a revised quote soon.</p>
     <div style="background:#f0f7f0;border-left:3px solid #1a3c12;border-radius:0 8px 8px 0;padding:14px 16px;margin:16px 0;font-size:14px;color:#333;">
       Questions or anything to add? Reply to this email or call/text us:
     </div>

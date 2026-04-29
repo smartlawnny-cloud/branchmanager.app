@@ -57,10 +57,13 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Optional shared-secret check (set same value in Dialpad + Supabase env)
+  // Shared-secret check. Was using .includes() which let any header with the
+  // secret embedded ("prefix-SECRET-suffix") pass auth — exact match now.
+  // Strip "Bearer " prefix on Authorization header before comparing.
   if (WEBHOOK_SECRET) {
-    const got = req.headers.get("x-dialpad-signature") || req.headers.get("authorization") || "";
-    if (!got.includes(WEBHOOK_SECRET)) {
+    const raw = req.headers.get("x-dialpad-signature") || req.headers.get("authorization") || "";
+    const got = raw.replace(/^Bearer\s+/i, "").trim();
+    if (got !== WEBHOOK_SECRET) {
       return new Response("Unauthorized", { status: 401 });
     }
   }
