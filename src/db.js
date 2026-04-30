@@ -168,8 +168,61 @@ var DB = (function() {
     'bm-jobs': 'jobs',
     'bm-invoices': 'invoices',
     'bm-services': 'services',
-    'bm-team': 'team_members'
+    'bm-team': 'team_members',
+    // Apr 30: expenses was previously local-only (silent loss across devices)
+    'bm-expenses': 'expenses'
   };
+
+  // Cross-device write reliability — was: fetch().catch(console.warn) which
+  // never checked response.ok; an RLS rejection / 4xx / wrong tenant_id =
+  // silent loss. Local localStorage shows the row; Supabase never gets it;
+  // 5 min later the next pull DELETES the local row because it's "older
+  // than 5 min and not in cloud." Audit-flagged "phantom write" risk.
+  //
+  // Fix: actually check response, and on non-2xx queue the row in
+  // localStorage for replay. Replay runs on `online` event and every 60s.
+  // Sync indicator dot turns yellow when queue is non-empty.
+  var QUEUE_KEY = 'bm-write-queue';
+  function _queueLoad() {
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch(e) { return []; }
+  }
+  function _queueSave(q) {
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); } catch(e) {}
+  }
+  function _queueAdd(op) {
+    var q = _queueLoad();
+    // Dedupe: if the same op key+id is already queued, replace with newest payload
+    var idx = q.findIndex(function(x) { return x.key === op.key && x.id === op.id && x.method === op.method; });
+    if (idx >= 0) q[idx] = op; else q.push(op);
+    if (q.length > 500) q = q.slice(-500); // hard cap so quota never blows
+    _queueSave(q);
+    _updateSyncBadge();
+  }
+  function _updateSyncBadge() {
+    try {
+      var q = _queueLoad();
+      // Reuse the existing sync-indicator element managed by supacloud.js
+      // (added/removed in topbar-actions). When queue is non-empty, ensure
+      // it exists; when empty, remove it. Title shows pending count.
+      var existing = document.getElementById('sync-indicator');
+      if (q.length) {
+        if (!existing) {
+          var topbar = document.querySelector('.topbar-actions');
+          if (topbar) {
+            existing = document.createElement('span');
+            existing.id = 'sync-indicator';
+            existing.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#e07c24;display:inline-block;margin-right:4px;animation:pulse 2s infinite;';
+            topbar.insertBefore(existing, topbar.firstChild);
+          }
+        } else {
+          existing.style.background = '#e07c24';
+        }
+        if (existing) existing.title = q.length + ' save' + (q.length !== 1 ? 's' : '') + ' pending — will retry on reconnect';
+      } else if (existing) {
+        existing.remove();
+      }
+    } catch(e) {}
+  }
 
   function _pushToCloud(key, record, method) {
     try {
@@ -202,8 +255,62 @@ var DB = (function() {
           'Prefer': 'resolution=merge-duplicates,return=minimal'
         },
         body: JSON.stringify(snakeRow)
-      }).catch(function(e) { console.warn('[DB cloud push]', table, e); });
+      }).then(function(r) {
+        if (!r.ok) {
+          // Server rejected — queue for retry. 4xx will probably keep failing
+          // (RLS / schema mismatch) but we want a paper trail and a chance
+          // for Doug to notice. 5xx + network may resolve on its own.
+          r.text().then(function(t) {
+            console.warn('[DB cloud push]', table, r.status, t.slice(0, 200));
+          }).catch(function(){});
+          _queueAdd({ key: key, table: table, id: record.id, method: method, payload: snakeRow, queuedAt: Date.now(), lastStatus: r.status });
+        }
+      }).catch(function(e) {
+        // Network failure — queue for retry on `online` event.
+        console.warn('[DB cloud push net]', table, e && e.message);
+        _queueAdd({ key: key, table: table, id: record.id, method: method, payload: snakeRow, queuedAt: Date.now(), lastStatus: 0 });
+      });
     } catch(e) { console.warn('[DB cloud push] error', e); }
+  }
+
+  // Replay queued writes against Supabase. Successful writes are dropped
+  // from the queue; persistent failures stay queued (capped at 500 entries).
+  function _flushQueue() {
+    var q = _queueLoad();
+    if (!q.length) { _updateSyncBadge(); return; }
+    var url = localStorage.getItem('bm-supabase-url') || 'https://ltpivkqahvplapyagljt.supabase.co';
+    var apiKey = localStorage.getItem('bm-supabase-key');
+    if (!url || !apiKey) return;
+    // Process up to 20 per flush so we don't hammer the network.
+    var batch = q.slice(0, 20);
+    var rest  = q.slice(20);
+    Promise.all(batch.map(function(op) {
+      return fetch(url + '/rest/v1/' + op.table + '?on_conflict=id', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey,
+          'Authorization': 'Bearer ' + apiKey,
+          'Prefer': 'resolution=merge-duplicates,return=minimal'
+        },
+        body: JSON.stringify(op.payload)
+      }).then(function(r) { return { op: op, ok: r.ok, status: r.status }; })
+        .catch(function() { return { op: op, ok: false, status: 0 }; });
+    })).then(function(results) {
+      var stillFailing = results.filter(function(x) { return !x.ok; }).map(function(x) { x.op.lastStatus = x.status; return x.op; });
+      _queueSave(stillFailing.concat(rest));
+      _updateSyncBadge();
+      var recovered = results.filter(function(x) { return x.ok; }).length;
+      if (recovered && typeof UI !== 'undefined' && UI.toast) {
+        UI.toast('Recovered ' + recovered + ' pending save' + (recovered !== 1 ? 's' : ''), 'success');
+      }
+    });
+  }
+  // Replay on `online` event + every 60s
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', _flushQueue);
+    setInterval(_flushQueue, 60 * 1000);
+    setTimeout(_flushQueue, 5000);  // initial flush after app boot
   }
 
   function create(key, record) {
