@@ -1,5 +1,5 @@
 {
-  "version": 547,
+  "version": 548,
   "released": "2026-04-30",
-  "notes": "fix orphaned AI-tree items handoff: videoquote + aitreeid → quote form"
+  "notes": "send page redesign — editable email + SMS preview before send"
 }

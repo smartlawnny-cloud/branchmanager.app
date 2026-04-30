@@ -2021,143 +2021,120 @@ var QuotesPage = {
     var q = DB.quotes.getById(id);
     if (!q) return;
 
-    // Get client email + phone
     var client = q.clientId ? DB.clients.getById(q.clientId) : null;
     var email = (client && client.email) || q.clientEmail || '';
     var phone = (client && client.phone) || q.clientPhone || '';
     var firstName = (q.clientName || '').split(' ')[0] || 'there';
     var approvalLink = QuotesPage._getApprovalLink(id);
 
-    // Pick a default channel based on what's on file
-    var defaultChannel = email ? 'email' : (phone ? 'sms' : 'email');
     var hasEmail = !!email;
     var hasPhone = !!phone;
 
-    // Build email preview (Jobber style)
     var _co = QuotesPage._co();
-    var _term = QuotesPage._term(true);   // "Quote" or "Estimate"
-    var _terml = QuotesPage._term(false);  // lowercase
-    var subject = _term + ' #' + q.quoteNumber + ' from ' + _co.name + ' — ' + UI.money(q.total);
-    var body = 'Hi ' + firstName + ',\n\n'
-      + 'Thanks for reaching out to ' + _co.name + '! Here\'s your ' + _terml + ' for the work we discussed:\n\n'
-      + '📋 ' + _term + ' #' + q.quoteNumber + '\n'
-      + '📍 ' + (q.property || 'Property on file') + '\n'
-      + '💰 Total: ' + UI.money(q.total) + '\n\n';
-    if (q.description) body += 'Scope: ' + q.description + '\n\n';
-    body += '👉 View & approve your ' + _terml + ' online:\n' + approvalLink + '\n\n'
-      + 'This ' + _terml + ' is valid for 30 days. Click the link above to approve or request changes — no login required.\n\n'
-      + 'Want to see all your quotes, invoices, and job history any time? Get a portal link: https://branchmanager.app/portal.html\n\n'
+    var _term = QuotesPage._term(true);
+    var _terml = QuotesPage._term(false);
+
+    // Defaults — both editable in the panels below.
+    var defaultSubject = _term + ' #' + q.quoteNumber + ' from ' + _co.name + ' — ' + UI.money(q.total);
+    var defaultEmailNote = 'Hi ' + firstName + ',\n\n'
+      + 'Thanks for reaching out to ' + _co.name + '! Here\'s your ' + _terml + ' for the work we discussed. '
+      + 'Click the green button at the bottom to view, approve, or request changes — no login required.\n\n'
+      + 'This ' + _terml + ' is valid for 30 days.\n\n'
       + 'Questions? Reply to this email or call ' + _co.phone + '.\n\n'
-      + 'Thanks,\nDoug Brown\n' + _co.name + '\n' + _co.phone + '\n' + _co.website + '\nLicensed & Fully Insured — ' + _co.licenses;
+      + 'Thanks,\nDoug Brown\n' + _co.name;
+    var defaultSms = QuotesPage._buildSmsBody(id);
 
-    // Build line items summary for review
-    var itemsSummary = '';
-    if (q.lineItems && q.lineItems.length) {
-      q.lineItems.forEach(function(item) {
-        var amt = item.amount || ((item.qty || 1) * (item.rate || 0));
-        itemsSummary += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">'
-          + '<span>' + UI.esc(item.service || item.description || 'Service') + '</span>'
-          + '<span style="font-weight:600;">' + UI.money(amt) + '</span></div>';
-      });
-    }
+    var emailDisabledAttr = hasEmail ? '' : 'disabled';
+    var phoneDisabledAttr = hasPhone ? '' : 'disabled';
+    var emailPanelStyle = hasEmail ? '' : 'opacity:.5;';
+    var smsPanelStyle   = hasPhone ? '' : 'opacity:.5;';
 
-    // Channel pill button helper — reused 3× below
-    function pillBtn(val, label, disabled) {
-      var dis = disabled ? 'opacity:.4;cursor:not-allowed;' : 'cursor:pointer;';
-      return '<button type="button" id="ch-' + val + '"'
-        + (disabled ? ' disabled' : ' onclick="QuotesPage._setChannel(\'' + val + '\')"')
-        + ' style="flex:1;padding:10px 8px;font-size:13px;font-weight:700;border:1.5px solid var(--border);background:#fff;color:var(--text);border-radius:8px;' + dis + '">'
-        + label + '</button>';
-    }
+    var html = '<div style="padding:16px;max-width:780px;margin:0 auto;">'
 
-    var html = '<div style="padding:16px;">'
-      // Channel selector + recipient display
-      + '<div style="background:var(--bg);border-radius:10px;padding:14px 16px 16px;margin-bottom:16px;">'
-      + '<div style="font-size:11px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Send via</div>'
-      + '<div style="display:flex;gap:6px;margin-bottom:12px;">'
-      +   pillBtn('email', '📧 Email', !hasEmail)
-      +   pillBtn('sms',   '💬 Text',  !hasPhone)
-      +   pillBtn('both',  '📧+💬 Both', !(hasEmail && hasPhone))
-      + '</div>'
-      + '<input type="hidden" id="send-channel" value="' + defaultChannel + '">'
-      + '<input type="hidden" id="send-to" value="' + UI.esc(email) + '">'
-      + '<input type="hidden" id="send-phone" value="' + UI.esc(phone) + '">'
-      + '<div id="recipient-display" data-email="' + UI.esc(email) + '" data-phone="' + UI.esc(phone) + '"></div>'
+      // Quote header strip
+      + '<div style="background:var(--bg);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;">'
+      +   '<div style="min-width:0;">'
+      +     '<div style="font-size:11px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;">' + _term + ' #' + q.quoteNumber + '</div>'
+      +     '<div style="font-size:14px;font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + UI.esc(q.clientName || '') + (q.property ? ' · ' + UI.esc(q.property) : '') + '</div>'
+      +   '</div>'
+      +   '<div style="font-size:22px;font-weight:800;color:var(--green-dark);white-space:nowrap;">' + UI.money(q.total) + '</div>'
       + '</div>'
 
-      // Quote summary
-      + '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-      + '<div style="font-size:15px;font-weight:700;">' + _term + ' #' + q.quoteNumber + '</div>'
-      + '<div style="font-size:20px;font-weight:800;color:var(--green-dark);">' + UI.money(q.total) + '</div>'
-      + '</div>'
-      + '<div style="font-size:13px;color:var(--text-light);margin-bottom:8px;">' + UI.esc(q.clientName || '') + ' · ' + UI.esc(q.property || '') + '</div>'
-      + (q.description ? '<div style="font-size:13px;margin-bottom:10px;word-wrap:break-word;overflow-wrap:break-word;white-space:pre-wrap;">' + UI.esc(q.description) + '</div>' : '')
-      + itemsSummary
-      + '</div>'
-
-      // Approval link
-      + '<div style="background:#e8f5e9;border-radius:8px;padding:12px 14px;margin-bottom:16px;border-left:3px solid var(--green-dark);">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--green-dark);margin-bottom:6px;">Client Approval Link</div>'
-      + '<div style="display:flex;gap:6px;align-items:center;">'
-      + '<input id="approval-link-input" type="text" readonly value="' + approvalLink + '" style="flex:1;font-size:11px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#333;">'
-      + '<button onclick="QuotesPage._copyApprovalLink(\'' + id + '\')" style="background:var(--green-dark);color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Copy</button>'
-      + '</div>'
-      + '<div style="font-size:11px;color:var(--text-light);margin-top:4px;">Or copy link and text it directly</div>'
+      // EMAIL panel — editable subject + personal note
+      + '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;' + emailPanelStyle + '">'
+      +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;">'
+      +     '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px;font-weight:700;">'
+      +       '<input type="checkbox" id="send-via-email" ' + (hasEmail ? 'checked' : 'disabled') + ' style="width:18px;height:18px;cursor:pointer;">'
+      +       '📧 Send Email'
+      +     '</label>'
+      +     '<button type="button" onclick="QuotesPage._previewRenderedEmail(\'' + id + '\')" ' + emailDisabledAttr + ' style="background:none;border:1px solid var(--border);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer;">👁 View rendered</button>'
+      +   '</div>'
+      +   '<div style="font-size:11px;color:var(--text-light);margin-bottom:6px;">To: <strong style="color:var(--text);">' + UI.esc(email || '(no email on file)') + '</strong></div>'
+      +   '<input type="text" id="send-subject" value="' + UI.esc(defaultSubject) + '" placeholder="Subject" ' + emailDisabledAttr + ' style="width:100%;padding:9px 11px;font-size:13px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;box-sizing:border-box;">'
+      +   '<textarea id="send-email-note" rows="9" placeholder="Personal note to client" ' + emailDisabledAttr + ' style="width:100%;padding:10px 12px;font-size:13px;border:1px solid var(--border);border-radius:6px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;">' + UI.esc(defaultEmailNote) + '</textarea>'
+      +   '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">The rendered ' + _terml + ' (line items, totals, big green Approve button) is attached below your note automatically.</div>'
       + '</div>'
 
-      // Hidden fields for the send function
-      + '<input type="hidden" id="send-subject" value="' + UI.esc(subject) + '">'
-      + '<input type="hidden" id="send-body" value="' + UI.esc(body) + '">'
+      // SMS panel — editable body
+      + '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;' + smsPanelStyle + '">'
+      +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;">'
+      +     '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px;font-weight:700;">'
+      +       '<input type="checkbox" id="send-via-sms" ' + (hasPhone ? 'checked' : 'disabled') + ' style="width:18px;height:18px;cursor:pointer;">'
+      +       '💬 Send Text'
+      +     '</label>'
+      +     '<span id="sms-char-count" style="font-size:11px;color:var(--text-light);"></span>'
+      +   '</div>'
+      +   '<div style="font-size:11px;color:var(--text-light);margin-bottom:6px;">To: <strong style="color:var(--text);">' + UI.esc(phone || '(no phone on file)') + '</strong></div>'
+      +   '<textarea id="send-sms-body" rows="6" oninput="QuotesPage._smsCharCount()" ' + phoneDisabledAttr + ' style="width:100%;padding:10px 12px;font-size:13px;border:1px solid var(--border);border-radius:6px;font-family:inherit;line-height:1.5;resize:vertical;box-sizing:border-box;">' + UI.esc(defaultSms) + '</textarea>'
+      +   '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Approval link is included automatically; edit the rest as needed.</div>'
+      + '</div>'
+
+      // Approval link box (read-only, copy)
+      + '<div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-bottom:14px;border-left:3px solid var(--green-dark);">'
+      +   '<div style="font-size:11px;font-weight:700;color:var(--green-dark);margin-bottom:4px;">Approval link (already inside both messages)</div>'
+      +   '<div style="display:flex;gap:6px;align-items:center;">'
+      +     '<input id="approval-link-input" type="text" readonly value="' + approvalLink + '" style="flex:1;font-size:11px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:#333;">'
+      +     '<button onclick="QuotesPage._copyApprovalLink(\'' + id + '\')" style="background:var(--green-dark);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">Copy</button>'
+      +   '</div>'
+      + '</div>'
+
       + '</div>';
 
     UI.showModal('Send ' + _term + ' #' + q.quoteNumber, html, {
       footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
-        + ' <button class="btn btn-outline" onclick="QuotesPage._previewEmail(\'' + id + '\')">👁 Preview Email</button>'
-        + ' <button class="btn btn-primary" id="send-quote-btn" onclick="QuotesPage._confirmSend(\'' + id + '\')">📧 Send ' + _term + '</button>'
+        + ' <button class="btn btn-primary" id="send-quote-btn" onclick="QuotesPage._confirmSend(\'' + id + '\')">Send →</button>'
     });
 
-    // Apply default-channel highlight + recipient display once modal is in DOM
-    setTimeout(function() { QuotesPage._setChannel(defaultChannel); }, 0);
+    setTimeout(function() { QuotesPage._smsCharCount(); }, 0);
   },
 
-  _setChannel: function(ch) {
-    var hidden = document.getElementById('send-channel');
-    if (hidden) hidden.value = ch;
+  _smsCharCount: function() {
+    var ta = document.getElementById('send-sms-body');
+    var lbl = document.getElementById('sms-char-count');
+    if (!ta || !lbl) return;
+    var len = (ta.value || '').length;
+    var segs = len === 0 ? 0 : Math.ceil(len / 160);
+    lbl.textContent = len + ' chars · ' + segs + ' SMS';
+  },
 
-    ['email', 'sms', 'both'].forEach(function(c) {
-      var btn = document.getElementById('ch-' + c);
-      if (!btn || btn.disabled) return;
-      if (c === ch) {
-        btn.style.background = 'var(--green-dark)';
-        btn.style.color = '#fff';
-        btn.style.borderColor = 'var(--green-dark)';
-      } else {
-        btn.style.background = '#fff';
-        btn.style.color = 'var(--text)';
-        btn.style.borderColor = 'var(--border)';
-      }
-    });
-
-    var disp = document.getElementById('recipient-display');
-    if (disp) {
-      var email = disp.dataset.email || '';
-      var phone = disp.dataset.phone || '';
-      var rows = '';
-      if (ch === 'email' || ch === 'both') {
-        rows += '<div style="font-size:14px;font-weight:700;padding:4px 0;">📧 ' + UI.esc(email || '(no email on file)') + '</div>';
-      }
-      if (ch === 'sms' || ch === 'both') {
-        rows += '<div style="font-size:14px;font-weight:700;padding:4px 0;">💬 ' + UI.esc(phone || '(no phone on file)') + '</div>';
-      }
-      disp.innerHTML = rows;
-    }
-
-    var sendBtn = document.getElementById('send-quote-btn');
-    if (sendBtn) {
-      var label = ch === 'sms' ? '💬 Send Text' : (ch === 'both' ? '📧+💬 Send Both' : '📧 Send Email');
-      sendBtn.textContent = label;
-    }
+  _previewRenderedEmail: function(id) {
+    // Use the CURRENT (possibly edited) note from the textarea so preview reflects edits live.
+    var noteEl = document.getElementById('send-email-note');
+    var note = noteEl ? noteEl.value : '';
+    var htmlBody = QuotesPage._buildEmailHtml(id, note);
+    var old = document.getElementById('bm-email-preview-overlay');
+    if (old) old.remove();
+    var overlay = document.createElement('div');
+    overlay.id = 'bm-email-preview-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;display:flex;flex-direction:column;';
+    overlay.innerHTML = '<div style="background:#1a1a2e;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">'
+      + '<span style="color:#fff;font-weight:700;font-size:14px;">Rendered Email Preview</span>'
+      + '<button onclick="document.getElementById(\'bm-email-preview-overlay\').remove()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:24px;cursor:pointer;line-height:1;">×</button>'
+      + '</div>'
+      + '<iframe id="bm-email-preview-frame" style="flex:1;border:none;background:#f5f6f8;" sandbox="allow-same-origin"></iframe>';
+    document.body.appendChild(overlay);
+    var frame = document.getElementById('bm-email-preview-frame');
+    if (frame) frame.srcdoc = htmlBody;
   },
 
   _buildSmsBody: function(id) {
@@ -2172,26 +2149,7 @@ var QuotesPage = {
       + approvalLink;
   },
 
-  _previewEmail: function(id) {
-    var q = DB.quotes.getById(id);
-    if (!q) return;
-    var old = document.getElementById('bm-email-preview-overlay');
-    if (old) old.remove();
-    var htmlBody = QuotesPage._buildEmailHtml(id);
-    var overlay = document.createElement('div');
-    overlay.id = 'bm-email-preview-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;display:flex;flex-direction:column;';
-    overlay.innerHTML = '<div style="background:#1a1a2e;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">'
-      + '<span style="color:#fff;font-weight:700;font-size:14px;">Email Preview — ' + QuotesPage._term(true) + ' #' + (q.quoteNumber||'') + '</span>'
-      + '<button onclick="document.getElementById(\'bm-email-preview-overlay\').remove()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:24px;cursor:pointer;line-height:1;">×</button>'
-      + '</div>'
-      + '<iframe id="bm-email-preview-frame" style="flex:1;border:none;background:#f5f6f8;" sandbox="allow-same-origin"></iframe>';
-    document.body.appendChild(overlay);
-    var frame = document.getElementById('bm-email-preview-frame');
-    if (frame) frame.srcdoc = htmlBody;
-  },
-
-  _buildEmailHtml: function(id) {
+  _buildEmailHtml: function(id, personalNote) {
     var q = DB.quotes.getById(id);
     if (!q) return '';
     var _co       = QuotesPage._co();
@@ -2284,6 +2242,11 @@ var QuotesPage = {
       + '</tr></table>'
       + '</td></tr>'
 
+      // ── Personal note (editable on send page; falls back to nothing if blank) ──
+      + ((personalNote && String(personalNote).trim())
+          ? '<tr><td style="padding:18px 26px 6px;font-size:14px;color:#111;line-height:1.55;white-space:pre-wrap;">' + esc(String(personalNote).trim()) + '</td></tr>'
+          : '')
+
       // ── Service title ─────────────────────────────────────────────────
       + (q.subject ? '<tr><td style="padding:12px 26px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:14px;font-weight:700;color:#374151;">' + esc(q.subject) + '</td></tr>' : '')
       + (q.description && !q.subject ? '<tr><td style="padding:12px 26px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:13px;color:#6b7280;font-style:italic;">' + esc(q.description) + '</td></tr>' : '')
@@ -2346,20 +2309,29 @@ var QuotesPage = {
   },
 
   _confirmSend: function(id) {
-    var channel = ((document.getElementById('send-channel') || {}).value || 'email');
+    var emailChk = document.getElementById('send-via-email');
+    var smsChk   = document.getElementById('send-via-sms');
+    var doEmail  = !!(emailChk && emailChk.checked && !emailChk.disabled);
+    var doSms    = !!(smsChk   && smsChk.checked   && !smsChk.disabled);
+
+    if (!doEmail && !doSms) { UI.toast('Pick at least one channel (email or text)', 'error'); return; }
+
     // .trim() is critical — Email._isValidEmail rejects on any whitespace, and a
     // trailing space silently caused the v531 "Failed to send" regression.
-    var to      = ((document.getElementById('send-to')      || {}).value || '').trim();
-    var phone   = ((document.getElementById('send-phone')   || {}).value || '').trim();
-    var subject = ((document.getElementById('send-subject') || {}).value || '');
-    var body    = ((document.getElementById('send-body')    || {}).value || '');
+    var subject   = ((document.getElementById('send-subject')    || {}).value || '').trim();
+    var emailNote = ((document.getElementById('send-email-note') || {}).value || '');
+    var smsBody   = ((document.getElementById('send-sms-body')   || {}).value || '').trim();
+
     var q = DB.quotes.getById(id);
     if (!q) return;
+    var client = q.clientId ? DB.clients.getById(q.clientId) : null;
+    var to    = (((client && client.email) || q.clientEmail || '') + '').trim();
+    var phone = (((client && client.phone) || q.clientPhone || '') + '').trim();
 
-    var doEmail = (channel === 'email' || channel === 'both');
-    var doSms   = (channel === 'sms'   || channel === 'both');
     if (doEmail && !to)    { UI.toast('No email on file', 'error'); return; }
     if (doSms   && !phone) { UI.toast('No phone on file', 'error'); return; }
+    if (doEmail && !subject) { UI.toast('Email subject is empty', 'error'); return; }
+    if (doSms   && !smsBody) { UI.toast('Text message is empty', 'error'); return; }
 
     var sendBtn = document.getElementById('send-quote-btn');
     if (sendBtn) { sendBtn.textContent = 'Sending...'; sendBtn.disabled = true; }
@@ -2369,12 +2341,12 @@ var QuotesPage = {
     var sentVia = [];
 
     if (doEmail && typeof Email !== 'undefined') {
-      var htmlBody = QuotesPage._buildEmailHtml(id);
+      var htmlBody = QuotesPage._buildEmailHtml(id, emailNote);
       // silent:true suppresses Email.send's own toasts so we can show one
       // aggregate toast — but we capture r.hint / r.error so the aggregate
       // toast reports the REAL reason (Resend 422, rate limit, bad sender, etc.)
       // rather than a generic "Failed to send".
-      jobs.push(Email.send(to, subject, body, { htmlBody: htmlBody, silent: true })
+      jobs.push(Email.send(to, subject, emailNote, { htmlBody: htmlBody, silent: true })
         .then(function(r) {
           var ok = r && (r.success || r.ok);
           if (ok) sentVia.push('email');
@@ -2384,8 +2356,7 @@ var QuotesPage = {
     }
 
     if (doSms && typeof Dialpad !== 'undefined') {
-      var smsMsg = QuotesPage._buildSmsBody(id);
-      jobs.push(Dialpad.sendSMS(phone, smsMsg, q.clientId)
+      jobs.push(Dialpad.sendSMS(phone, smsBody, q.clientId)
         .then(function(r) {
           // sendSMS returns { success, method } — counts sms_app fallback as ok too
           var ok = r && (r.success || r.method === 'sms_app');

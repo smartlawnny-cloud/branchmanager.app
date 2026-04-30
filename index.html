@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 547; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 548; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -952,7 +952,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v547.min.js"></script>
+<script defer src="dist/bm.bundle.v548.min.js"></script>
 
 
 
@@ -1133,6 +1133,7 @@ var pageConfigs = {
   estimator: { title: 'Job Estimator', action: null },
   aitreeid: { title: 'AI Tree ID', action: null },
   videoquote: { title: 'Video Quote', action: null },
+  chipdrops: { title: 'Chip Drop Spots', action: null },
   voicequote: { title: 'Voice-to-Quote', action: null },
   tracking: { title: 'Location Tracking', action: null },
   treemeasure: { title: 'Tree Measure', action: null },
@@ -1320,6 +1321,7 @@ var OperationsHub = {
       ['dispatch', 'Dispatch'],
       ['fleet', 'Fleet'],
       ['equipment', 'Equipment'],
+      ['chipdrops', 'Chip Drops'],
       ['pretrip', 'Pre-Trip'],
       ['chat', 'Chat & Tasks'],
       ['weather', '🌤 Weather']
@@ -1330,6 +1332,7 @@ var OperationsHub = {
       if (r.tab === 'dispatch') body = DispatchPage.render();
       else if (r.tab === 'fleet') body = (typeof FleetPage !== 'undefined' ? FleetPage.render() : '<div style="padding:16px;color:var(--text-light);">Fleet module not loaded.</div>');
       else if (r.tab === 'equipment') body = EquipmentPage.render();
+      else if (r.tab === 'chipdrops') body = (typeof ChipDrops !== 'undefined' ? ChipDrops.render() : '<div style="padding:16px;color:var(--text-light);">Chip Drops module not loaded.</div>');
       else if (r.tab === 'pretrip') body = (typeof DailyInspection !== 'undefined' ? DailyInspection.render() : '<div style="padding:16px;color:var(--text-light);">Pre-Trip module not loaded.</div>');
       else if (r.tab === 'chat') body = (typeof TaskReminders !== 'undefined' ? TaskReminders.render() : '<div style="padding:16px;color:var(--text-light);">Chat & Tasks module not loaded.</div>');
       else if (r.tab === 'weather') body = (typeof Weather !== 'undefined' ? Weather.renderPage() : '<div style="padding:16px;color:var(--text-light);">Weather module not loaded.</div>');
@@ -1394,6 +1397,7 @@ var pageRenderers = {
   archive: function() { return ArchivePage.render(); },
   aitreeid: function() { return AITreeID.render(); },
   videoquote: function() { return VideoQuote.render(); },
+  chipdrops: function() { return ChipDrops.render(); },
   voicequote: function() { setTimeout(function(){ VoiceQuote.render(); }, 0); return '<div id="voicequote-placeholder">Loading…</div>'; },
   tracking: function() { setTimeout(function(){ TrackingPage.render(); }, 0); return '<div id="tracking-placeholder">Loading…</div>'; },
   treemeasure: function() { return TreeMeasure.render(); },
