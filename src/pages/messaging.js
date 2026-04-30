@@ -194,6 +194,13 @@ var MessagingPage = {
         + '<div style="font-size:12px;color:var(--text-light);">' + UI.esc(headerSub) + '</div></div>'
         + '<div style="display:flex;gap:6px;">' + headerActions + '</div></div>';
 
+      // Context strip — show latest quote/invoice/job for known clients so
+      // Doug can answer "is your quote ready" / "what's my balance" without
+      // leaving the thread. Hidden for unmatched-phone buckets (no client_id).
+      if (!isPhoneBucket && client) {
+        html += MessagingPage._renderContextStrip(client.id);
+      }
+
       // Messages
       html += '<div id="msg-thread" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;">';
       if (comms.length) {
@@ -446,6 +453,64 @@ var MessagingPage = {
       var name = el.innerText.toLowerCase();
       el.style.display = name.includes(q) ? '' : 'none';
     });
+  },
+
+  // Show the client's most recent quote / invoice / job as quick-reference chips
+  // above the thread so Doug can respond to "what's my balance" / "is the quote
+  // ready" without navigating away. Each chip taps through to the source record.
+  _renderContextStrip: function(clientId) {
+    var quotes  = (typeof DB !== 'undefined' && DB.quotes && DB.quotes.getAll)   ? DB.quotes.getAll().filter(function(q){return q.clientId === clientId;})   : [];
+    var jobs    = (typeof DB !== 'undefined' && DB.jobs && DB.jobs.getAll)       ? DB.jobs.getAll().filter(function(j){return j.clientId === clientId;})       : [];
+    var invoices= (typeof DB !== 'undefined' && DB.invoices && DB.invoices.getAll)? DB.invoices.getAll().filter(function(i){return i.clientId === clientId;}) : [];
+
+    function pickLatest(arr, dateField) {
+      var sorted = arr.slice().sort(function(a, b) { return new Date(b[dateField] || b.createdAt || 0) - new Date(a[dateField] || a.createdAt || 0); });
+      return sorted[0] || null;
+    }
+    var latestQuote   = pickLatest(quotes, 'createdAt');
+    var latestInvoice = pickLatest(invoices, 'createdAt');
+    var latestJob     = pickLatest(jobs, 'scheduledDate');
+    if (!latestQuote && !latestInvoice && !latestJob) return '';
+
+    var chips = [];
+    if (latestQuote) {
+      var qStatus = latestQuote.status || 'draft';
+      var qColor = qStatus === 'approved' ? '#2e7d32' : (qStatus === 'declined' ? '#c62828' : '#e65100');
+      chips.push('<button onclick="QuotesPage.showDetail(\'' + latestQuote.id + '\')" '
+        + 'style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;color:var(--text);">'
+        + '<span>📋</span>'
+        + '<div style="text-align:left;line-height:1.2;">'
+        +   '<div style="font-weight:600;">Quote #' + UI.esc(String(latestQuote.quoteNumber || '?')) + ' &middot; ' + UI.moneyInt(latestQuote.total || 0) + '</div>'
+        +   '<div style="font-size:10px;color:' + qColor + ';font-weight:700;text-transform:uppercase;">' + UI.esc(qStatus) + '</div>'
+        + '</div></button>');
+    }
+    if (latestInvoice) {
+      var iBalance = parseFloat(latestInvoice.balance || latestInvoice.total || 0);
+      var iStatus = latestInvoice.status || 'sent';
+      var iColor = iBalance > 0 ? '#c62828' : '#2e7d32';
+      var iLabel = iBalance > 0 ? UI.moneyInt(iBalance) + ' due' : 'paid';
+      chips.push('<button onclick="InvoicesPage.showDetail(\'' + latestInvoice.id + '\')" '
+        + 'style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;color:var(--text);">'
+        + '<span>💵</span>'
+        + '<div style="text-align:left;line-height:1.2;">'
+        +   '<div style="font-weight:600;">Invoice #' + UI.esc(String(latestInvoice.invoiceNumber || '?')) + '</div>'
+        +   '<div style="font-size:10px;color:' + iColor + ';font-weight:700;text-transform:uppercase;">' + iLabel + '</div>'
+        + '</div></button>');
+    }
+    if (latestJob) {
+      var jStatus = latestJob.status || 'scheduled';
+      var jColor = jStatus === 'completed' ? '#2e7d32' : (jStatus === 'late' ? '#c62828' : '#1565c0');
+      var jDate = latestJob.scheduledDate ? UI.dateShort(latestJob.scheduledDate) : '—';
+      chips.push('<button onclick="JobsPage.showDetail(\'' + latestJob.id + '\')" '
+        + 'style="display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;color:var(--text);">'
+        + '<span>🚛</span>'
+        + '<div style="text-align:left;line-height:1.2;">'
+        +   '<div style="font-weight:600;">Job #' + UI.esc(String(latestJob.jobNumber || '?')) + ' &middot; ' + jDate + '</div>'
+        +   '<div style="font-size:10px;color:' + jColor + ';font-weight:700;text-transform:uppercase;">' + UI.esc(jStatus) + '</div>'
+        + '</div></button>');
+    }
+
+    return '<div style="padding:8px 12px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;overflow-x:auto;">' + chips.join('') + '</div>';
   },
 
   // Render an inline action chip on inbound SMS bubbles whose communications row

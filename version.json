@@ -1,5 +1,5 @@
 {
-  "version": 541,
+  "version": 542,
   "released": "2026-04-30",
-  "notes": "portal links in quote-sent + invoice-sent emails"
+  "notes": "messaging context chips: latest quote/invoice/job"
 }
