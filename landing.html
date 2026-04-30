@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Branch Manager — Tree Service Business Software</title>
+<meta name="description" content="Branch Manager is the all-in-one operations platform for tree service companies. Quotes, jobs, invoicing, payments, fleet tracking, and a customer portal — built by people who run a tree business.">
+<meta property="og:title" content="Branch Manager — Tree Service Business Software">
+<meta property="og:description" content="The all-in-one operations platform for tree service companies.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://branchmanager.app/">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1d1d1f;
+    background: #ffffff;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── Layout primitives ──────────────────────────────────────────────────── */
+  .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+  .section { padding: 80px 0; }
+  .section-tight { padding: 56px 0; }
+
+  /* ── Top nav ────────────────────────────────────────────────────────────── */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(255,255,255,.92); backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; color: #1a3c12; }
+  .nav-brand-icon { width: 30px; height: 30px; background: #1a3c12; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; }
+  .nav-links { display: flex; gap: 28px; align-items: center; font-size: 14px; font-weight: 500; color: #525252; }
+  .nav-links a:hover { color: #1a3c12; }
+  .nav-cta {
+    background: #1a3c12; color: #fff !important; padding: 9px 18px; border-radius: 8px;
+    font-weight: 600; transition: background .15s;
+  }
+  .nav-cta:hover { background: #245219; }
+  @media (max-width: 720px) {
+    .nav-links a:not(.nav-cta) { display: none; }
+  }
+
+  /* ── Hero ───────────────────────────────────────────────────────────────── */
+  .hero {
+    padding: 96px 0 72px;
+    background:
+      radial-gradient(circle at 20% 0%, #e8f5e9 0%, transparent 60%),
+      radial-gradient(circle at 100% 30%, #f1f8e9 0%, transparent 60%),
+      #ffffff;
+  }
+  .hero-eyebrow {
+    display: inline-block; background: #e8f5e9; color: #1a3c12;
+    padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-size: clamp(34px, 5vw, 56px); line-height: 1.08; font-weight: 800;
+    letter-spacing: -0.02em; color: #0f1f0c; max-width: 880px;
+  }
+  .hero h1 em { font-style: normal; color: #1a3c12; }
+  .hero-sub {
+    margin-top: 22px; font-size: clamp(16px, 1.6vw, 19px); color: #4a5d44;
+    max-width: 640px; line-height: 1.55;
+  }
+  .hero-actions { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-weight: 600; font-size: 15px; padding: 13px 22px; border-radius: 10px;
+    cursor: pointer; transition: transform .12s, background .15s, box-shadow .15s;
+    border: 1.5px solid transparent;
+  }
+  .btn-primary { background: #1a3c12; color: #fff; }
+  .btn-primary:hover { background: #245219; transform: translateY(-1px); }
+  .btn-ghost { background: #fff; color: #1a3c12; border-color: #d0d8cd; }
+  .btn-ghost:hover { background: #f4f8f2; }
+
+  .hero-meta { margin-top: 30px; display: flex; gap: 22px; font-size: 13px; color: #6b7e64; flex-wrap: wrap; }
+  .hero-meta span::before { content: "✓ "; color: #1a3c12; font-weight: 700; }
+
+  /* ── Section heads ──────────────────────────────────────────────────────── */
+  .section-head { max-width: 720px; margin-bottom: 48px; }
+  .section-eyebrow { color: #1a3c12; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .section-head h2 { font-size: clamp(28px, 3.4vw, 38px); font-weight: 800; line-height: 1.15; letter-spacing: -.01em; color: #0f1f0c; }
+  .section-head p { margin-top: 14px; font-size: 17px; color: #4a5d44; line-height: 1.55; }
+
+  /* ── Feature grid ───────────────────────────────────────────────────────── */
+  .features { background: #f8faf6; border-top: 1px solid #e8eee2; border-bottom: 1px solid #e8eee2; }
+  .feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+  @media (max-width: 880px) { .feature-grid { grid-template-columns: 1fr; } }
+  .feature-card {
+    background: #fff; border: 1px solid #e8eee2; border-radius: 14px;
+    padding: 26px; transition: border-color .15s, transform .15s;
+  }
+  .feature-card:hover { border-color: #c2d8b8; transform: translateY(-2px); }
+  .feature-icon {
+    width: 42px; height: 42px; border-radius: 10px;
+    background: #e8f5e9; color: #1a3c12;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 14px;
+  }
+  .feature-card h3 { font-size: 16px; font-weight: 700; color: #0f1f0c; margin-bottom: 6px; }
+  .feature-card p { color: #4a5d44; font-size: 14px; line-height: 1.55; }
+
+  /* ── Why us ─────────────────────────────────────────────────────────────── */
+  .reasons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 40px; }
+  @media (max-width: 760px) { .reasons { grid-template-columns: 1fr; } }
+  .reason h4 { font-size: 17px; font-weight: 700; color: #0f1f0c; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .reason h4::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: #1a3c12; }
+  .reason p { color: #4a5d44; font-size: 14px; line-height: 1.6; }
+
+  /* ── CTA strip ──────────────────────────────────────────────────────────── */
+  .cta-strip {
+    background: linear-gradient(135deg, #1a3c12 0%, #245219 50%, #2e7035 100%);
+    color: #fff; border-radius: 18px; padding: 48px 40px; text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .cta-strip::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 80% 20%, rgba(255,255,255,.1) 0%, transparent 40%);
+  }
+  .cta-strip h2 { font-size: clamp(24px, 3vw, 32px); font-weight: 800; line-height: 1.2; max-width: 580px; margin: 0 auto; }
+  .cta-strip p { margin-top: 12px; opacity: .82; font-size: 15px; max-width: 520px; margin-left: auto; margin-right: auto; }
+  .cta-strip .btn { margin-top: 26px; background: #fff; color: #1a3c12; }
+  .cta-strip .btn:hover { background: #f0f7eb; }
+
+  /* ── Footer ─────────────────────────────────────────────────────────────── */
+  .footer { background: #0f1f0c; color: #b8c8b3; padding: 48px 0 28px; font-size: 13px; }
+  .footer-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 32px; margin-bottom: 32px; }
+  @media (max-width: 760px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
+  .footer-col h5 { color: #fff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 14px; }
+  .footer-col a { display: block; color: #b8c8b3; padding: 4px 0; }
+  .footer-col a:hover { color: #fff; }
+  .footer-brand { color: #fff; font-weight: 800; font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .footer-brand-icon { width: 28px; height: 28px; background: #1a3c12; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .footer-byline { color: #6f8169; max-width: 320px; line-height: 1.55; font-size: 13px; }
+  .footer-bottom { border-top: 1px solid #1d2e1a; padding-top: 20px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #6f8169; }
+</style>
+</head>
+<body>
+
+<!-- ── Top nav ─────────────────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="nav-brand" href="/">
+      <div class="nav-brand-icon">B</div>
+      Branch Manager
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#why">Why Branch Manager</a>
+      <a href="#contact">Contact</a>
+      <a class="nav-cta" href="https://app.branchmanager.app/">Open the app</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="container">
+    <span class="hero-eyebrow">Tree Service Operations Platform</span>
+    <h1>Run your tree service business <em>like a real one.</em></h1>
+    <p class="hero-sub">
+      Branch Manager is the all-in-one operations platform built by tree service operators, for tree service operators. Quotes, jobs, invoicing, payments, fleet tracking, and a customer portal — without the chainsaw of switching between five tools.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#contact">Request a demo</a>
+      <a class="btn btn-ghost" href="https://app.branchmanager.app/">Open the app →</a>
+    </div>
+    <div class="hero-meta">
+      <span>Built by an actual tree service company</span>
+      <span>Mobile-first, works in the field</span>
+      <span>White-label ready</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ────────────────────────────────────────────────────────────── -->
+<section class="section features" id="features">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-eyebrow">Built for the way you actually work</div>
+      <h2>Every part of the job, in one place.</h2>
+      <p>From the first phone call to the paid invoice, Branch Manager replaces the patchwork of spreadsheets, sticky notes, and apps that don't talk to each other.</p>
+    </div>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <h3>Quotes &amp; Estimates</h3>
+        <p>Build a quote on-site with line items, photos, and a property map. Send via email or SMS. Customer signs and approves online — no PDF round-trip.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗓️</div>
+        <h3>Scheduling &amp; Dispatch</h3>
+        <p>Drag-and-drop crew assignment, geofenced auto-arrive, day-before reminders to clients. Pre-trip inspections built in.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💵</div>
+        <h3>Invoicing &amp; Payments</h3>
+        <p>Auto-generate invoices from completed jobs. Stripe checkout, deposits, payment plans, and tipping built in. Receipts go out instantly.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>Two-way SMS &amp; Calls</h3>
+        <p>Every call, text, and voicemail logged automatically. Inline action chips on inbound replies — one-tap accept a quote that says "YES."</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🚛</div>
+        <h3>Fleet &amp; Equipment</h3>
+        <p>Live truck positions, OBD-II diagnostics, maintenance reminders by mileage and engine hours. Manuals and part numbers per piece of equipment.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔗</div>
+        <h3>Customer Portal</h3>
+        <p>Magic-link sign-in for your customers — they see all their invoices, quotes, job history, and photos in one place. They pay you faster.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Why ─────────────────────────────────────────────────────────────────── -->
+<section class="section" id="why">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-eyebrow">Why Branch Manager</div>
+      <h2>Because the existing options don't fit.</h2>
+      <p>Generic field-service software is built for HVAC and plumbing. Tree work has its own rhythm — property maps with hazard markers, photo before/afters, equipment that costs more than a truck, and customers who want a Google review more than a paper invoice.</p>
+    </div>
+
+    <div class="reasons">
+      <div class="reason">
+        <h4>Built in production at a real tree service</h4>
+        <p>Every feature you see is something an actual tree service company needed yesterday. No demo-ware. No "coming soon." If it's in the product, it's because we use it ourselves.</p>
+      </div>
+      <div class="reason">
+        <h4>One tool, not five</h4>
+        <p>Stop paying for Jobber + QuickBooks + Mailchimp + a separate scheduling tool + a separate invoicing tool. Branch Manager bundles all of it, with the integrations that actually matter.</p>
+      </div>
+      <div class="reason">
+        <h4>Field-first, not desk-first</h4>
+        <p>Quote on a phone. Sign a contract on a phone. Snap before/after photos that auto-link to the job. The web app and the iOS app share the same data — no double entry.</p>
+      </div>
+      <div class="reason">
+        <h4>White-label ready</h4>
+        <p>Multi-tenant from day one. If you have multiple service brands, or want to run a private-label version for your own crews, the plumbing is already there.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA strip ──────────────────────────────────────────────────────────── -->
+<section class="section-tight" id="contact">
+  <div class="container">
+    <div class="cta-strip">
+      <h2>Ready to see it on your business?</h2>
+      <p>Branch Manager is in active use at Second Nature Tree Service in Peekskill, NY. We're onboarding a small group of additional tree service companies. Reach out and we'll set up a 20-minute walkthrough on real data.</p>
+      <a class="btn btn-primary" href="mailto:info@peekskilltree.com?subject=Branch%20Manager%20demo%20request">Request a demo</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <div class="footer-brand">
+          <div class="footer-brand-icon">B</div>
+          Branch Manager
+        </div>
+        <div class="footer-byline">
+          The all-in-one operations platform for tree service companies. Built by Second Nature Tree LLC in Peekskill, NY.
+        </div>
+      </div>
+      <div class="footer-col">
+        <h5>Product</h5>
+        <a href="#features">Features</a>
+        <a href="#why">Why us</a>
+        <a href="https://app.branchmanager.app/">Open the app</a>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <a href="mailto:info@peekskilltree.com">Contact</a>
+        <a href="https://peekskilltree.com">Tree services</a>
+      </div>
+      <div class="footer-col">
+        <h5>Legal</h5>
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>© 2026 Second Nature Tree LLC · Peekskill, NY</div>
+      <div>Licensed &amp; insured · WC-32079 / PC-50644</div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
