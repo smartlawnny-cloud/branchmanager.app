@@ -36,6 +36,7 @@ function normPhone(n: string): string {
 }
 
 Deno.serve(async (req) => {
+  try {
   if (req.method === "OPTIONS") return cors("", 200);
   if (req.method !== "POST") return cors(JSON.stringify({ error: "POST only" }), 405);
   if (!DIALPAD_API_KEY) {
@@ -126,13 +127,17 @@ Deno.serve(async (req) => {
     },
   };
 
-  await sb.from("communications").insert(commRow).catch((e: Error) => {
-    console.warn("Failed to log outbound SMS:", e.message);
-  });
+  const { error: logErr } = await sb.from("communications").insert(commRow);
+  if (logErr) console.warn("Failed to log outbound SMS:", logErr.message);
 
   if (!dialpadOk) {
     return cors(JSON.stringify({ ok: false, error: dialpadError || "Dialpad send failed", logged: true }), 502);
   }
 
   return cors(JSON.stringify({ ok: true, to: toFormatted }));
+  } catch (e) {
+    const msg = e instanceof Error ? `${e.message}\n${e.stack}` : String(e);
+    console.error("dialpad-sms-send unhandled:", msg);
+    return cors(JSON.stringify({ ok: false, error: "unhandled: " + msg }), 500);
+  }
 });
