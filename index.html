@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 524; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 525; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -927,6 +927,7 @@
               <div class="avatar-menu-header">Doug Brown<br><span>Owner · Second Nature Tree Service</span></div>
               <button onclick="loadPage('employeecenter')"><i data-lucide="user" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>My Account</button>
               <button onclick="loadPage('settings')"><i data-lucide="settings" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>Settings</button>
+              <button onclick="loadPage('help')"><i data-lucide="help-circle" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>Help & Onboarding</button>
               <button onclick="window.open('https://peekskilltree.com','_blank')"><i data-lucide="external-link" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>View Website</button>
               <button id="dark-mode-btn" onclick="toggleDarkMode()"><i data-lucide="moon" style="width:14px;height:14px;stroke:currentColor;vertical-align:middle;margin-right:6px;"></i>Dark Mode <span id="dark-mode-state" style="margin-left:auto;font-size:11px;color:var(--text-light);font-weight:600;"></span></button>
               <hr>
@@ -949,7 +950,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v524.min.js"></script>
+<script defer src="dist/bm.bundle.v525.min.js"></script>
 
 
 
@@ -1184,7 +1185,8 @@ var pageConfigs = {
   propertymap: { title: 'Property Map', action: null },
   payroll: { title: 'Payroll', action: 'Summary', actionFn: 'PayrollPage.showPayrollSummary(PayrollPage._getWeekDates(PayrollPage._weekOffset)[0])' },
   permissions: { title: 'Permissions & Roles', action: null },
-  search: { title: 'Search', action: null }
+  search: { title: 'Search', action: null },
+  help: { title: 'Help & Onboarding', action: null }
 };
 
 // ── Hub tab helper ──
@@ -1417,6 +1419,7 @@ var pageRenderers = {
   search: function() { return SearchPage.render(); },
   payroll: function() { return PayrollHub.render(); },
   permissions: function() { return RBAC.render(); },
+  help: function() { return HelpPage.render(); },
   callcenter: function() { return CallCenter.render(); },
   estimator: function() { return Estimator.render(); },
   cardone: function() { return CardoneTools.render(); },

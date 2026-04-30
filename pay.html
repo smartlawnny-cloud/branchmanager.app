@@ -244,6 +244,10 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       + '<div class="totals-row totals-grand"><span>Total</span><span>' + fmt(balance) + '</span></div>'
       + '</div></div>';
 
+    // Tip enabled check
+    var tipsEnabled = true;
+    try { tipsEnabled = localStorage.getItem('bm-tips-enabled') !== 'false'; } catch(e) {}
+
     // Tip buttons
     var tipPcts     = [0, 10, 15, 20];
     var tipBtnsHtml = tipPcts.map(function(pct) {
@@ -294,7 +298,7 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       + '<div class="pay-panel-header"><h2>Pay Online</h2><div class="pay-panel-amount" id="pay-panel-amount">' + fmt(grandTotal) + '</div></div>'
       + '<div class="pay-panel-body">'
 
-      + '<div class="tip-section">'
+      + (tipsEnabled ? '<div class="tip-section">'
       + '<h3>Add a Gratuity</h3>'
       + '<p class="tip-sub">100% goes to the crew — appreciated but never expected.</p>'
       + '<div class="tip-options">' + tipBtnsHtml + '</div>'
@@ -303,7 +307,7 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       + '<button class="tip-custom-btn' + (isCustom ? ' active' : '') + '" onclick="PAY.selectTip(-1)">Custom</button>'
       + '</div>'
       + (!isCustom ? '<button class="tip-custom-btn" style="width:100%;margin-top:8px;" onclick="PAY.selectTip(-1)">Enter custom amount</button>' : '')
-      + '</div>'
+      + '</div>' : '')
 
       + '<div class="pay-totals">'
       + '<div class="pay-total-row"><span>Invoice balance</span><span>' + fmt(balance) + '</span></div>'

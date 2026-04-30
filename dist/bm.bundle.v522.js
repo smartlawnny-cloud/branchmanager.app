@@ -98,7 +98,8 @@ var CompanyInfo = (function() {
     tagline:      { ls: null,             bm: 'tagline' },
     googleReviewUrl: { ls: null,          bm: 'googleReviewUrl' },
     taxRate:      { ls: 'bm-tax-rate',    bm: null, def: '8.375' },
-    ownerName:    { ls: null,             bm: 'ownerName' }
+    ownerName:    { ls: null,             bm: 'ownerName' },
+    logo:         { ls: 'bm-co-logo',    bm: 'logoUrl' }
   };
 
   return {
@@ -5110,7 +5111,8 @@ var QuotesPage = {
       phone: CompanyInfo.get('phone'),
       email: CompanyInfo.get('email'),
       website: CompanyInfo.get('website'),
-      licenses: CompanyInfo.get('licenses')
+      licenses: CompanyInfo.get('licenses'),
+      logo: CompanyInfo.get('logo')
     };
   },
 
@@ -7207,7 +7209,9 @@ var QuotesPage = {
       + '<tr><td style="padding:20px 26px 18px;border-bottom:3px solid #1a3c12;">'
       + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
       + '<td width="58" style="vertical-align:middle;">'
-      + '<div style="background:#1a3c12;border-radius:10px;width:48px;height:48px;text-align:center;line-height:48px;font-size:24px;">🌳</div>'
+      + (_co.logo
+          ? '<img src="' + _co.logo + '" style="width:48px;height:48px;object-fit:contain;border-radius:10px;display:block;" alt="' + esc(_co.name) + '">'
+          : '<div style="background:#1a3c12;border-radius:10px;width:48px;height:48px;text-align:center;line-height:48px;font-size:24px;">🌳</div>')
       + '</td>'
       + '<td style="vertical-align:middle;padding-left:12px;">'
       + '<div style="font-size:17px;font-weight:800;color:#1a3c12;line-height:1.2;">' + esc(_co.name) + '</div>'
@@ -25354,7 +25358,8 @@ var SettingsPage = {
       address: localStorage.getItem('bm-co-address') || (typeof BM_CONFIG !== 'undefined' ? BM_CONFIG.address : ''),
       licenses: CompanyInfo.get('licenses'),
       website: CompanyInfo.get('website'),
-      taxRate: localStorage.getItem('bm-tax-rate') || '8.375'
+      taxRate: localStorage.getItem('bm-tax-rate') || '8.375',
+      logo: CompanyInfo.get('logo')
     };
     // ═══ GROUP: Business Info (collapsible) ═══
     html += '<details style="background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
@@ -25372,6 +25377,14 @@ var SettingsPage = {
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Website</label><input id="co-website" value="' + UI.esc(co.website) + '" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
       + '<div style="grid-column:1/-1;"><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Address</label><input id="co-address" value="' + UI.esc(co.address) + '" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Licenses</label><input id="co-licenses" value="' + UI.esc(co.licenses) + '" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+      + '<div style="grid-column:1/-1;">'
+      + '<label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Logo URL <span style="font-weight:400;color:var(--text-light);font-size:11px;">(used on quotes, invoices &amp; emails)</span></label>'
+      + '<div style="display:flex;gap:10px;align-items:center;">'
+      + '<input id="co-logo" type="url" value="' + UI.esc(co.logo) + '" placeholder="https://..." style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;" oninput="SettingsPage._previewLogo(this.value)">'
+      + (co.logo ? '<img id="co-logo-preview" src="' + UI.esc(co.logo) + '" style="width:40px;height:40px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#f9fafb;" onerror="this.style.display=\'none\'">' : '<div id="co-logo-preview" style="width:40px;height:40px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:20px;">🌳</div>')
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text-light);margin-top:3px;">Paste a hosted image URL (Dropbox, Google Drive public link, Imgur, etc.)</div>'
+      + '</div>'
       + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Default Tax Rate (%)</label>'
       + '<input id="co-tax-rate" type="number" value="' + co.taxRate + '" step="0.001" min="0" max="100" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;">'
       + '<div style="font-size:11px;color:var(--text-light);margin-top:3px;">Applied to new quotes & invoices (e.g. 8.375 for NYS)</div>'
@@ -27194,7 +27207,7 @@ var SettingsPage = {
   },
 
   saveCompany: function() {
-    var fields = ['name','phone','email','address','licenses','website'];
+    var fields = ['name','phone','email','address','licenses','website','logo'];
     fields.forEach(function(f) {
       var el = document.getElementById('co-' + f);
       if (el) localStorage.setItem('bm-co-' + f, el.value.trim());
@@ -27202,6 +27215,13 @@ var SettingsPage = {
     var taxEl = document.getElementById('co-tax-rate');
     if (taxEl) localStorage.setItem('bm-tax-rate', parseFloat(taxEl.value) || 0);
     UI.toast('Company info saved ✅');
+  },
+
+  _previewLogo: function(url) {
+    var el = document.getElementById('co-logo-preview');
+    if (!el) return;
+    if (!url) { el.outerHTML = '<div id="co-logo-preview" style="width:40px;height:40px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:20px;">🌳</div>'; return; }
+    el.outerHTML = '<img id="co-logo-preview" src="' + url.replace(/"/g,'&quot;') + '" style="width:40px;height:40px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#f9fafb;" onerror="this.style.display=\'none\'">';
   },
 
   addService: function() {

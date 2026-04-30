@@ -97,6 +97,7 @@
     "src/pages/permissions.js",
     "src/pages/callcenter.js",
     "src/pages/permits.js",
-    "src/pages/insurance.js"
+    "src/pages/insurance.js",
+    "src/pages/help.js"
   ]
 }

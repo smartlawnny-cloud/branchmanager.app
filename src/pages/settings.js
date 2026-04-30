@@ -484,6 +484,69 @@ var SettingsPage = {
       + '</div>'
       + '</details>';
 
+    // ── Client-Facing Options ──
+    var cf = {
+      quoteTerm:        localStorage.getItem('bm-quote-term') || 'quote',
+      requireSig:       localStorage.getItem('bm-require-quote-sig') === 'true',
+      tipsEnabled:      localStorage.getItem('bm-tips-enabled') !== 'false',
+      autoReceipt:      localStorage.getItem('bm-auto-receipt') !== 'false',
+      tcUrl:            localStorage.getItem('bm-tc-url') || '',
+      showQty:          localStorage.getItem('bm-pdf-show-qty') !== 'false',
+      showUnitPrice:    localStorage.getItem('bm-pdf-show-unit-price') !== 'false'
+    };
+    html += cardOpen('Client-Facing Options')
+      + '<div style="display:flex;flex-direction:column;gap:14px;">'
+
+      // Quote term rename
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">'
+      + '<div><div style="font-size:13px;font-weight:700;">Call quotes "Estimates"</div><div style="font-size:11px;color:var(--text-light);margin-top:1px;">Changes label on PDFs, emails, and client-facing pages</div></div>'
+      + '<label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0;">'
+      + '<input type="checkbox" id="cf-quote-term" style="opacity:0;width:0;height:0;"' + (cf.quoteTerm === 'estimate' ? ' checked' : '') + '>'
+      + '<span style="position:absolute;inset:0;background:' + (cf.quoteTerm === 'estimate' ? 'var(--green-dark)' : '#cbd5e1') + ';border-radius:24px;transition:.2s;" id="cf-quote-term-track"></span>'
+      + '<span style="position:absolute;top:3px;left:' + (cf.quoteTerm === 'estimate' ? '23px' : '3px') + ';width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);" id="cf-quote-term-knob"></span>'
+      + '</label></div>'
+
+      // Require signature
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">'
+      + '<div><div style="font-size:13px;font-weight:700;">Require client signature to approve</div><div style="font-size:11px;color:var(--text-light);margin-top:1px;">Signature field appears on approve.html before approval is recorded</div></div>'
+      + '<label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0;">'
+      + '<input type="checkbox" id="cf-require-sig" style="opacity:0;width:0;height:0;"' + (cf.requireSig ? ' checked' : '') + '>'
+      + '<span style="position:absolute;inset:0;background:' + (cf.requireSig ? 'var(--green-dark)' : '#cbd5e1') + ';border-radius:24px;transition:.2s;"></span>'
+      + '<span style="position:absolute;top:3px;left:' + (cf.requireSig ? '23px' : '3px') + ';width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></span>'
+      + '</label></div>'
+
+      // Tips on payment page
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">'
+      + '<div><div style="font-size:13px;font-weight:700;">Show gratuity option on payment page</div><div style="font-size:11px;color:var(--text-light);margin-top:1px;">Customers can add a tip when paying online via pay.html</div></div>'
+      + '<label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0;">'
+      + '<input type="checkbox" id="cf-tips" style="opacity:0;width:0;height:0;"' + (cf.tipsEnabled ? ' checked' : '') + '>'
+      + '<span style="position:absolute;inset:0;background:' + (cf.tipsEnabled ? 'var(--green-dark)' : '#cbd5e1') + ';border-radius:24px;transition:.2s;"></span>'
+      + '<span style="position:absolute;top:3px;left:' + (cf.tipsEnabled ? '23px' : '3px') + ';width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></span>'
+      + '</label></div>'
+
+      // Auto-receipt
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">'
+      + '<div><div style="font-size:13px;font-weight:700;">Auto-send receipt on payment</div><div style="font-size:11px;color:var(--text-light);margin-top:1px;">Email receipt to client automatically when Stripe payment completes</div></div>'
+      + '<label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0;">'
+      + '<input type="checkbox" id="cf-auto-receipt" style="opacity:0;width:0;height:0;"' + (cf.autoReceipt ? ' checked' : '') + '>'
+      + '<span style="position:absolute;inset:0;background:' + (cf.autoReceipt ? 'var(--green-dark)' : '#cbd5e1') + ';border-radius:24px;transition:.2s;"></span>'
+      + '<span style="position:absolute;top:3px;left:' + (cf.autoReceipt ? '23px' : '3px') + ';width:18px;height:18px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></span>'
+      + '</label></div>'
+
+      // Show Qty / Unit Price on PDF/email
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+      + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="cf-show-qty" style="width:16px;height:16px;"' + (cf.showQty ? ' checked' : '') + '><span style="font-size:13px;">Show Qty column on PDF/email</span></label>'
+      + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="cf-show-unit-price" style="width:16px;height:16px;"' + (cf.showUnitPrice ? ' checked' : '') + '><span style="font-size:13px;">Show Unit Price column on PDF/email</span></label>'
+      + '</div>'
+
+      // T&C URL
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Terms &amp; Conditions URL <span style="font-weight:400;">(optional — linked from client-facing emails)</span></label>'
+      + '<input type="url" id="cf-tc-url" value="' + UI.esc(cf.tcUrl) + '" placeholder="https://peekskilltree.com/terms-of-service.html" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+
+      + '</div>'
+      + '<div style="margin-top:14px;text-align:right;"><button onclick="SettingsPage._saveClientFacing()" style="background:var(--green-dark);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">Save</button></div>'
+      + '</div></details>';
+
     // ── Booking Form Settings ──
     var bf = {
       enabled: localStorage.getItem('bm-booking-enabled') !== 'false',
@@ -2248,6 +2311,24 @@ var SettingsPage = {
     localStorage.setItem('bm-quote-validity', document.getElementById('qd-validity').value);
     localStorage.setItem('bm-show-line-prices', document.getElementById('qd-show-prices').checked ? 'true' : 'false');
     UI.toast('Quote & invoice defaults saved');
+  },
+
+  _saveClientFacing: function() {
+    var termEl = document.getElementById('cf-quote-term');
+    if (termEl) localStorage.setItem('bm-quote-term', termEl.checked ? 'estimate' : 'quote');
+    var sigEl = document.getElementById('cf-require-sig');
+    if (sigEl) localStorage.setItem('bm-require-quote-sig', sigEl.checked ? 'true' : 'false');
+    var tipsEl = document.getElementById('cf-tips');
+    if (tipsEl) localStorage.setItem('bm-tips-enabled', tipsEl.checked ? 'true' : 'false');
+    var receiptEl = document.getElementById('cf-auto-receipt');
+    if (receiptEl) localStorage.setItem('bm-auto-receipt', receiptEl.checked ? 'true' : 'false');
+    var qtyEl = document.getElementById('cf-show-qty');
+    if (qtyEl) localStorage.setItem('bm-pdf-show-qty', qtyEl.checked ? 'true' : 'false');
+    var upEl = document.getElementById('cf-show-unit-price');
+    if (upEl) localStorage.setItem('bm-pdf-show-unit-price', upEl.checked ? 'true' : 'false');
+    var tcEl = document.getElementById('cf-tc-url');
+    if (tcEl) localStorage.setItem('bm-tc-url', tcEl.value.trim());
+    UI.toast('Client-facing options saved ✅');
   },
 
   _saveCommTemplates: function() {

@@ -4,10 +4,16 @@
 var InvoicesPage = {
   _co: function() {
     return {
-      name: CompanyInfo.get('name'),
-      phone: CompanyInfo.get('phone'),
-      email: CompanyInfo.get('email'),
-      website: CompanyInfo.get('website')
+      name:          CompanyInfo.get('name'),
+      phone:         CompanyInfo.get('phone'),
+      email:         CompanyInfo.get('email'),
+      website:       CompanyInfo.get('website'),
+      logo:          CompanyInfo.get('logo'),
+      googleReview:  CompanyInfo.get('googleReviewUrl'),
+      facebook:      CompanyInfo.get('facebookUrl'),
+      instagram:     CompanyInfo.get('instagramUrl'),
+      yelp:          CompanyInfo.get('yelpUrl'),
+      nextdoor:      CompanyInfo.get('nextdoorUrl')
     };
   },
 
@@ -627,41 +633,105 @@ var InvoicesPage = {
       + 'Thanks,\nDoug Brown\n' + InvoicesPage._co().name + '\n' + InvoicesPage._co().phone + '\n' + InvoicesPage._co().website;
 
     // Branded HTML email
+    var _c = InvoicesPage._co();
+    var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+
+    // Line items table
     var lineItemsHtml = '';
     if (inv.lineItems && inv.lineItems.length) {
-      lineItemsHtml = '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">'
-        + '<tr style="background:#f0f9f4;"><th style="padding:8px 12px;text-align:left;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">SERVICE</th><th style="padding:8px 12px;text-align:right;font-size:12px;color:#555;font-weight:600;border-bottom:2px solid #c8e6c9;">AMOUNT</th></tr>';
-      inv.lineItems.forEach(function(item) {
+      lineItemsHtml = '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:0;">'
+        + '<tr style="background:#374151;">'
+        + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#fff;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">SERVICE</th>'
+        + '<th style="padding:8px 12px;text-align:right;font-size:11px;color:#fff;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">AMOUNT</th>'
+        + '</tr>';
+      inv.lineItems.forEach(function(item, i) {
         var amt = item.amount || ((item.qty||1) * (item.rate||0));
-        lineItemsHtml += '<tr><td style="padding:8px 12px;border-bottom:1px solid #e0e0e0;">' + (item.service||item.description||'Service') + '</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #e0e0e0;font-weight:600;">' + UI.money(amt) + '</td></tr>';
+        lineItemsHtml += '<tr style="background:' + (i%2===0?'#fff':'#f9fafb') + ';">'
+          + '<td style="padding:9px 12px;border-bottom:1px solid #f3f4f6;color:#374151;">' + esc(item.service||item.description||'Service') + (item.description && item.service && item.description!==item.service ? '<div style="font-size:11px;color:#9ca3af;margin-top:2px;">'+esc(item.description)+'</div>' : '') + '</td>'
+          + '<td style="padding:9px 12px;text-align:right;border-bottom:1px solid #f3f4f6;font-weight:600;color:#374151;">' + UI.money(amt) + '</td>'
+          + '</tr>';
       });
-      lineItemsHtml += '<tr style="background:#f0f9f4;"><td style="padding:10px 12px;font-weight:700;">Total</td><td style="padding:10px 12px;text-align:right;font-weight:800;color:#00836c;font-size:16px;">' + UI.money(inv.total) + '</td></tr></table>';
+      // Subtotal / tax / total rows
+      var subtotal = inv.subtotal || inv.total;
+      var taxAmt   = inv.taxAmount || 0;
+      var totalAmt = inv.total || 0;
+      if (taxAmt) {
+        lineItemsHtml += '<tr><td style="padding:8px 12px 4px;text-align:right;font-size:12px;color:#6b7280;" colspan="1">Subtotal</td><td style="padding:8px 12px 4px;text-align:right;font-size:12px;color:#6b7280;">' + UI.money(subtotal) + '</td></tr>';
+        lineItemsHtml += '<tr><td style="padding:4px 12px;text-align:right;font-size:12px;color:#6b7280;" colspan="1">Tax</td><td style="padding:4px 12px;text-align:right;font-size:12px;color:#6b7280;">' + UI.money(taxAmt) + '</td></tr>';
+      }
+      lineItemsHtml += '<tr style="background:#374151;"><td style="padding:10px 12px;font-weight:700;font-size:14px;color:#fff;">Total</td><td style="padding:10px 12px;text-align:right;font-weight:900;font-size:15px;color:#fff;">' + UI.money(totalAmt) + '</td></tr>';
+      lineItemsHtml += '</table>';
     }
 
+    // Social/review footer bar (only renders links that are set)
+    var socialLinks = [];
+    if (_c.googleReview) socialLinks.push('<a href="' + _c.googleReview + '" style="color:#1a3c12;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">⭐ Leave a Review</a>');
+    if (_c.facebook)     socialLinks.push('<a href="' + _c.facebook + '" style="color:#1877f2;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">&#9633; Facebook</a>');
+    if (_c.instagram)    socialLinks.push('<a href="' + _c.instagram + '" style="color:#e1306c;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">&#9650; Instagram</a>');
+    if (_c.yelp)         socialLinks.push('<a href="' + _c.yelp + '" style="color:#d32323;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">&#9670; Yelp</a>');
+    if (_c.nextdoor)     socialLinks.push('<a href="' + _c.nextdoor + '" style="color:#00b246;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">&#9632; Nextdoor</a>');
+
     var htmlBody = '<div style="background:#f5f6f8;padding:24px 0;">'
-      + '<div style="max-width:520px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
-      // Header
-      + '<div style="background:linear-gradient(135deg,#1a3c12 0%,#00836c 100%);border-radius:12px 12px 0 0;padding:24px 28px;color:#fff;">'
-      + '<div style="font-size:13px;opacity:.8;margin-bottom:4px;">🌳 ' + InvoicesPage._co().name + '</div>'
-      + '<div style="font-size:26px;font-weight:900;letter-spacing:-0.5px;">Invoice #' + inv.invoiceNumber + '</div>'
-      + '<div style="font-size:38px;font-weight:900;margin:8px 0 4px;letter-spacing:-1px;">' + amtDue + '</div>'
-      + '<div style="font-size:13px;opacity:.75;">' + (inv.dueDate ? 'Due ' + UI.dateShort(inv.dueDate) : 'Balance due') + ' &nbsp;·&nbsp; ' + (inv.clientName||'') + '</div>'
-      + '</div>'
-      // Body
-      + '<div style="background:#fff;border-radius:0 0 12px 12px;padding:24px 28px;">'
-      + '<p style="font-size:15px;color:#2d3748;margin-bottom:16px;">Hi ' + firstName + ',</p>'
-      + '<p style="font-size:14px;color:#4a5568;line-height:1.6;margin-bottom:16px;">Thank you for choosing ' + InvoicesPage._co().name + '! Your invoice is ready to view and pay online.</p>'
-      + (inv.subject ? '<p style="font-size:13px;color:#718096;margin-bottom:16px;">📋 <strong>Job:</strong> ' + inv.subject + '</p>' : '')
-      + lineItemsHtml
-      // Pay button
-      + '<div style="text-align:center;margin:24px 0;">'
-      + '<a href="' + payLink + '" style="display:inline-block;background:linear-gradient(135deg,#00836c,#1a3c12);color:#fff;padding:16px 36px;border-radius:10px;font-size:17px;font-weight:800;text-decoration:none;letter-spacing:-0.3px;box-shadow:0 4px 14px rgba(0,131,108,.35);">💳 Pay ' + amtDue + ' Online</a>'
-      + '</div>'
-      + '<p style="font-size:12px;color:#a0aec0;text-align:center;margin-bottom:20px;">You can also add an optional gratuity for the crew on the payment page.</p>'
-      + ''
-      + '<p style="font-size:13px;color:#718096;margin-top:16px;">Questions? Reply to this email or call/text <strong>' + InvoicesPage._co().phone + '</strong>.</p>'
-      + '<p style="font-size:13px;color:#2d3748;margin-top:12px;">Thanks,<br><strong>Doug Brown</strong><br>' + InvoicesPage._co().name + '</p>'
-      + '</div></div></div>';
+      + '<table style="max-width:580px;margin:0 auto;border-collapse:collapse;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">'
+      // ── Header: logo + company / invoice meta ──────────────────────────
+      + '<tr style="background:#1a3c12;">'
+      + '<td style="padding:20px 26px;width:55%;vertical-align:middle;">'
+      + (_c.logo
+          ? '<img src="' + _c.logo + '" style="width:44px;height:44px;object-fit:contain;border-radius:8px;display:block;margin-bottom:8px;" alt="' + esc(_c.name) + '">'
+          : '<div style="background:rgba(255,255,255,.15);border-radius:8px;width:44px;height:44px;text-align:center;line-height:44px;font-size:22px;margin-bottom:8px;">🌳</div>')
+      + '<div style="font-size:15px;font-weight:800;color:#fff;">' + esc(_c.name) + '</div>'
+      + (_c.phone ? '<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:2px;">' + esc(_c.phone) + '</div>' : '')
+      + (_c.email ? '<div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:1px;">' + esc(_c.email) + '</div>' : '')
+      + '</td>'
+      + '<td style="padding:20px 26px;vertical-align:middle;text-align:right;background:#163310;">'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Invoice</div>'
+      + '<div style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-.5px;">#' + esc(inv.invoiceNumber||'') + '</div>'
+      + '<div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-1px;margin:6px 0 4px;">' + amtDue + '</div>'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.7);">' + (inv.dueDate ? 'Due ' + UI.dateShort(inv.dueDate) : 'Balance due') + '</div>'
+      + '</td>'
+      + '</tr>'
+      // ── Bill To ──────────────────────────────────────────────────────
+      + '<tr style="background:#fff;">'
+      + '<td colspan="2" style="padding:16px 26px 0;">'
+      + '<div style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Bill To</div>'
+      + '<div style="font-size:14px;font-weight:700;color:#111827;">' + esc(inv.clientName||'') + '</div>'
+      + (inv.property ? '<div style="font-size:12px;color:#6b7280;margin-top:2px;">' + esc(inv.property) + '</div>' : '')
+      + (inv.subject ? '<div style="font-size:12px;color:#6b7280;margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:6px;">📋 ' + esc(inv.subject) + '</div>' : '')
+      + '</td>'
+      + '</tr>'
+      // ── Greeting ──────────────────────────────────────────────────────
+      + '<tr style="background:#fff;">'
+      + '<td colspan="2" style="padding:16px 26px 8px;">'
+      + '<p style="font-size:14px;color:#374151;margin:0 0 10px;">Hi ' + esc(firstName) + ',</p>'
+      + '<p style="font-size:13px;color:#6b7280;line-height:1.6;margin:0;">Thank you for choosing <strong>' + esc(_c.name) + '</strong>! Your invoice is ready to view and pay online.</p>'
+      + '</td>'
+      + '</tr>'
+      // ── Line items ────────────────────────────────────────────────────
+      + '<tr style="background:#fff;">'
+      + '<td colspan="2" style="padding:8px 26px 0;">' + lineItemsHtml + '</td>'
+      + '</tr>'
+      // ── Pay button ────────────────────────────────────────────────────
+      + '<tr style="background:#fff;">'
+      + '<td colspan="2" style="padding:20px 26px;text-align:center;">'
+      + '<a href="' + payLink + '" style="display:inline-block;background:linear-gradient(135deg,#00836c,#1a3c12);color:#fff;padding:14px 36px;border-radius:10px;font-size:16px;font-weight:800;text-decoration:none;letter-spacing:-0.3px;box-shadow:0 4px 14px rgba(0,131,108,.35);">💳 Pay ' + amtDue + ' Online</a>'
+      + '<div style="font-size:11px;color:#9ca3af;margin-top:8px;">Optional gratuity available on the payment page.</div>'
+      + '</td>'
+      + '</tr>'
+      // ── Footer ────────────────────────────────────────────────────────
+      + '<tr style="background:#f9fafb;">'
+      + '<td colspan="2" style="padding:14px 26px;border-top:1px solid #f3f4f6;">'
+      + '<table style="width:100%;border-collapse:collapse;">'
+      + '<tr>'
+      + '<td style="font-size:12px;color:#6b7280;">Questions? Call/text <strong>' + esc(_c.phone||'') + '</strong> or reply to this email.</td>'
+      + (_c.website ? '<td style="text-align:right;font-size:12px;"><a href="' + _c.website + '" style="color:#1a3c12;text-decoration:none;font-weight:600;">' + esc(_c.website.replace(/^https?:\/\//,'')) + '</a></td>' : '<td></td>')
+      + '</tr>'
+      + '</table>'
+      + '</td>'
+      + '</tr>'
+      // ── Social / review bar ───────────────────────────────────────────
+      + (socialLinks.length ? '<tr style="background:#f9fafb;"><td colspan="2" style="padding:10px 26px 16px;border-top:1px solid #f3f4f6;text-align:center;">' + socialLinks.join('<span style="color:#e5e7eb;margin:0 8px;">|</span>') + '</td></tr>' : '')
+      + '</table>'
+      + '</div>';
 
     if (typeof Email !== 'undefined') {
       Email.send(email, subject, body, { htmlBody: htmlBody }).then(function(result) {

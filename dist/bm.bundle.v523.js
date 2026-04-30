@@ -96,10 +96,14 @@ var CompanyInfo = (function() {
     stateAbbr:    { ls: null,             bm: 'stateAbbr' },
     timezone:     { ls: null,             bm: 'timezone' },
     tagline:      { ls: null,             bm: 'tagline' },
-    googleReviewUrl: { ls: null,          bm: 'googleReviewUrl' },
-    taxRate:      { ls: 'bm-tax-rate',    bm: null, def: '8.375' },
-    ownerName:    { ls: null,             bm: 'ownerName' },
-    logo:         { ls: 'bm-co-logo',    bm: 'logoUrl' }
+    googleReviewUrl: { ls: 'bm-co-review',     bm: 'googleReviewUrl' },
+    facebookUrl:     { ls: 'bm-co-facebook',   bm: null },
+    instagramUrl:    { ls: 'bm-co-instagram',  bm: null },
+    yelpUrl:         { ls: 'bm-co-yelp',       bm: null },
+    nextdoorUrl:     { ls: 'bm-co-nextdoor',   bm: null },
+    taxRate:         { ls: 'bm-tax-rate',       bm: null, def: '8.375' },
+    ownerName:       { ls: null,                bm: 'ownerName' },
+    logo:            { ls: 'bm-co-logo',        bm: 'logoUrl' }
   };
 
   return {
@@ -5112,7 +5116,12 @@ var QuotesPage = {
       email: CompanyInfo.get('email'),
       website: CompanyInfo.get('website'),
       licenses: CompanyInfo.get('licenses'),
-      logo: CompanyInfo.get('logo')
+      logo: CompanyInfo.get('logo'),
+      googleReview: CompanyInfo.get('googleReviewUrl'),
+      facebook: CompanyInfo.get('facebookUrl'),
+      instagram: CompanyInfo.get('instagramUrl'),
+      yelp: CompanyInfo.get('yelpUrl'),
+      nextdoor: CompanyInfo.get('nextdoorUrl')
     };
   },
 
@@ -7285,6 +7294,20 @@ var QuotesPage = {
       + '<td align="right" style="font-size:11px;color:#d1d5db;">Licensed &amp; Insured' + (_co.licenses ? ' &nbsp;·&nbsp; ' + esc(_co.licenses) : '') + '</td>'
       + '</tr></table>'
       + '</td></tr>'
+
+      // ── Social + Review bar ───────────────────────────────────────────
+      + (function() {
+          var links = [];
+          if (_co.googleReview) links.push('<a href="' + _co.googleReview + '" style="color:#1a3c12;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">⭐ Leave a Review</a>');
+          if (_co.facebook)     links.push('<a href="' + _co.facebook     + '" style="color:#1877f2;text-decoration:none;font-size:12px;white-space:nowrap;">&#9633; Facebook</a>');
+          if (_co.instagram)    links.push('<a href="' + _co.instagram    + '" style="color:#e1306c;text-decoration:none;font-size:12px;white-space:nowrap;">&#9650; Instagram</a>');
+          if (_co.yelp)         links.push('<a href="' + _co.yelp         + '" style="color:#d32323;text-decoration:none;font-size:12px;white-space:nowrap;">&#9670; Yelp</a>');
+          if (_co.nextdoor)     links.push('<a href="' + _co.nextdoor     + '" style="color:#00b246;text-decoration:none;font-size:12px;white-space:nowrap;">&#9632; Nextdoor</a>');
+          if (!links.length) return '';
+          return '<tr><td style="padding:10px 26px 16px;border-top:1px solid #f3f4f6;text-align:center;">'
+            + links.join('<span style="color:#e5e7eb;margin:0 8px;">|</span>')
+            + '</td></tr>';
+        })()
 
       + '</table>' // main card
       + '</td></tr></table>' // outer wrapper
@@ -25393,6 +25416,31 @@ var SettingsPage = {
       + '<div style="margin-top:14px;text-align:right;"><button onclick="SettingsPage.saveCompany()" style="background:var(--green-dark);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">Save</button></div>'
       + '</div></details>';
 
+    // ── Social & Reviews ──
+    var sr = {
+      googleReview: CompanyInfo.get('googleReviewUrl'),
+      facebook:     CompanyInfo.get('facebookUrl'),
+      instagram:    CompanyInfo.get('instagramUrl'),
+      yelp:         CompanyInfo.get('yelpUrl'),
+      nextdoor:     CompanyInfo.get('nextdoorUrl')
+    };
+    html += '<details style="background:var(--white);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;">'
+      + '<summary style="padding:14px 18px;cursor:pointer;font-size:15px;font-weight:700;color:var(--text);list-style:none;display:flex;justify-content:space-between;align-items:center;">'
+      + '<span><i data-lucide="star" class="li li-hdr"></i> Social &amp; Reviews</span>'
+      + '<span style="font-size:11px;color:var(--text-light);font-weight:500;">tap to expand</span>'
+      + '</summary>'
+      + '<div style="padding:16px 20px;border-top:1px solid var(--border);">'
+      + '<p style="font-size:12px;color:var(--text-light);margin-bottom:14px;">These links appear in quote &amp; invoice emails sent to customers.</p>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+      + '<div style="grid-column:1/-1;"><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">⭐ Google Review Link</label><input id="sr-review" type="url" value="' + UI.esc(sr.googleReview) + '" placeholder="https://g.page/r/..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Facebook</label><input id="sr-facebook" type="url" value="' + UI.esc(sr.facebook) + '" placeholder="https://facebook.com/..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Instagram</label><input id="sr-instagram" type="url" value="' + UI.esc(sr.instagram) + '" placeholder="https://instagram.com/..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Yelp</label><input id="sr-yelp" type="url" value="' + UI.esc(sr.yelp) + '" placeholder="https://yelp.com/biz/..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+      + '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">Nextdoor</label><input id="sr-nextdoor" type="url" value="' + UI.esc(sr.nextdoor) + '" placeholder="https://nextdoor.com/..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;"></div>'
+      + '</div>'
+      + '<div style="margin-top:14px;text-align:right;"><button onclick="SettingsPage.saveSocialLinks()" style="background:var(--green-dark);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">Save</button></div>'
+      + '</div></details>';
+
     // ── Work Settings ──
     var ws = {
       defaultStart: localStorage.getItem('bm-work-start') || '07:00',
@@ -27222,6 +27270,15 @@ var SettingsPage = {
     if (!el) return;
     if (!url) { el.outerHTML = '<div id="co-logo-preview" style="width:40px;height:40px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:20px;">🌳</div>'; return; }
     el.outerHTML = '<img id="co-logo-preview" src="' + url.replace(/"/g,'&quot;') + '" style="width:40px;height:40px;object-fit:contain;border-radius:8px;border:1px solid var(--border);background:#f9fafb;" onerror="this.style.display=\'none\'">';
+  },
+
+  saveSocialLinks: function() {
+    var map = { review: 'bm-co-review', facebook: 'bm-co-facebook', instagram: 'bm-co-instagram', yelp: 'bm-co-yelp', nextdoor: 'bm-co-nextdoor' };
+    Object.keys(map).forEach(function(k) {
+      var el = document.getElementById('sr-' + k);
+      if (el) localStorage.setItem(map[k], el.value.trim());
+    });
+    UI.toast('Social links saved ✅');
   },
 
   addService: function() {

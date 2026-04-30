@@ -7194,7 +7194,7 @@ var QuotesPage = {
       totalsRows += '<tr><td style="padding:4px 16px 4px 0;color:#4b5563;font-size:13px;text-align:right;">Tax (' + taxRate + '%)</td>'
         + '<td style="padding:4px 16px;color:#111;font-size:13px;text-align:right;">' + fmt(taxAmt) + '</td></tr>';
     }
-    totalsRows += '<tr style="background:#1a3c12;"><td style="padding:10px 16px 10px 0;color:#fff;font-size:14px;font-weight:700;text-align:right;">Total</td>'
+    totalsRows += '<tr style="background:#374151;"><td style="padding:10px 16px 10px 0;color:#fff;font-size:14px;font-weight:700;text-align:right;">Total</td>'
       + '<td style="padding:10px 16px;color:#fff;font-size:15px;font-weight:900;text-align:right;">' + fmt(total) + '</td></tr>';
 
     return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
@@ -7248,7 +7248,7 @@ var QuotesPage = {
 
       // ── Line items ────────────────────────────────────────────────────
       + (liRows ? '<tr><td style="padding:0;"><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-        + '<thead><tr style="background:#1a3c12;">'
+        + '<thead><tr style="background:#374151;">'
         + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:left;letter-spacing:.05em;text-transform:uppercase;width:26%;">Service</th>'
         + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:left;letter-spacing:.05em;text-transform:uppercase;">Description</th>'
         + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:center;letter-spacing:.05em;text-transform:uppercase;width:7%;">Qty</th>'
