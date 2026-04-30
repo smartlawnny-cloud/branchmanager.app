@@ -569,13 +569,30 @@ var MessagingPage = {
         return;
       }
       var newStatus = action === 'approve' ? 'accepted' : 'declined';
+      // Snapshot the prior status so we can roll back if the cloud update
+      // rejects (e.g. RLS / network failure). Without rollback, the local
+      // store and cloud diverge silently and the next CloudSync.pull would
+      // overwrite the local change anyway — but the user would see "accepted"
+      // for a few minutes that wasn't real.
+      var existing = null;
+      try { existing = DB.quotes.getById(quoteId); } catch(e) {}
+      var priorStatus = existing && existing.status;
       try {
         DB.quotes.update(quoteId, { status: newStatus, statusUpdatedAt: new Date().toISOString() });
       } catch (e) { console.warn('local quote update failed', e); }
-      // Push to cloud explicitly (CloudSync wrap may or may not catch this path)
       if (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) {
         SupabaseDB.client.from('quotes').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', quoteId)
-          .then(function(res) { if (res.error) console.warn('cloud quote update failed:', res.error.message); });
+          .then(function(res) {
+            if (res.error) {
+              console.warn('cloud quote update failed:', res.error.message);
+              // Roll back local
+              try {
+                if (priorStatus) DB.quotes.update(quoteId, { status: priorStatus, statusUpdatedAt: existing && existing.statusUpdatedAt });
+              } catch(e2) {}
+              UI.toast('Couldn\'t save quote ' + newStatus + ' — ' + (res.error.message || 'cloud error') + '. Reverted.', 'error');
+              if (window._currentPage === 'messaging') loadPage('messaging');
+            }
+          });
       }
       UI.toast('Quote marked ' + newStatus);
     } else if (action === 'reschedule') {

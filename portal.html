@@ -118,7 +118,7 @@ function showLogin() {
     + '<input type="email" id="login-email" placeholder="your@email.com" onkeydown="if(event.key===\'Enter\')sendLink()">'
     + '<button class="btn btn-primary" style="width:100%;padding:13px;" onclick="sendLink()">Send My Link</button>'
     + '<div class="error-msg" id="login-err"></div>'
-    + '<div class="sent-msg" id="login-sent">✅ Check your email! A secure link is on its way. It\'s valid for 7 days.</div>'
+    + '<div class="sent-msg" id="login-sent">If your email is on file with us, a secure portal link is on its way (valid 7 days). Check spam if it doesn\'t arrive within a minute.</div>'
     + '</div>'
     + '</div>';
   setTimeout(function(){ var el=document.getElementById('login-email'); if(el) el.focus(); }, 100);

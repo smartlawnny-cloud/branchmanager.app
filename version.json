@@ -1,5 +1,5 @@
 {
-  "version": 543,
+  "version": 544,
   "released": "2026-04-30",
-  "notes": "audit fixes: input-wipe, dedupe, convertPhoneToClient, portal tenant_id"
+  "notes": "audit fixes: portal CTA messaging, action chip rollback"
 }
