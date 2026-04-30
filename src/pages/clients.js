@@ -1358,33 +1358,40 @@ var ClientsPage = {
   _sendPortalInvite: function(id) {
     var c = DB.clients.getById(id);
     if (!c || !c.email) { UI.toast('Client has no email on file', 'error'); return; }
-    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) { UI.toast('Supabase client not ready', 'error'); return; }
+    var FN_URL = (window.BM_CONFIG && window.BM_CONFIG.supabaseFunctionsUrl)
+      ? window.BM_CONFIG.supabaseFunctionsUrl
+      : 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1';
     UI.toast('Sending portal invite to ' + c.email + '…');
-    SupabaseDB.client.auth.signInWithOtp({
-      email: c.email,
-      options: { emailRedirectTo: 'https://branchmanager.app/portal/dashboard.html' }
-    }).then(function(res) {
-      if (res.error) {
-        UI.toast('Invite failed: ' + res.error.message, 'error');
-        return;
-      }
-      UI.toast('✓ Invite sent to ' + c.email);
-      // Log to comms so it shows up on the timeline
-      try {
-        var key = 'bm-comms-' + id;
-        var all = JSON.parse(localStorage.getItem(key) || '[]');
-        all.unshift({
-          id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
-          clientId: id,
-          type: 'email',
-          direction: 'outbound',
-          notes: 'Portal sign-in link sent (magic link to ' + c.email + ')',
-          date: new Date().toISOString(),
-          user: 'Doug'
-        });
-        localStorage.setItem(key, JSON.stringify(all));
-      } catch(e) {}
-    });
+    fetch(FN_URL + '/portal-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: c.email })
+    })
+      .then(function(r) { return r.json().then(function(d){ return { ok: r.ok, body: d }; }); })
+      .then(function(res) {
+        if (!res.ok || res.body.error) {
+          UI.toast('Invite failed: ' + (res.body.error || 'unknown'), 'error');
+          return;
+        }
+        UI.toast('✓ Portal link sent to ' + c.email);
+        try {
+          var key = 'bm-comms-' + id;
+          var all = JSON.parse(localStorage.getItem(key) || '[]');
+          all.unshift({
+            id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+            clientId: id,
+            type: 'email',
+            direction: 'outbound',
+            notes: 'Portal sign-in link sent (magic link to ' + c.email + ')',
+            date: new Date().toISOString(),
+            user: 'Doug'
+          });
+          localStorage.setItem(key, JSON.stringify(all));
+        } catch(e) {}
+      })
+      .catch(function(e) {
+        UI.toast('Invite failed: ' + e.message, 'error');
+      });
   },
 
   _saveNotes: function(id, val) {

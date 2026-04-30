@@ -1,5 +1,5 @@
 {
-  "version": 538,
+  "version": 539,
   "released": "2026-04-30",
-  "notes": "Tasks page clean UI + call center collapses when empty"
+  "notes": "portal invite uses custom magic-link flow + TCPA auto-reply wired"
 }
