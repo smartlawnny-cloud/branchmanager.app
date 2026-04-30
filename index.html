@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 533; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 534; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -116,12 +116,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="dns-prefetch" href="https://fonts.googleapis.com">
-<script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js" defer></script>
-<script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js" defer></script>
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js" integrity="sha384-tTkFttkBclaU1cloKwOi9xk3pbao3VZxTjLNBt8iFABWDBQibbAbWpVmO28zMuxq" crossorigin="anonymous" defer></script>
+<script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js" integrity="sha384-mNw1qX1ZxMzcjBM0E2x7/n+28uQoaRYrFiIHEO3vdHl+1xsm4gP1IlDS9Vw1GnSe" crossorigin="anonymous" defer></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css" integrity="sha384-m6tadjb5ohv1Fw3GJynIWn5c1scKfW7kxSXuDrhlq1gdXPn7I7UL0sSKDfCUErOb" crossorigin="anonymous">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+<!-- Google Fonts intentionally not pinned: googleapis CSS varies by user-agent, SRI not supported -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <style>
   :root {
@@ -832,6 +833,7 @@
   .client-filter.active { background:var(--green-dark) !important; color:var(--white) !important; border-color:var(--green-dark) !important; }
 </style>
 <!-- Stripe.js for embedded Collect Payment (Elements card form) -->
+<!-- Stripe.js intentionally not pinned per Stripe docs -->
 <script src="https://js.stripe.com/v3/" async></script>
 </head>
 <body>
@@ -950,7 +952,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v533.min.js"></script>
+<script defer src="dist/bm.bundle.v534.min.js"></script>
 
 
 

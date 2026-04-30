@@ -385,17 +385,35 @@ var Photos = {
   },
 
   _customTag: function(recordType, recordId, index) {
-    var t = prompt('Custom tag:');
-    if (!t) return;
-    t = t.trim();
-    if (!t) return;
-    var photos = Photos.getPhotos(recordType, recordId);
-    if (!photos[index]) return;
-    var tags = Photos._getTags(photos[index]);
-    if (tags.indexOf(t) === -1) tags.push(t);
-    Photos._saveTags(recordType, recordId, index, tags);
-    document.getElementById('photo-viewer').remove();
-    Photos.viewFull(recordType, recordId, index);
+    // iOS-friendly modal replacement for prompt() (Apr 29, 2026 — fix iPhone photo tagging).
+    var html = '<div class="form-group">'
+      + '<label for="bm-photo-customtag-input">Custom tag:</label>'
+      + '<input type="text" id="bm-photo-customtag-input" autocomplete="off" autocapitalize="words" placeholder="e.g. Damage, Tree #4, Leans">'
+      + '</div>';
+    var footer = '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+      + ' <button class="btn btn-primary" id="bm-photo-customtag-save">Save tag</button>';
+    UI.showModal('Custom tag', html, { keepModal: true, footer: footer });
+    setTimeout(function() {
+      var input = document.getElementById('bm-photo-customtag-input');
+      var btn = document.getElementById('bm-photo-customtag-save');
+      if (input) input.focus();
+      var save = function() {
+        if (!input) return;
+        var t = (input.value || '').trim();
+        if (!t) return;
+        UI.closeModal();
+        var photos = Photos.getPhotos(recordType, recordId);
+        if (!photos[index]) return;
+        var tags = Photos._getTags(photos[index]);
+        if (tags.indexOf(t) === -1) tags.push(t);
+        Photos._saveTags(recordType, recordId, index, tags);
+        var viewer = document.getElementById('photo-viewer');
+        if (viewer) viewer.remove();
+        Photos.viewFull(recordType, recordId, index);
+      };
+      if (btn) btn.onclick = save;
+      if (input) input.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+    }, 50);
   },
 
   // ============ BRANCH CAM LIBRARY ============
@@ -559,13 +577,61 @@ var Photos = {
     if (matches.length === 1) {
       if (confirm('Looks like ' + matches[0].name + '\'s property:\n' + matches[0].address + '\n\nUse this client?')) clientId = matches[0].id;
     } else if (matches.length > 1) {
-      var pick = prompt('Pick a client (number):\n' + matches.map(function(c, i){ return (i+1) + '. ' + c.name + ' — ' + c.address; }).join('\n'));
-      var idx = parseInt(pick, 10) - 1;
-      if (matches[idx]) clientId = matches[idx].id;
+      // iOS-friendly tappable list modal (Apr 29, 2026 — replaces multi-line prompt that
+      // only showed the first line on iPhone, blocking client selection).
+      // Cap to most recent 50 to keep the list manageable.
+      var listMatches = matches.slice(0, 50);
+      clientId = await new Promise(function(resolve) {
+        var rows = listMatches.map(function(c, i) {
+          return '<button type="button" class="btn btn-outline bm-photo-client-pick" data-cid="' + UI.esc(c.id) + '" '
+            + 'style="display:block;width:100%;text-align:left;margin-bottom:8px;padding:12px;">'
+            + '<div style="font-weight:600;">' + UI.esc(c.name) + '</div>'
+            + '<div style="font-size:12px;color:var(--text-light);margin-top:2px;">' + UI.esc(c.address || '') + '</div>'
+            + '</button>';
+        }).join('');
+        var html = '<p style="font-size:14px;margin-bottom:12px;">Multiple clients near this address. Pick one:</p>' + rows;
+        var footer = '<button class="btn btn-outline" id="bm-photo-pick-cancel">None — create new</button>';
+        UI.showModal('Pick a client', html, { keepModal: true, footer: footer });
+        setTimeout(function() {
+          document.querySelectorAll('.bm-photo-client-pick').forEach(function(b) {
+            b.onclick = function() {
+              var cid = b.getAttribute('data-cid');
+              UI.closeModal();
+              resolve(cid || '');
+            };
+          });
+          var cancel = document.getElementById('bm-photo-pick-cancel');
+          if (cancel) cancel.onclick = function() { UI.closeModal(); resolve(''); };
+        }, 50);
+      });
     }
 
     if (!clientId) {
-      var name = prompt('New client name (cancel to abort):');
+      // iOS-friendly modal replacement for prompt() (Apr 29, 2026).
+      var name = await new Promise(function(resolve) {
+        var html = '<div class="form-group">'
+          + '<label for="bm-photo-newclient-input">New client name:</label>'
+          + '<input type="text" id="bm-photo-newclient-input" autocomplete="off" autocapitalize="words" placeholder="e.g. Smith Family">'
+          + '</div>';
+        var footer = '<button class="btn btn-outline" id="bm-photo-newclient-cancel">Cancel</button>'
+          + ' <button class="btn btn-primary" id="bm-photo-newclient-save">Save</button>';
+        UI.showModal('New client', html, { keepModal: true, footer: footer });
+        setTimeout(function() {
+          var input = document.getElementById('bm-photo-newclient-input');
+          var saveBtn = document.getElementById('bm-photo-newclient-save');
+          var cancelBtn = document.getElementById('bm-photo-newclient-cancel');
+          if (input) input.focus();
+          var save = function() {
+            if (!input) return;
+            var v = (input.value || '').trim();
+            UI.closeModal();
+            resolve(v);
+          };
+          if (saveBtn) saveBtn.onclick = save;
+          if (cancelBtn) cancelBtn.onclick = function() { UI.closeModal(); resolve(''); };
+          if (input) input.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        }, 50);
+      });
       if (!name) return;
       var newClient = DB.clients.create({ name: name, address: address, lat: gps.lat, lng: gps.lng });
       clientId = newClient.id;
@@ -758,11 +824,34 @@ var Photos = {
       ctx.lineWidth = Math.max(3, canvas.width / 200);
       ctx.lineCap = 'round';
       if (tool === 'text') {
-        var t = prompt('Text:'); if (!t) { drawing = false; return; }
-        ctx.font = 'bold ' + Math.max(20, canvas.width / 30) + 'px sans-serif';
-        ctx.fillText(t, pt.x, pt.y);
-        Photos._annHistory.push(canvas.toDataURL());
-        drawing = false; return;
+        // iOS-friendly modal replacement for prompt() (Apr 29, 2026).
+        // Reset drawing state immediately; the modal callback paints the text on Save.
+        drawing = false;
+        var anchorX = pt.x, anchorY = pt.y;
+        var html = '<div class="form-group">'
+          + '<label for="bm-photo-anntext-input">Text annotation:</label>'
+          + '<input type="text" id="bm-photo-anntext-input" autocomplete="off" placeholder="Type and tap Add">'
+          + '</div>';
+        var footer = '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+          + ' <button class="btn btn-primary" id="bm-photo-anntext-save">Add</button>';
+        UI.showModal('Add text', html, { keepModal: true, footer: footer });
+        setTimeout(function() {
+          var input = document.getElementById('bm-photo-anntext-input');
+          var btn = document.getElementById('bm-photo-anntext-save');
+          if (input) input.focus();
+          var save = function() {
+            if (!input) return;
+            var txt = (input.value || '').trim();
+            UI.closeModal();
+            if (!txt) return;
+            ctx.font = 'bold ' + Math.max(20, canvas.width / 30) + 'px sans-serif';
+            ctx.fillText(txt, anchorX, anchorY);
+            Photos._annHistory.push(canvas.toDataURL());
+          };
+          if (btn) btn.onclick = save;
+          if (input) input.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        }, 50);
+        return;
       }
       if (tool === 'pen') { ctx.beginPath(); ctx.moveTo(pt.x, pt.y); }
       else snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);

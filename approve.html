@@ -94,7 +94,7 @@
   </div>
 
   <script src="config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
   <script>
     var SUPABASE_URL = 'https://ltpivkqahvplapyagljt.supabase.co';
     var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0cGl2a3FhaHZwbGFweWFnbGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTgxNzIsImV4cCI6MjA4OTY3NDE3Mn0.bQ-wAx4Uu-FyA2ZwsTVfFoU2ZPbeWCmupqV-6ZR9uFI';
@@ -112,20 +112,26 @@
     function money(n) { return '$' + (+(n||0)).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0}); }
     function dateShort(d) { if (!d) return '—'; var dt = new Date(d); return (dt.getMonth()+1) + '/' + dt.getDate() + '/' + dt.getFullYear(); }
 
+    // RLS gateway — was: direct anon SELECT exposed every quote in the DB to any
+    // anon-key holder. Now: POST {id, token} to quote-fetch edge fn which does
+    // service-role lookup + token compare + strips the token from the response.
+    var FN_BASE = SUPABASE_URL + '/functions/v1';
     async function loadQuote() {
-      if (!quoteId) { showError('Invalid link — please check your email for the correct link.'); return; }
+      if (!quoteId || !urlToken) { showError('Invalid link — please check your email for the correct link.'); return; }
       try {
-        var result = await sb.from('quotes').select('*').eq('id', quoteId).single();
-        if (result.error) throw result.error;
-        // Validate approval token if one exists on the quote
-        var q = result.data;
-        if (!q.approval_token || urlToken !== q.approval_token) {
-          showError('This link has expired or is invalid. Please request a new quote link.');
+        var r = await fetch(FN_BASE + '/quote-fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: quoteId, token: urlToken })
+        });
+        var data = await r.json();
+        if (!r.ok || !data || !data.ok || !data.quote) {
+          showError(((data && data.error) || 'Quote not found') + '. The link may be expired or incorrect.<br><br>Please contact us and we\'ll resend it.');
           return;
         }
-        renderQuote(q);
+        renderQuote(data.quote);
       } catch(e) {
-        showError('Quote not found. The link may be expired or incorrect.<br><br>Please contact us and we\'ll resend it.');
+        showError('Network error loading quote. Please contact us if this persists.');
       }
     }
 
@@ -457,16 +463,22 @@
       var quoteHash = hashArray.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
 
       try {
-        var now = new Date().toISOString();
-        var result = await sb.from('quotes')
-          .update({
-            status: 'approved', updated_at: now,
-            client_signature: sigData, signed_name: name, signed_at: now,
-            signed_ip: signedIP, signed_user_agent: signedUA,
-            signed_quote_hash: quoteHash, signed_quote_snapshot: quoteSnapshot
+        // Token-gated update via quote-update edge fn (replaces direct PATCH).
+        var ur = await fetch(FN_BASE + '/quote-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: window._quoteId, token: urlToken, action: 'approve',
+            signed_name: name,
+            client_signature: sigData,
+            signed_ip: signedIP,
+            signed_user_agent: signedUA,
+            signed_quote_hash: quoteHash,
+            signed_quote_snapshot: quoteSnapshot
           })
-          .eq('id', window._quoteId);
-        if (result.error) throw result.error;
+        });
+        var ud = await ur.json();
+        if (!ur.ok || !ud || !ud.ok) throw new Error((ud && ud.error) || 'update failed');
 
         var q = window._quoteData || {};
         fetch(QUOTE_NOTIFY_URL, {
@@ -508,11 +520,16 @@
       var btn = el('btn-approve-main');
       if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; btn.className = 'btn btn-disabled'; }
       try {
-        var now = new Date().toISOString();
-        var result = await sb.from('quotes')
-          .update({ status: 'approved', updated_at: now, signed_at: now, signed_user_agent: navigator.userAgent || '' })
-          .eq('id', window._quoteId);
-        if (result.error) throw result.error;
+        var ur = await fetch(FN_BASE + '/quote-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: window._quoteId, token: urlToken, action: 'approve',
+            signed_user_agent: navigator.userAgent || ''
+          })
+        });
+        var ud = await ur.json();
+        if (!ur.ok || !ud || !ud.ok) throw new Error((ud && ud.error) || 'update failed');
         var q = window._quoteData || {};
         fetch(QUOTE_NOTIFY_URL, {
           method: 'POST',
@@ -553,10 +570,15 @@
       if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
 
       try {
-        var result2 = await sb.from('quotes')
-          .update({ status: 'awaiting', client_changes: notes, updated_at: new Date().toISOString() })
-          .eq('id', window._quoteId);
-        if (result2.error) throw result2.error;
+        var ur = await fetch(FN_BASE + '/quote-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: window._quoteId, token: urlToken, action: 'request_changes', changes: notes
+          })
+        });
+        var ud = await ur.json();
+        if (!ur.ok || !ud || !ud.ok) throw new Error((ud && ud.error) || 'update failed');
 
         fetch(QUOTE_NOTIFY_URL, {
           method: 'POST',
@@ -604,11 +626,15 @@
       var btn = document.querySelector('#decline-form .btn-decline');
       if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
       try {
-        var now = new Date().toISOString();
-        var result3 = await sb.from('quotes')
-          .update({ status: 'declined', client_decline_reason: reason, declined_at: now, updated_at: now })
-          .eq('id', window._quoteId);
-        if (result3.error) throw result3.error;
+        var ur = await fetch(FN_BASE + '/quote-update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: window._quoteId, token: urlToken, action: 'decline', reason: reason
+          })
+        });
+        var ud = await ur.json();
+        if (!ur.ok || !ud || !ud.ok) throw new Error((ud && ud.error) || 'update failed');
 
         var q = window._quoteData || {};
         // quote-notify currently rejects 'declined' — fire-and-forget so failure is silent

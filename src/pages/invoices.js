@@ -503,13 +503,23 @@ var InvoicesPage = {
 
   _getPayLink: function(id) {
     var inv = DB.invoices.getById(id);
-    // If ID is a UUID, use it directly; otherwise append invoice_number as fallback
-    var isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUUID || !inv || !inv.invoiceNumber) {
-      return 'https://branchmanager.app/pay.html?id=' + id;
+    if (!inv) return 'https://branchmanager.app/pay.html?id=' + id;
+    // Lazily generate a 32-char payment_token if not present. This token is
+    // required by pay.html (which now POSTs to invoice-fetch edge fn). Old
+    // 16-char tokens are too short — use crypto.randomUUID() twice for
+    // ~128 bits of entropy. Backfill happens once per invoice on first
+    // pay-link generation; subsequent calls reuse the stored token.
+    var token = inv.paymentToken;
+    if (!token || token.length < 24) {
+      var raw = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, '')
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+      token = raw.slice(0, 32);
+      DB.invoices.update(id, { paymentToken: token });
     }
-    // Legacy non-UUID ID: use invoice_number so pay.html can find it
-    return 'https://branchmanager.app/pay.html?id=' + encodeURIComponent(inv.invoiceNumber);
+    var isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    var lookupId = isUUID ? id : (inv.invoiceNumber || id);
+    return 'https://branchmanager.app/pay.html?id=' + encodeURIComponent(lookupId) + '&token=' + token;
   },
 
   _copyPayLink: function(id) {

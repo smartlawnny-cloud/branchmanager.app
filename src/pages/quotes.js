@@ -1961,11 +1961,16 @@ var QuotesPage = {
   },
 
   _getApprovalLink: function(id) {
-    // Generate or retrieve approval token for CSRF protection
+    // Token-gated approval link — required by quote-fetch / quote-update
+    // edge fns. Old code generated 16-char tokens (~64 bits, brute-forceable).
+    // Now: 32-char tokens (~128 bits) and existing too-short tokens get
+    // upgraded transparently on next link generation.
     var q = DB.quotes.getById(id);
     var token = q && q.approvalToken;
-    if (!token) {
-      token = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 16);
+    if (!token || token.length < 24) {
+      token = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, '').slice(0, 32)
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 32);
       DB.quotes.update(id, { approvalToken: token });
     }
     var url = 'https://branchmanager.app/approve.html?id=' + id + '&token=' + token;

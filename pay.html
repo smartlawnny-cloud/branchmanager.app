@@ -160,8 +160,10 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
   var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0cGl2a3FhaHZwbGFweWFnbGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTgxNzIsImV4cCI6MjA4OTY3NDE3Mn0.bQ-wAx4Uu-FyA2ZwsTVfFoU2ZPbeWCmupqV-6ZR9uFI';
 
   var params = new URLSearchParams(window.location.search);
-  var invId  = params.get('id') || params.get('inv');
-  var state  = { invoice: null, tip: 0, tipPct: 0, tenantBaseLink: '' };
+  var invId    = params.get('id') || params.get('inv');
+  var urlToken = params.get('token') || '';
+  var state    = { invoice: null, tip: 0, tipPct: 0, tenantBaseLink: '' };
+  var FN_BASE  = SUPABASE_URL + '/functions/v1';
 
   function fmt(n) {
     n = parseFloat(n) || 0;
@@ -402,18 +404,25 @@ document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middo
       .finally(function() { render(); });
   }
 
-  // Primary: UUID
-  fetch(SUPABASE_URL + '/rest/v1/invoices?id=eq.' + encodeURIComponent(invId) + '&select=*&limit=1', { headers: hdrs })
+  // RLS gateway — was: anon SELECT * exposed every customer's invoice
+  // (PII + balances). Now: POST {id, token} to invoice-fetch which validates
+  // the payment_token via service-role and only returns the row on match.
+  // Token MUST be in URL: pay.html?id=<uuid>&token=<32+chars>
+  if (!urlToken) {
+    document.getElementById('pay-content').innerHTML = '<div class="inv-card"><div class="state-center state-err">'
+      + '<div class="s-icon">🔒</div><h2>Link Missing Token</h2><p>This payment link is incomplete. Please use the link from your invoice email.</p>'
+      + '<p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneTel + '" style="color:#1a3c12;font-weight:700;font-size:16px;">📞 ' + BM_CONFIG.phone + '</a></p>'
+      + '</div></div>';
+    return;
+  }
+  fetch(FN_BASE + '/invoice-fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: invId, token: urlToken })
+  })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (data && data[0]) { state.invoice = data[0]; loadTenantConfig(); return; }
-      // Fallback: invoice_number
-      var num = parseInt(invId);
-      if (!isNaN(num) && num > 0) {
-        return fetch(SUPABASE_URL + '/rest/v1/invoices?invoice_number=eq.' + num + '&select=*&limit=1', { headers: hdrs })
-          .then(function(r2) { return r2.json(); })
-          .then(function(data2) { state.invoice = (data2 && data2[0]) ? data2[0] : null; loadTenantConfig(); });
-      }
+      if (data && data.ok && data.invoice) { state.invoice = data.invoice; loadTenantConfig(); return; }
       state.invoice = null; render();
     })
     .catch(function() { state.invoice = null; render(); });
