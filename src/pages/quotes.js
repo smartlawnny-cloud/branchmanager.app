@@ -12,7 +12,12 @@ var QuotesPage = {
       email: CompanyInfo.get('email'),
       website: CompanyInfo.get('website'),
       licenses: CompanyInfo.get('licenses'),
-      logo: CompanyInfo.get('logo')
+      logo: CompanyInfo.get('logo'),
+      googleReview: CompanyInfo.get('googleReviewUrl'),
+      facebook: CompanyInfo.get('facebookUrl'),
+      instagram: CompanyInfo.get('instagramUrl'),
+      yelp: CompanyInfo.get('yelpUrl'),
+      nextdoor: CompanyInfo.get('nextdoorUrl')
     };
   },
 
@@ -2185,6 +2190,20 @@ var QuotesPage = {
       + '<td align="right" style="font-size:11px;color:#d1d5db;">Licensed &amp; Insured' + (_co.licenses ? ' &nbsp;·&nbsp; ' + esc(_co.licenses) : '') + '</td>'
       + '</tr></table>'
       + '</td></tr>'
+
+      // ── Social + Review bar ───────────────────────────────────────────
+      + (function() {
+          var links = [];
+          if (_co.googleReview) links.push('<a href="' + _co.googleReview + '" style="color:#1a3c12;text-decoration:none;font-weight:700;font-size:12px;white-space:nowrap;">⭐ Leave a Review</a>');
+          if (_co.facebook)     links.push('<a href="' + _co.facebook     + '" style="color:#1877f2;text-decoration:none;font-size:12px;white-space:nowrap;">&#9633; Facebook</a>');
+          if (_co.instagram)    links.push('<a href="' + _co.instagram    + '" style="color:#e1306c;text-decoration:none;font-size:12px;white-space:nowrap;">&#9650; Instagram</a>');
+          if (_co.yelp)         links.push('<a href="' + _co.yelp         + '" style="color:#d32323;text-decoration:none;font-size:12px;white-space:nowrap;">&#9670; Yelp</a>');
+          if (_co.nextdoor)     links.push('<a href="' + _co.nextdoor     + '" style="color:#00b246;text-decoration:none;font-size:12px;white-space:nowrap;">&#9632; Nextdoor</a>');
+          if (!links.length) return '';
+          return '<tr><td style="padding:10px 26px 16px;border-top:1px solid #f3f4f6;text-align:center;">'
+            + links.join('<span style="color:#e5e7eb;margin:0 8px;">|</span>')
+            + '</td></tr>';
+        })()
 
       + '</table>' // main card
       + '</td></tr></table>' // outer wrapper

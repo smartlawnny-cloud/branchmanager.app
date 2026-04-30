@@ -95,10 +95,14 @@ var CompanyInfo = (function() {
     stateAbbr:    { ls: null,             bm: 'stateAbbr' },
     timezone:     { ls: null,             bm: 'timezone' },
     tagline:      { ls: null,             bm: 'tagline' },
-    googleReviewUrl: { ls: null,          bm: 'googleReviewUrl' },
-    taxRate:      { ls: 'bm-tax-rate',    bm: null, def: '8.375' },
-    ownerName:    { ls: null,             bm: 'ownerName' },
-    logo:         { ls: 'bm-co-logo',    bm: 'logoUrl' }
+    googleReviewUrl: { ls: 'bm-co-review',     bm: 'googleReviewUrl' },
+    facebookUrl:     { ls: 'bm-co-facebook',   bm: null },
+    instagramUrl:    { ls: 'bm-co-instagram',  bm: null },
+    yelpUrl:         { ls: 'bm-co-yelp',       bm: null },
+    nextdoorUrl:     { ls: 'bm-co-nextdoor',   bm: null },
+    taxRate:         { ls: 'bm-tax-rate',       bm: null, def: '8.375' },
+    ownerName:       { ls: null,                bm: 'ownerName' },
+    logo:            { ls: 'bm-co-logo',        bm: 'logoUrl' }
   };
 
   return {
