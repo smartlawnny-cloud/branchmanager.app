@@ -18,9 +18,18 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, x-bm-admin' };
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const ADMIN_TOKEN = Deno.env.get('BM_ADMIN_TOKEN') ?? '';
+
+// Constant-time compare so the admin-token check isn't timing-leaky.
+function safeEq(a: string, b: string) {
+  if (!a || !b || a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
 
 // Persist link to tenants.config.stripe_base_link via service role (bypasses
 // RLS). BM runs as anon and can't update tenants directly.

@@ -24,8 +24,17 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const ADMIN_TOKEN    = Deno.env.get('BM_ADMIN_TOKEN') ?? '';
 const TENANT_ID      = '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // Second Nature
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, x-bm-admin' };
+
+// Constant-time compare so admin-token check isn't timing-leaky.
+function safeEq(a: string, b: string) {
+  if (!a || !b || a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
 
 function buildEmail(firstName: string) {
   const text = `Hi ${firstName},
@@ -99,6 +108,17 @@ serve(async (req: Request) => {
   });
 
   try {
+    // Admin gate — was previously gated only on a public "send-it" string. Anyone
+    // with the URL could fire 285+ emails. Now requires an x-bm-admin header that
+    // matches BM_ADMIN_TOKEN secret. Set via:
+    //   supabase secrets set BM_ADMIN_TOKEN=<long-random-string> --project-ref ltpivkqahvplapyagljt
+    if (!ADMIN_TOKEN) {
+      return json(503, { ok: false, error: 'Server misconfigured: BM_ADMIN_TOKEN env var not set' });
+    }
+    if (!safeEq(req.headers.get('x-bm-admin') || '', ADMIN_TOKEN)) {
+      return json(401, { ok: false, error: 'Unauthorized — missing or invalid x-bm-admin header' });
+    }
+
     const body = await req.json().catch(() => ({}));
     const dry  = body?.dry_run !== false;
     const confirmed = body?.confirm === 'send-it';

@@ -17,13 +17,34 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, x-bm-admin' };
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const ADMIN_TOKEN = Deno.env.get('BM_ADMIN_TOKEN') ?? '';
+
+// Constant-time compare so the admin-token check isn't timing-leaky.
+function safeEq(a: string, b: string) {
+  if (!a || !b || a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405, headers: CORS });
+
+  // Admin gate — was previously open. Anyone could PATCH any tenant's stripe_secret_key
+  // to attacker-controlled sk_live_..., redirecting payments. Now requires x-bm-admin
+  // header matching BM_ADMIN_TOKEN secret.
+  if (!ADMIN_TOKEN) {
+    return new Response(JSON.stringify({ ok: false, error: 'Server misconfigured: BM_ADMIN_TOKEN env var not set' }),
+      { status: 503, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  }
+  if (!safeEq(req.headers.get('x-bm-admin') || '', ADMIN_TOKEN)) {
+    return new Response(JSON.stringify({ ok: false, error: 'Unauthorized — missing or invalid x-bm-admin header' }),
+      { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  }
 
   try {
     const { tenantId, secretKey, verify } = await req.json();

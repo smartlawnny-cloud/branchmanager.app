@@ -2316,11 +2316,13 @@ var QuotesPage = {
   },
 
   _confirmSend: function(id) {
-    var channel = (document.getElementById('send-channel') || {}).value || 'email';
-    var to      = (document.getElementById('send-to')      || {}).value || '';
-    var phone   = (document.getElementById('send-phone')   || {}).value || '';
-    var subject = (document.getElementById('send-subject') || {}).value || '';
-    var body    = (document.getElementById('send-body')    || {}).value || '';
+    var channel = ((document.getElementById('send-channel') || {}).value || 'email');
+    // .trim() is critical — Email._isValidEmail rejects on any whitespace, and a
+    // trailing space silently caused the v531 "Failed to send" regression.
+    var to      = ((document.getElementById('send-to')      || {}).value || '').trim();
+    var phone   = ((document.getElementById('send-phone')   || {}).value || '').trim();
+    var subject = ((document.getElementById('send-subject') || {}).value || '');
+    var body    = ((document.getElementById('send-body')    || {}).value || '');
     var q = DB.quotes.getById(id);
     if (!q) return;
 
@@ -2338,13 +2340,17 @@ var QuotesPage = {
 
     if (doEmail && typeof Email !== 'undefined') {
       var htmlBody = QuotesPage._buildEmailHtml(id);
+      // silent:true suppresses Email.send's own toasts so we can show one
+      // aggregate toast — but we capture r.hint / r.error so the aggregate
+      // toast reports the REAL reason (Resend 422, rate limit, bad sender, etc.)
+      // rather than a generic "Failed to send".
       jobs.push(Email.send(to, subject, body, { htmlBody: htmlBody, silent: true })
         .then(function(r) {
           var ok = r && (r.success || r.ok);
           if (ok) sentVia.push('email');
-          return { kind: 'email', ok: ok, error: r && r.error };
+          return { kind: 'email', ok: ok, status: r && r.status, hint: r && (r.hint || r.error) };
         })
-        .catch(function(e) { return { kind: 'email', ok: false, error: e && e.message }; }));
+        .catch(function(e) { return { kind: 'email', ok: false, hint: 'exception: ' + (e && e.message) }; }));
     }
 
     if (doSms && typeof Dialpad !== 'undefined') {
@@ -2354,19 +2360,25 @@ var QuotesPage = {
           // sendSMS returns { success, method } — counts sms_app fallback as ok too
           var ok = r && (r.success || r.method === 'sms_app');
           if (ok) sentVia.push('text');
-          return { kind: 'sms', ok: ok, error: r && r.error };
+          return { kind: 'sms', ok: ok, hint: r && (r.error || r.hint) };
         })
-        .catch(function(e) { return { kind: 'sms', ok: false, error: e && e.message }; }));
+        .catch(function(e) { return { kind: 'sms', ok: false, hint: 'exception: ' + (e && e.message) }; }));
     }
 
     Promise.all(jobs).then(function(results) {
       var failed = results.filter(function(r) { return !r.ok; });
+      var failBlurb = failed.map(function(r) {
+        return r.kind + (r.status ? ' ' + r.status : '') + (r.hint ? ': ' + r.hint : '');
+      }).join(' · ');
+
       if (!failed.length && sentVia.length) {
         UI.toast(QuotesPage._term(true) + ' sent via ' + sentVia.join(' + ') + ' ✓');
       } else if (sentVia.length) {
-        UI.toast(QuotesPage._term(true) + ' partly sent (' + sentVia.join(', ') + ') — ' + failed.length + ' failed', 'warning');
+        UI.toast(QuotesPage._term(true) + ' partly sent (' + sentVia.join(', ') + ') — ' + failBlurb, 'warning');
       } else {
-        UI.toast('Failed to send', 'error');
+        // Surface the real reason. Was previously a generic "Failed to send".
+        UI.toast('Send failed — ' + (failBlurb || 'no channel succeeded'), 'error');
+        console.warn('[Quote send] all channels failed:', results);
       }
 
       // Mark as sent only when at least one channel succeeded
