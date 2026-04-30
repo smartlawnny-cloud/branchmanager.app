@@ -227,6 +227,55 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── Doug-alert email on every inbound ────────────────────────────────
+  // Doug previously had zero notification when calls/SMS came in. Fires a
+  // Resend email to info@peekskilltree.com summarizing the inbound + linking
+  // to BM. Cheap (~free at this volume), works even when BM is closed.
+  // SMS alert via Dialpad outbound is deferred until DIALPAD_API_TOKEN is set.
+  try {
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+    if (RESEND_API_KEY) {
+      const labelMap: Record<string, string> = {
+        call: row.status === "missed" || row.status === "no_answer" ? "📵 Missed call" : "📞 Inbound call",
+        voicemail: "📭 Voicemail",
+        sms: "💬 SMS received",
+        email: "✉️ Email",
+      };
+      const label = labelMap[row.channel] || "📞 Inbound";
+      const callerName = data.from_name || data.contact_name || data.caller_name || row.from_number || "Unknown";
+      const phoneFmt = row.from_number ? row.from_number.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3") : "";
+      const bodyLine = (row.body || "").slice(0, 280);
+      const subject = `${label} — ${callerName}${phoneFmt ? " · " + phoneFmt : ""}`;
+      const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;">
+  <div style="background:#1a3c12;color:#fff;padding:18px 22px;border-radius:10px 10px 0 0;">
+    <div style="font-size:16px;font-weight:700;">${label}</div>
+    <div style="font-size:13px;opacity:.85;margin-top:2px;">${callerName}${phoneFmt ? " · " + phoneFmt : ""}</div>
+  </div>
+  <div style="background:#fff;padding:20px 22px;border:1px solid #e8e8e8;border-radius:0 0 10px 10px;font-size:14px;line-height:1.5;color:#333;">
+    ${bodyLine ? `<p style="background:#f8faf8;border-left:3px solid #1a3c12;padding:10px 14px;border-radius:0 8px 8px 0;margin:0 0 14px;white-space:pre-wrap;">${bodyLine.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>` : ""}
+    <p style="margin:0 0 6px;color:#666;font-size:12px;">${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}</p>
+    <a href="https://branchmanager.app/" style="display:inline-block;background:#1a3c12;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;margin-top:8px;">Open Branch Manager</a>
+  </div>
+</div>`;
+      const text = `${label}\n${callerName}${phoneFmt ? " · " + phoneFmt : ""}\n\n${bodyLine}\n\nOpen BM: https://branchmanager.app/`;
+      // Fire-and-forget so a Resend hiccup doesn't 500 the webhook (Dialpad would retry).
+      fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: Deno.env.get("RESEND_FROM_EMAIL") ?? "Second Nature Tree <onboarding@resend.dev>",
+          to: ["info@peekskilltree.com"],
+          subject,
+          text,
+          html,
+          reply_to: "info@peekskilltree.com",
+        }),
+      }).catch((e) => console.warn("doug-alert email failed:", e));
+    }
+  } catch (e) {
+    console.warn("doug-alert wrap failed:", e);
+  }
+
   return new Response(JSON.stringify({ ok: true, matched_client: !!row.client_id, request_id: requestId }), {
     headers: { "content-type": "application/json" },
   });

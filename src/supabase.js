@@ -417,11 +417,84 @@ var SupabaseDB = {
         });
       });
 
+      // Communications inbound notifier — was missing from the Realtime
+      // subscription, so Doug had no idea when Dialpad fired a webhook for
+      // an inbound call/SMS. Fires a browser Notification (if granted) +
+      // toast + 880Hz beep on every INSERT where direction='inbound'.
+      ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'communications' }, function(payload) {
+        var c = payload && payload.new;
+        if (!c || c.direction !== 'inbound') return;
+        SupabaseDB._notifyInboundComm(c);
+      });
+
       ch.subscribe(function(status) {
         if (SupabaseDB._debug) console.debug('[Realtime] channel status:', status);
       });
       SupabaseDB._realtimeChannel = ch;
     } catch (e) { console.warn('[Realtime] failed to subscribe:', e); }
+  },
+
+  // Inbound-comm notifier — called by the communications Realtime subscription.
+  // Fires a browser Notification (if granted), a toast, and a short beep.
+  // Asks for permission once per session if it's still 'default'.
+  _notifyInboundComm: function(c) {
+    try {
+      var labelMap = {
+        call: (c.status === 'missed' || c.status === 'no_answer') ? '📵 Missed call' : '📞 Inbound call',
+        voicemail: '📭 Voicemail',
+        sms: '💬 SMS received',
+        email: '✉️ Email'
+      };
+      var label = labelMap[c.channel] || '📞 Inbound';
+      var name = c.from_number || 'Unknown';
+      if (c.from_number) {
+        var d = c.from_number.replace(/\D/g, '');
+        if (d.length === 11 && d[0] === '1') d = d.slice(1);
+        if (d.length === 10) name = '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+      }
+      var preview = (c.body || '').slice(0, 120);
+
+      // 1. Browser Notification API (works even when tab is in background)
+      if ('Notification' in window) {
+        if (Notification.permission === 'default') {
+          Notification.requestPermission().catch(function() {});
+        }
+        if (Notification.permission === 'granted') {
+          try {
+            var n = new Notification(label + ' — ' + name, {
+              body: preview || 'Tap to open Branch Manager',
+              icon: '/icons/icon-192.png',
+              tag: 'bm-inbound-' + c.id,
+              requireInteraction: c.channel === 'voicemail'
+            });
+            n.onclick = function() { window.focus(); if (typeof loadPage === 'function') loadPage('callcenter'); n.close(); };
+          } catch (e) { /* some browsers throw on missing icon — ignore */ }
+        }
+      }
+
+      // 2. In-app toast (works whether or not Notification permission granted)
+      if (typeof UI !== 'undefined' && UI.toast) {
+        UI.toast(label + ' from ' + name, 'info');
+      }
+
+      // 3. Short beep (880Hz, 200ms) so it's audible. Web Audio is unmuted by
+      // default; iOS Capacitor respects silent switch which is fine.
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) {
+          var ac = new Ctx();
+          var osc = ac.createOscillator();
+          var gain = ac.createGain();
+          osc.frequency.value = 880;
+          osc.connect(gain); gain.connect(ac.destination);
+          gain.gain.setValueAtTime(0.001, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.18, ac.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.18);
+          osc.start(); osc.stop(ac.currentTime + 0.2);
+          setTimeout(function() { try { ac.close(); } catch(e){} }, 300);
+        }
+      } catch (e) { /* no audio context — silent is fine */ }
+    } catch (e) { console.warn('[Realtime] notify failed:', e); }
   },
 
   _checkNewPayments: async function() {
