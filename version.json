@@ -1,5 +1,5 @@
 {
-  "version": 546,
+  "version": 547,
   "released": "2026-04-30",
-  "notes": "customer portal: Profile tab + portal-update edge fn"
+  "notes": "fix orphaned AI-tree items handoff: videoquote + aitreeid → quote form"
 }

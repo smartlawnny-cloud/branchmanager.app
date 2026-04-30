@@ -584,12 +584,20 @@ var VideoQuote = {
       });
     }
 
-    // Store items for quote form to pick up (same format as AI Tree ID)
+    // Store items for the quote form to pick up. Both videoquote and aitreeid
+    // write here; QuotesPage.showForm reads + clears it (added v547).
     localStorage.setItem('bm-ai-pending-items', JSON.stringify(items));
-    UI.toast(items.length + ' items ready! Go to Quotes to create a new quote.', 'success');
+    UI.toast(items.length + ' tree' + (items.length === 1 ? '' : 's') + ' detected — opening quote', 'success');
 
+    // Open the new-quote form directly so the shim consumes the items.
+    // Old behavior loaded the quotes LIST, leaving the items orphaned in
+    // localStorage and forcing the user to manually click "+ New Quote".
     setTimeout(function() {
-      loadPage('quotes');
+      if (typeof QuotesPage !== 'undefined' && QuotesPage.showForm) {
+        QuotesPage.showForm(null, null);
+      } else {
+        loadPage('quotes');
+      }
     }, 800);
   },
 

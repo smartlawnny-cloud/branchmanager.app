@@ -378,6 +378,29 @@ var QuotesPage = {
       if (voiceDraft.notes) q.internalNotes = voiceDraft.notes;
       UI.toast('🎙️ AI draft loaded — review & adjust before sending');
     }
+
+    // Check for AI-Tree-ID / Video-Walkthrough pending items (different writers,
+    // same handoff target). Both videoquote.js and aitreeid.js stash here when
+    // the user taps "+ Add to New Quote" or "Create Quote" — pre-this-fix the
+    // items were orphaned because nothing read this key into the form.
+    var aiItems = null;
+    try { aiItems = JSON.parse(localStorage.getItem('bm-ai-pending-items') || 'null'); } catch(e) {}
+    if (aiItems && Array.isArray(aiItems) && aiItems.length && !quoteId) {
+      var existing = items || [];
+      // Drop the placeholder default item ("Tree Removal") if it's the only thing
+      var hasOnlyDefault = existing.length === 1 && existing[0] && (existing[0].service === 'Tree Removal' || existing[0].service === 'Custom');
+      var base = hasOnlyDefault ? [] : existing.slice();
+      items = base.concat(aiItems.map(function(li) {
+        return {
+          service: li.service || 'Tree Service',
+          description: li.description || '',
+          qty: li.qty != null ? li.qty : 1,
+          rate: li.rate != null ? li.rate : 0
+        };
+      }));
+      try { localStorage.removeItem('bm-ai-pending-items'); } catch(e) {}
+      UI.toast('🌳 ' + aiItems.length + ' AI-detected tree' + (aiItems.length === 1 ? '' : 's') + ' added — review & adjust before sending');
+    }
     var services = DB.services.getAll();
 
     // Get clients synchronously from localStorage
