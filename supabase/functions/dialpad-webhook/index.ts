@@ -190,6 +190,124 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── Inbound SMS auto-routing: detect quote-related replies from known clients.
+  // For YES/NO/RESCHEDULE on a client who has a recent quote-sent SMS + an open
+  // quote, create a structured task in the `tasks` table so Doug sees it on
+  // every device (cloud-synced via v538). Does NOT auto-flip quote status —
+  // Doug taps the task to confirm. Preserves human control on a fuzzy match.
+  if (row.channel === "sms" && row.direction === "inbound" && row.client_id) {
+    try {
+      const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5";
+      const clean = (row.body || "").trim().toUpperCase();
+      let action: "approve" | "decline" | "reschedule" | null = null;
+
+      // Only act on short plain replies — anything > 30 chars is probably a real message
+      if (clean.length > 0 && clean.length <= 30) {
+        if (/^(YES|YEP|YEAH|YS|CONFIRM(ED)?|APPROVE(D)?|OK(AY)?|GOOD|SOUNDS GOOD|LETS GO|LET'S GO|GO AHEAD|DO IT|👍|✅|YES PLEASE)\b/.test(clean)) {
+          action = "approve";
+        } else if (/^(NO|NOPE|NAH|DECLINE(D)?|REJECT(ED)?|NOT INTERESTED|PASS|👎|❌)\b/.test(clean)) {
+          action = "decline";
+        } else if (/^(RESCHEDULE|MOVE|CHANGE|DIFFERENT (DAY|TIME|DATE)|ANOTHER (DAY|TIME|DATE)|POSTPONE|DELAY)\b/.test(clean)) {
+          action = "reschedule";
+        }
+      }
+
+      if (action) {
+        // Look up client name + most recent quote
+        const { data: clientRow } = await sb
+          .from("clients")
+          .select("id, name")
+          .eq("id", row.client_id)
+          .limit(1)
+          .single();
+        const clientName = clientRow?.name || "Client";
+
+        let quoteId: string | null = null;
+        let quoteNumber: string | null = null;
+        if (action === "approve" || action === "decline") {
+          // Find the most recent open quote for this client
+          const { data: quotes } = await sb
+            .from("quotes")
+            .select("id, quote_number, status")
+            .eq("client_id", row.client_id)
+            .in("status", ["sent", "draft", "viewed", "pending"])
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (quotes && quotes.length) {
+            quoteId = quotes[0].id;
+            quoteNumber = quotes[0].quote_number;
+          }
+        }
+
+        // Build a deterministic task id so re-fires (Dialpad redelivery, dupe SMS)
+        // don't create N tasks. Re-firing just upserts the same row.
+        const taskId = `task_smsreply_${row.client_id}_${action}_${(row.dialpad_id || row.id).slice(-8)}`;
+
+        let title = "";
+        let description = "";
+        let actionLink: string | null = null;
+        let category = "sales";
+        if (action === "approve") {
+          title = quoteNumber
+            ? `${clientName} confirmed Quote #${quoteNumber} via SMS`
+            : `${clientName} sent approval via SMS — find their quote`;
+          description = `${clientName} replied "${row.body}" to a recent SMS. ${quoteId ? "Tap to verify and accept the quote." : "No open quote found — verify manually."}`;
+          actionLink = quoteId ? `quotes/${quoteId}` : "messaging";
+        } else if (action === "decline") {
+          title = quoteNumber
+            ? `${clientName} declined Quote #${quoteNumber} via SMS`
+            : `${clientName} sent decline via SMS — find their quote`;
+          description = `${clientName} replied "${row.body}" to a recent SMS. ${quoteId ? "Tap to verify and decline the quote." : "No open quote found — verify manually."}`;
+          actionLink = quoteId ? `quotes/${quoteId}` : "messaging";
+        } else if (action === "reschedule") {
+          title = `${clientName} wants to reschedule — call them`;
+          description = `${clientName} replied "${row.body}". Tap to open the messaging thread.`;
+          actionLink = "messaging";
+          category = "sales";
+        }
+
+        const taskRow = {
+          id: taskId,
+          tenant_id: TENANT_ID,
+          title,
+          description,
+          assigned_to: null,
+          due_date: null,
+          priority: "high",
+          category,
+          recurrence: "none",
+          action_link: actionLink,
+          completed: false,
+          completed_at: null,
+          notified: false,
+          archived: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error: taskErr } = await sb.from("tasks").upsert(taskRow, { onConflict: "id" });
+        if (taskErr) {
+          console.warn("smsreply task upsert failed:", taskErr.message);
+        } else {
+          // Stamp the comm row with the action so the messaging UI can show a chip later
+          await sb
+            .from("communications")
+            .update({
+              metadata: Object.assign({}, row.metadata || {}, {
+                suggested_action: action,
+                suggested_quote_id: quoteId,
+                suggested_quote_number: quoteNumber,
+                task_id: taskId,
+              }),
+            })
+            .eq("dialpad_id", row.dialpad_id);
+        }
+      }
+    } catch (e) {
+      console.warn("smsreply auto-route failed:", e);
+    }
+  }
+
   // ── Auto-create a BM request for inbound voicemails or missed inbound calls.
   // This surfaces phone leads in the Requests page without manual entry.
   let requestId: string | null = null;
