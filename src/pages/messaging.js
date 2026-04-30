@@ -204,6 +204,7 @@ var MessagingPage = {
             + '<div style="max-width:75%;padding:10px 14px;border-radius:' + (isOutbound ? '16px 16px 4px 16px' : '16px 16px 16px 4px') + ';background:' + (isOutbound ? 'var(--green-dark)' : 'var(--bg)') + ';color:' + (isOutbound ? '#fff' : 'var(--text)') + ';font-size:14px;">'
             + '<div>' + (icons[m.type] || '') + ' ' + (m.notes || '') + '</div>'
             + '<div style="font-size:10px;opacity:.6;margin-top:4px;text-align:right;">' + UI.dateRelative(m.date) + ' · ' + m.type + '</div>'
+            + MessagingPage._renderActionChip(m)
             + '</div></div>';
         });
       } else {
@@ -445,6 +446,107 @@ var MessagingPage = {
       var name = el.innerText.toLowerCase();
       el.style.display = name.includes(q) ? '' : 'none';
     });
+  },
+
+  // Render an inline action chip on inbound SMS bubbles whose communications row
+  // has metadata.suggested_action set (stamped by the dialpad-webhook quote-reply
+  // detection). Tapping the chip flips the quote status without leaving the
+  // thread. Reschedule chips just open the requests page.
+  _renderActionChip: function(m) {
+    var meta = m && m.metadata;
+    if (!meta || !meta.suggested_action) return '';
+    if (m.direction !== 'inbound') return '';
+    var action = meta.suggested_action;
+    var qid = meta.suggested_quote_id || '';
+    var qnum = meta.suggested_quote_number || '';
+    var label = '';
+    var bg = '#fff';
+    var color = '#333';
+    if (action === 'approve') {
+      label = qnum ? '✅ Mark Quote #' + qnum + ' Accepted' : '✅ Find quote & accept';
+      bg = '#e8f5e9'; color = '#1b5e20';
+    } else if (action === 'decline') {
+      label = qnum ? '❌ Mark Quote #' + qnum + ' Declined' : '❌ Find quote & decline';
+      bg = '#ffebee'; color = '#b71c1c';
+    } else if (action === 'reschedule') {
+      label = '📅 Open scheduling';
+      bg = '#fff3e0'; color = '#e65100';
+    } else {
+      return '';
+    }
+    return '<button onclick="MessagingPage._applyAction(\'' + (m.id || '').replace(/[^a-zA-Z0-9-]/g,'') + '\',\'' + action + '\',\'' + qid + '\')" '
+      + 'style="margin-top:8px;background:' + bg + ';color:' + color + ';border:1px solid ' + color + ';border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;width:100%;">'
+      + label + '</button>';
+  },
+
+  _applyAction: function(commId, action, quoteId) {
+    if (action === 'approve' || action === 'decline') {
+      if (!quoteId) {
+        UI.toast('No quote linked — open the quote manually', 'error');
+        loadPage('quotes');
+        return;
+      }
+      var newStatus = action === 'approve' ? 'accepted' : 'declined';
+      try {
+        DB.quotes.update(quoteId, { status: newStatus, statusUpdatedAt: new Date().toISOString() });
+      } catch (e) { console.warn('local quote update failed', e); }
+      // Push to cloud explicitly (CloudSync wrap may or may not catch this path)
+      if (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) {
+        SupabaseDB.client.from('quotes').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', quoteId)
+          .then(function(res) { if (res.error) console.warn('cloud quote update failed:', res.error.message); });
+      }
+      UI.toast('Quote marked ' + newStatus);
+    } else if (action === 'reschedule') {
+      loadPage('requests');
+      return;
+    }
+
+    // Mark linked task complete + clear the suggested_action stamp so the chip disappears
+    if (typeof SupabaseDB !== 'undefined' && SupabaseDB.client && commId) {
+      // The webhook stamped task_id into metadata.task_id — use that to complete
+      // the corresponding task. Best-effort: even without task_id we still flip the quote.
+      var meta = null;
+      try {
+        var key = MessagingPage._selected;
+        if (key && key.indexOf('phone:') !== 0) {
+          var cache = (window._bmCommsCache && window._bmCommsCache[key]) || [];
+          var match = cache.find(function(c) { return c.id === commId; });
+          if (match) meta = match.metadata;
+        }
+      } catch(e) {}
+
+      if (meta && meta.task_id) {
+        SupabaseDB.client.from('tasks')
+          .update({ completed: true, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', meta.task_id)
+          .then(function() { /* refresh local cache too */
+            try {
+              var local = JSON.parse(localStorage.getItem('bm-tasks') || '[]');
+              for (var i = 0; i < local.length; i++) {
+                if (local[i].id === meta.task_id) {
+                  local[i].completed = true;
+                  local[i].completedAt = new Date().toISOString();
+                  local[i].updatedAt = new Date().toISOString();
+                  break;
+                }
+              }
+              localStorage.setItem('bm-tasks', JSON.stringify(local));
+            } catch (e) {}
+          });
+      }
+
+      // Clear the suggested_action so the chip doesn't reappear after refresh
+      SupabaseDB.client.from('communications')
+        .update({ metadata: Object.assign({}, meta || {}, { suggested_action: null, applied_at: new Date().toISOString(), applied_action: action }) })
+        .eq('id', commId)
+        .then(function() {
+          if (window._bmCommsCache) {
+            // Bust caches so next render reflects the cleared chip
+            Object.keys(window._bmCommsCache).forEach(function(k) { delete window._bmCommsCache[k]; });
+          }
+          if (window._currentPage === 'messaging') loadPage('messaging');
+        });
+    }
   },
 
   // Re-render just the pill buttons when type changes (avoids full page reload)

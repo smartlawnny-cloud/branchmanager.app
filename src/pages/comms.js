@@ -128,7 +128,8 @@ var CommsLog = {
           notes: r.body || (r.channel === 'call' ? '(' + (r.status || 'call') + (r.duration_seconds ? ', ' + r.duration_seconds + 's' : '') + ')' : ''),
           date: r.created_at,
           user: 'Dialpad',
-          source: 'dialpad'
+          source: 'dialpad',
+          metadata: r.metadata || null
         };
       });
     });
