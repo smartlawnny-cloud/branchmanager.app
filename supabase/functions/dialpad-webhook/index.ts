@@ -52,27 +52,66 @@ async function findClientByPhone(phone: string): Promise<string | null> {
   return data && data.length ? data[0].id : null;
 }
 
+// Decode + verify a Dialpad webhook JWT (HS256). Returns the decoded payload
+// or null if the body isn't a JWT or the signature fails. When WEBHOOK_SECRET
+// is empty, signature isn't checked but the JWT is still decoded so we can
+// pull the event payload from its claims.
+async function decodeDialpadJwt(token: string): Promise<unknown | null> {
+  const parts = token.trim().split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+  try {
+    const decode = (s: string) => {
+      const padded = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - s.length % 4) % 4);
+      return atob(padded);
+    };
+    const decoded = JSON.parse(decode(payloadB64));
+
+    if (WEBHOOK_SECRET) {
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(WEBHOOK_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["verify"],
+      );
+      const sigBytes = Uint8Array.from(decode(sigB64), (c) => c.charCodeAt(0));
+      const ok = await crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(`${headerB64}.${payloadB64}`));
+      if (!ok) {
+        console.warn("Dialpad webhook JWT signature mismatch — rejecting");
+        return null;
+      }
+    }
+    return decoded;
+  } catch (e) {
+    console.warn("Dialpad webhook JWT decode failed:", e);
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Shared-secret check. Was using .includes() which let any header with the
-  // secret embedded ("prefix-SECRET-suffix") pass auth — exact match now.
-  // Strip "Bearer " prefix on Authorization header before comparing.
-  if (WEBHOOK_SECRET) {
-    const raw = req.headers.get("x-dialpad-signature") || req.headers.get("authorization") || "";
-    const got = raw.replace(/^Bearer\s+/i, "").trim();
-    if (got !== WEBHOOK_SECRET) {
-      return new Response("Unauthorized", { status: 401 });
+  // Read body as text first — Dialpad sends either a signed JWT (when the
+  // webhook has a secret on its side) or plain JSON (no secret). Auto-detect.
+  const rawBody = await req.text();
+  let payload: any = null;
+  if (rawBody.trim().startsWith("{")) {
+    // Plain JSON path (unsigned webhook). If WEBHOOK_SECRET is set, refuse —
+    // Dialpad should always send signed JWT in that mode, so unsigned JSON =
+    // spoof attempt.
+    if (WEBHOOK_SECRET) {
+      return new Response("Signed payload required", { status: 401 });
     }
-  }
-
-  let payload: any;
-  try {
-    payload = await req.json();
-  } catch {
-    return new Response("Bad JSON", { status: 400 });
+    try { payload = JSON.parse(rawBody); }
+    catch { return new Response("Bad JSON", { status: 400 }); }
+  } else {
+    // Signed JWT path
+    payload = await decodeDialpadJwt(rawBody);
+    if (!payload) return new Response("Invalid signed payload", { status: 401 });
   }
 
   const event: string = payload.event_type || payload.event || "unknown";
