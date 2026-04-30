@@ -1,9 +1,10 @@
 // Supabase Edge Function — Marketing Automation
 //
 // Triggers:
-//   1. Review request email  — 24h+ after job marked completed
-//   2. Quote follow-up email — 7 days after quote sent with no response
-//   3. Upsell email          — 30 days after invoice paid
+//   1. Review request email      — 24h+ after job marked completed
+//   2. Quote follow-up email     — 7 days after quote sent with no response
+//   3. Upsell email              — 30 days after invoice paid
+//   4. Appointment reminder email — day before scheduled job (1–2 days out)
 //
 // Each trigger is idempotent: checks communications table before sending.
 // Wide time windows + alreadySent() dedup = cron can skip runs without missing records.
@@ -39,6 +40,7 @@ const COMPANY_ADDRESS     = "Second Nature Tree LLC · 1 Highland Industrial Par
 const REVIEW_ENABLED         = Deno.env.get("AUTOMATION_REVIEW")         !== "false";
 const QUOTE_FOLLOWUP_ENABLED = Deno.env.get("AUTOMATION_QUOTE_FOLLOWUP") !== "false";
 const UPSELL_ENABLED         = Deno.env.get("AUTOMATION_UPSELL")         !== "false";
+const APPT_REMINDER_ENABLED  = Deno.env.get("AUTOMATION_APPT_REMINDER")  !== "false";
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -306,6 +308,79 @@ async function runUpsells(): Promise<{ sent: number; skipped: number }> {
   return { sent, skipped };
 }
 
+// ─── Trigger 4: Appointment reminder (16–52h before scheduled job) ───────────
+// Customer gets a friendly day-before reminder. Wide window catches missed cron
+// runs without ever sending two reminders for the same job.
+
+async function runApptReminders(): Promise<{ sent: number; skipped: number }> {
+  if (!APPT_REMINDER_ENABLED) return { sent: 0, skipped: 0 };
+
+  const now    = new Date();
+  // Looking for jobs scheduled 16–52h from NOW: catches "tomorrow morning"
+  // and "two-days-out afternoon" both, with overlap so a missed 4h cron run
+  // doesn't drop anyone.
+  const earliest = new Date(now.getTime() + 16 * 3600_000).toISOString();
+  const latest   = new Date(now.getTime() + 52 * 3600_000).toISOString();
+
+  const { data: jobs, error } = await sb
+    .from("jobs")
+    .select("id, client_id, client_name, job_number, description, scheduled_date, property, crew, total")
+    .eq("tenant_id", TENANT_ID)
+    .eq("status", "scheduled")
+    .gte("scheduled_date", earliest)
+    .lte("scheduled_date", latest);
+
+  if (error) { console.error("appt-reminder jobs query error:", error.message); return { sent: 0, skipped: 0 }; }
+  if (!jobs || jobs.length === 0) return { sent: 0, skipped: 0 };
+
+  let sent = 0, skipped = 0;
+
+  for (const job of jobs) {
+    try {
+      if (await alreadySent("appt_reminder", job.id)) { skipped++; continue; }
+
+      let email = "";
+      let firstName = (job.client_name || "").split(" ")[0] || "there";
+      if (job.client_id) {
+        const { data: cl } = await sb.from("clients").select("email, name").eq("id", job.client_id).eq("tenant_id", TENANT_ID).single();
+        if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
+      }
+      if (!email) { skipped++; continue; }
+
+      // Format scheduled_date in Eastern time
+      const scheduled = new Date(job.scheduled_date as string);
+      const dayName   = scheduled.toLocaleDateString("en-US", { weekday: "long",  timeZone: "America/New_York" });
+      const dateStr   = scheduled.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "America/New_York" });
+      const timeStr   = scheduled.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York", hour12: true });
+
+      const subject = `Reminder: We're coming ${dayName}`;
+      const body =
+        `Hi ${firstName},\n\n` +
+        `Quick reminder — ${COMPANY_NAME} is scheduled to arrive at your property on ${dayName}, ${dateStr} around ${timeStr}.\n\n` +
+        (job.property    ? `Address: ${job.property}\n` : "") +
+        (job.description ? `Scope: ${job.description}\n\n` : "\n") +
+        `A few quick things to make the day go smoothly:\n` +
+        `• Please move any vehicles, lawn furniture, or kids' toys away from the work area before we arrive.\n` +
+        `• Make sure pets are inside while the crew is on site (chainsaws scare them).\n` +
+        `• If anything has changed or you need to reschedule, just reply to this email or call ${COMPANY_PHONE}.\n\n` +
+        `See you soon!\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
+
+      const ok = await sendEmail(email, subject, emailHtml(body, email));
+      if (ok) {
+        await logSend(job.client_id, "appt_reminder", job.id, email, subject);
+        sent++;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("appt-reminder iteration failed for job", job.id, msg);
+      try { await logSend(job.client_id || null, "appt_reminder", job.id, "", "appt reminder failed", "failed", msg); } catch (_) {}
+      skipped++;
+    }
+  }
+
+  return { sent, skipped };
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -314,19 +389,21 @@ Deno.serve(async (req) => {
   const startMs = Date.now();
   console.log("marketing-automation: starting run at", new Date().toISOString());
 
-  const [review, followup, upsell] = await Promise.all([
+  const [review, followup, upsell, apptReminder] = await Promise.all([
     runReviewRequests(),
     runQuoteFollowups(),
     runUpsells(),
+    runApptReminders(),
   ]);
 
   const result = {
-    ran_at:          new Date().toISOString(),
-    duration_ms:     Date.now() - startMs,
-    review_requests: review,
-    quote_followups: followup,
-    upsells:         upsell,
-    total_sent:      review.sent + followup.sent + upsell.sent,
+    ran_at:           new Date().toISOString(),
+    duration_ms:      Date.now() - startMs,
+    review_requests:  review,
+    quote_followups:  followup,
+    upsells:          upsell,
+    appt_reminders:   apptReminder,
+    total_sent:       review.sent + followup.sent + upsell.sent + apptReminder.sent,
   };
 
   console.log("marketing-automation: done", JSON.stringify(result));
