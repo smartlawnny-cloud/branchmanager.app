@@ -48,21 +48,61 @@ Deno.serve(async (req) => {
 
   const cid = session.client_id;
 
-  // Fetch all client data in parallel
-  const [clientRes, invoicesRes, quotesRes, jobsRes, photosRes] = await Promise.all([
+  // Fetch all client data in parallel. Schema-correct as of v538:
+  //   invoices.invoice_number (not "number"), quotes.quote_number, quotes.expires_at
+  //   (not "valid_until"), jobs has no "title" (use description), jobs.completed_at
+  //   (not "completed_date"). photos table is generic record_type/record_id linked
+  //   not directly client_id — fetch via the client's job ids instead.
+  const [clientRes, invoicesRes, quotesRes, jobsRes] = await Promise.all([
     sb.from("clients").select("id,name,email,phone,address,city,state,zip,notes").eq("id", cid).maybeSingle(),
-    sb.from("invoices").select("id,number,total,balance,status,due_date,created_at,description,line_items").eq("client_id", cid).order("created_at", { ascending: false }).limit(50),
-    sb.from("quotes").select("id,number,total,status,created_at,description,line_items,valid_until").eq("client_id", cid).order("created_at", { ascending: false }).limit(30),
-    sb.from("jobs").select("id,title,status,scheduled_date,completed_date,description,notes,crew").eq("client_id", cid).order("scheduled_date", { ascending: false }).limit(30),
-    sb.from("photos").select("id,url,caption,job_id,created_at,before_after").eq("client_id", cid).order("created_at", { ascending: false }).limit(40),
+    sb.from("invoices").select("id,invoice_number,total,balance,amount_paid,status,due_date,created_at,description,line_items").eq("client_id", cid).order("created_at", { ascending: false }).limit(50),
+    sb.from("quotes").select("id,quote_number,total,status,created_at,description,line_items,expires_at,signed_at").eq("client_id", cid).order("created_at", { ascending: false }).limit(30),
+    sb.from("jobs").select("id,job_number,status,scheduled_date,completed_at,description,notes,crew").eq("client_id", cid).order("scheduled_date", { ascending: false }).limit(30),
   ]);
+
+  // Photos are stored generically with record_type+record_id pointing at any
+  // jobs/quotes/clients row. Fetch all photos linked to this client's jobs +
+  // the client record itself in one query.
+  const jobIds = (jobsRes.data || []).map((j: { id: string }) => j.id);
+  const photoIds = jobIds.length ? jobIds.concat([cid]) : [cid];
+  const photosRes = await sb
+    .from("photos")
+    .select("id,url,name,label,record_type,record_id,taken_at,created_at")
+    .in("record_id", photoIds)
+    .in("record_type", ["job", "client", "quote"])
+    .order("created_at", { ascending: false })
+    .limit(80);
+
+  // Re-shape to the field names the portal.html dashboard already expects
+  // (number, valid_until, title, completed_date, caption, job_id, before_after)
+  // so we don't have to ship a synchronized portal.html change too.
+  const invoices = (invoicesRes.data || []).map((r: Record<string, unknown>) => ({
+    ...r,
+    number: r.invoice_number,
+  }));
+  const quotes = (quotesRes.data || []).map((r: Record<string, unknown>) => ({
+    ...r,
+    number: r.quote_number,
+    valid_until: r.expires_at,
+  }));
+  const jobs = (jobsRes.data || []).map((r: Record<string, unknown>) => ({
+    ...r,
+    title: r.description || ("Job #" + r.job_number),
+    completed_date: r.completed_at,
+  }));
+  const photos = (photosRes.data || []).map((r: Record<string, unknown>) => ({
+    ...r,
+    caption: r.label || r.name || "",
+    job_id: r.record_type === "job" ? r.record_id : null,
+    before_after: typeof r.label === "string" ? (/before/i.test(r.label) ? "before" : (/after/i.test(r.label) ? "after" : null)) : null,
+  }));
 
   return cors(JSON.stringify({
     ok: true,
     client: clientRes.data,
-    invoices: invoicesRes.data || [],
-    quotes: quotesRes.data || [],
-    jobs: jobsRes.data || [],
-    photos: photosRes.data || [],
+    invoices,
+    quotes,
+    jobs,
+    photos,
   }));
 });
