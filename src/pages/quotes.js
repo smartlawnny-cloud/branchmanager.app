@@ -11,7 +11,8 @@ var QuotesPage = {
       phone: CompanyInfo.get('phone'),
       email: CompanyInfo.get('email'),
       website: CompanyInfo.get('website'),
-      licenses: CompanyInfo.get('licenses')
+      licenses: CompanyInfo.get('licenses'),
+      logo: CompanyInfo.get('logo')
     };
   },
 
@@ -2108,7 +2109,9 @@ var QuotesPage = {
       + '<tr><td style="padding:20px 26px 18px;border-bottom:3px solid #1a3c12;">'
       + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
       + '<td width="58" style="vertical-align:middle;">'
-      + '<div style="background:#1a3c12;border-radius:10px;width:48px;height:48px;text-align:center;line-height:48px;font-size:24px;">🌳</div>'
+      + (_co.logo
+          ? '<img src="' + _co.logo + '" style="width:48px;height:48px;object-fit:contain;border-radius:10px;display:block;" alt="' + esc(_co.name) + '">'
+          : '<div style="background:#1a3c12;border-radius:10px;width:48px;height:48px;text-align:center;line-height:48px;font-size:24px;">🌳</div>')
       + '</td>'
       + '<td style="vertical-align:middle;padding-left:12px;">'
       + '<div style="font-size:17px;font-weight:800;color:#1a3c12;line-height:1.2;">' + esc(_co.name) + '</div>'

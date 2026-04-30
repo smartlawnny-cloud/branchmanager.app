@@ -97,7 +97,8 @@ var CompanyInfo = (function() {
     tagline:      { ls: null,             bm: 'tagline' },
     googleReviewUrl: { ls: null,          bm: 'googleReviewUrl' },
     taxRate:      { ls: 'bm-tax-rate',    bm: null, def: '8.375' },
-    ownerName:    { ls: null,             bm: 'ownerName' }
+    ownerName:    { ls: null,             bm: 'ownerName' },
+    logo:         { ls: 'bm-co-logo',    bm: 'logoUrl' }
   };
 
   return {

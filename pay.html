@@ -129,7 +129,7 @@
 <body>
 <div class="pay-shell">
   <div class="brand">
-    <div class="brand-logo">🌳</div>
+    <div class="brand-logo" id="brand-logo">🌳</div>
     <div>
       <div class="brand-name" id="brand-name"></div>
       <div class="brand-sub"  id="brand-sub"></div>
@@ -145,6 +145,14 @@
 document.title = 'Pay Invoice — ' + BM_CONFIG.companyName;
 document.getElementById('brand-name').textContent = BM_CONFIG.companyName;
 document.getElementById('brand-sub').innerHTML = BM_CONFIG.city + ' &nbsp;&middot;&nbsp; ' + BM_CONFIG.phone;
+(function() {
+  var logo = (typeof CompanyInfo !== 'undefined') ? CompanyInfo.get('logo') : '';
+  if (!logo) { try { logo = localStorage.getItem('bm-co-logo') || ''; } catch(e) {} }
+  if (logo) {
+    var el = document.getElementById('brand-logo');
+    if (el) { el.style.background = 'transparent'; el.innerHTML = '<img src="' + logo.replace(/"/g,'&quot;') + '" style="width:40px;height:40px;object-fit:contain;border-radius:8px;" alt="Logo">'; }
+  }
+})();
 </script>
 <script>
 (function() {
