@@ -102,9 +102,52 @@ var CommsLog = {
       CommsLog._refreshCloudFor(clientId);
     }
     var merged = local.concat(cloud);
-    // De-dupe by id and sort newest first
+    // De-dupe in two passes:
+    //   1. Primary: by id (catches actual duplicate records).
+    //   2. Echo-pair: ONLY when the same outbound message has a local copy
+    //      (source=undefined, id=Date.now-base36) AND a cloud copy
+    //      (source='dialpad', id=uuid) within the same ~90s bucket — that's
+    //      the optimistic-then-echo case. Drop the local; keep the cloud.
+    //   Two real outbound messages with identical text within 90s (Doug
+    //   genuinely sending "OK" twice) are NOT collapsed because they'd both
+    //   be local-source OR both cloud-source within the same bucket.
     var seen = {};
-    var deduped = merged.filter(function(c) { if (!c || !c.id || seen[c.id]) return false; seen[c.id] = 1; return true; });
+    function bucketKey(c) {
+      if (!c) return '';
+      var d = c.date || c.created_at || '';
+      var t = d ? Math.floor(new Date(d).getTime() / 90000) : 0; // 90s buckets
+      return (c.notes || c.body || '').slice(0, 80) + '|' + (c.direction || '') + '|' + t;
+    }
+    var deduped = [];
+    var slots = {}; // bk -> { local: rec, cloud: rec }
+    merged.forEach(function(c) {
+      if (!c || !c.id || seen[c.id]) return;
+      seen[c.id] = 1;
+      var bk = bucketKey(c);
+      var isOutbound = bk.indexOf('|outbound|') !== -1;
+      if (isOutbound) {
+        var slot = slots[bk] || { local: null, cloud: null };
+        var srcKey = c.source === 'dialpad' ? 'cloud' : 'local';
+        if (slot[srcKey]) {
+          // Already have a row with this source in this bucket — legitimate
+          // duplicate (two real sends with same content). Keep both.
+          deduped.push(c);
+        } else {
+          slot[srcKey] = c;
+          slots[bk] = slot;
+          // If we now have BOTH local and cloud for same content+bucket, that's
+          // the optimistic+echo pair — drop the local that was added earlier,
+          // keep the cloud row going forward.
+          if (slot.local && slot.cloud) {
+            var idx = deduped.indexOf(slot.local);
+            if (idx !== -1) deduped.splice(idx, 1);
+          }
+          deduped.push(c);
+        }
+      } else {
+        deduped.push(c);
+      }
+    });
     deduped.sort(function(a, b) { return new Date(b.date || b.created_at) - new Date(a.date || a.created_at); });
     return deduped;
   },

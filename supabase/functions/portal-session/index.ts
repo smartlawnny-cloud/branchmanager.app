@@ -48,16 +48,39 @@ Deno.serve(async (req) => {
 
   const cid = session.client_id;
 
+  // Pin the session's tenant by reading the client row's tenant_id once.
+  // Every downstream query is scoped to the same tenant so a UUID collision
+  // (extremely unlikely but possible across multi-tenant cohabitation) can't
+  // leak data from another tenant via the same session token.
+  const { data: tenantPin } = await sb
+    .from("clients")
+    .select("tenant_id")
+    .eq("id", cid)
+    .maybeSingle();
+  const tid = tenantPin?.tenant_id || null;
+
   // Fetch all client data in parallel. Schema-correct as of v538:
   //   invoices.invoice_number (not "number"), quotes.quote_number, quotes.expires_at
   //   (not "valid_until"), jobs has no "title" (use description), jobs.completed_at
   //   (not "completed_date"). photos table is generic record_type/record_id linked
   //   not directly client_id — fetch via the client's job ids instead.
+  // Build queries; conditionally pin tenant_id when we have it.
+  let clientQ = sb.from("clients").select("id,name,email,phone,address,city,state,zip,notes").eq("id", cid);
+  let invoiceQ = sb.from("invoices").select("id,invoice_number,total,balance,amount_paid,status,due_date,created_at,description,line_items").eq("client_id", cid);
+  let quoteQ = sb.from("quotes").select("id,quote_number,total,status,created_at,description,line_items,expires_at,signed_at").eq("client_id", cid);
+  let jobQ = sb.from("jobs").select("id,job_number,status,scheduled_date,completed_at,description,notes,crew").eq("client_id", cid);
+  if (tid) {
+    clientQ = clientQ.eq("tenant_id", tid);
+    invoiceQ = invoiceQ.eq("tenant_id", tid);
+    quoteQ = quoteQ.eq("tenant_id", tid);
+    jobQ = jobQ.eq("tenant_id", tid);
+  }
+
   const [clientRes, invoicesRes, quotesRes, jobsRes] = await Promise.all([
-    sb.from("clients").select("id,name,email,phone,address,city,state,zip,notes").eq("id", cid).maybeSingle(),
-    sb.from("invoices").select("id,invoice_number,total,balance,amount_paid,status,due_date,created_at,description,line_items").eq("client_id", cid).order("created_at", { ascending: false }).limit(50),
-    sb.from("quotes").select("id,quote_number,total,status,created_at,description,line_items,expires_at,signed_at").eq("client_id", cid).order("created_at", { ascending: false }).limit(30),
-    sb.from("jobs").select("id,job_number,status,scheduled_date,completed_at,description,notes,crew").eq("client_id", cid).order("scheduled_date", { ascending: false }).limit(30),
+    clientQ.maybeSingle(),
+    invoiceQ.order("created_at", { ascending: false }).limit(50),
+    quoteQ.order("created_at", { ascending: false }).limit(30),
+    jobQ.order("scheduled_date", { ascending: false }).limit(30),
   ]);
 
   // Photos are stored generically with record_type+record_id pointing at any

@@ -1,5 +1,5 @@
 {
-  "version": 542,
+  "version": 543,
   "released": "2026-04-30",
-  "notes": "messaging context chips: latest quote/invoice/job"
+  "notes": "audit fixes: input-wipe, dedupe, convertPhoneToClient, portal tenant_id"
 }

@@ -502,7 +502,10 @@ var SupabaseDB = {
   //  - bump bm-msg-unread badge map (keyed by client_id, or by phone-bucket for unmatched)
   //  - bust window._bmCommsCache so CommsLog.getAll re-fetches fresh
   //  - bust window._bmUnmatchedSmsCache so MessagingPage shows the new bucket
-  //  - if Messaging page is currently mounted, re-render so the new bubble appears live
+  //  - if Messaging page is currently mounted, re-render so the new bubble appears
+  //    live BUT preserve any text the user is mid-typing in #msg-input (and any
+  //    selected msgType pill) so realtime updates don't blow away in-progress
+  //    composes.
   _propagateInboundToMessaging: function(c) {
     try {
       var unread = {};
@@ -517,7 +520,28 @@ var SupabaseDB = {
       window._bmUnmatchedSmsCache = null;
 
       if (window._currentPage === 'messaging' && typeof loadPage === 'function') {
+        // Save in-progress compose state so the re-render doesn't wipe it.
+        var saved = null;
+        try {
+          var inputEl = document.getElementById('msg-input');
+          if (inputEl) {
+            saved = {
+              value: inputEl.value || '',
+              selStart: inputEl.selectionStart,
+              selEnd: inputEl.selectionEnd
+            };
+          }
+        } catch (e) {}
         loadPage('messaging');
+        if (saved) {
+          setTimeout(function() {
+            var newInput = document.getElementById('msg-input');
+            if (newInput) {
+              newInput.value = saved.value;
+              try { newInput.setSelectionRange(saved.selStart, saved.selEnd); } catch (e) {}
+            }
+          }, 0);
+        }
       }
     } catch (e) { console.warn('[Realtime] propagate failed:', e); }
   },

@@ -55,7 +55,24 @@ var MessagingPage = {
         });
         window._bmUnmatchedSmsCache = buckets;
         MessagingPage._unmatchedLoaded = true;
-        if (window._currentPage === 'messaging' && typeof loadPage === 'function') loadPage('messaging');
+        if (window._currentPage === 'messaging' && typeof loadPage === 'function') {
+          // Preserve in-progress compose so the re-render doesn't wipe it.
+          var saved = null;
+          try {
+            var inputEl = document.getElementById('msg-input');
+            if (inputEl) saved = { value: inputEl.value || '', selStart: inputEl.selectionStart, selEnd: inputEl.selectionEnd };
+          } catch (e) {}
+          loadPage('messaging');
+          if (saved) {
+            setTimeout(function() {
+              var newInput = document.getElementById('msg-input');
+              if (newInput) {
+                newInput.value = saved.value;
+                try { newInput.setSelectionRange(saved.selStart, saved.selEnd); } catch (e) {}
+              }
+            }, 0);
+          }
+        }
       });
   },
 
@@ -309,8 +326,8 @@ var MessagingPage = {
     };
 
     try {
-      DB.clients.add(client);
-    } catch (e) { console.warn('local client add failed', e); }
+      DB.clients.create(client);
+    } catch (e) { console.warn('local client create failed', e); }
 
     if (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) {
       try {
