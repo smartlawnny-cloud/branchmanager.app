@@ -42,10 +42,10 @@ Deno.serve(async (req) => {
     return cors(JSON.stringify({ error: "DIALPAD_API_KEY not configured" }), 503);
   }
 
-  let body: { to: string; message: string; clientId?: string };
+  let body: { to: string; message: string; clientId?: string; system?: boolean };
   try { body = await req.json(); } catch { return cors(JSON.stringify({ error: "Invalid JSON" }), 400); }
 
-  const { to, message, clientId } = body;
+  const { to, message, clientId, system } = body;
   if (!to || !message) return cors(JSON.stringify({ error: "to and message required" }), 400);
 
   const toFormatted = normPhone(to);
@@ -53,8 +53,12 @@ Deno.serve(async (req) => {
   // ── TCPA opt-out check. Lookup recipient by last-10 digits; if they have
   // sms_opt_out=true, refuse with 403. Unknown numbers (no client row) pass
   // through — might be a non-client lead.
+  //
+  // EXCEPTION: when `system: true`, skip the check. System messages (STOP/START
+  // confirmations, HELP responses) are TCPA-required even AFTER the user has
+  // opted out, so the carrier expects those to go through.
   const last10 = to.replace(/\D/g, "").slice(-10);
-  if (last10.length >= 10) {
+  if (!system && last10.length >= 10) {
     const { data: optData } = await sb
       .from("clients")
       .select("id, name, sms_opt_out")
@@ -113,8 +117,13 @@ Deno.serve(async (req) => {
     from_number: DIALPAD_FROM ? normPhone(DIALPAD_FROM) : null,
     body: message,
     status: dialpadOk ? "sent" : "send_failed",
-    dialpad_id: "bm-out-" + Date.now(),
-    metadata: { sent_via: "dialpad-sms-send", dialpad_ok: dialpadOk, dialpad_error: dialpadError || null },
+    dialpad_id: "bm-out-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+    metadata: {
+      sent_via: "dialpad-sms-send",
+      dialpad_ok: dialpadOk,
+      dialpad_error: dialpadError || null,
+      system: !!system,
+    },
   };
 
   await sb.from("communications").insert(commRow).catch((e: Error) => {

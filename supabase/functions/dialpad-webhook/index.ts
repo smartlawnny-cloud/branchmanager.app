@@ -122,7 +122,10 @@ Deno.serve(async (req) => {
     var keyword = "";
     if (raw === "STOP" || raw === "STOPALL" || raw === "UNSUBSCRIBE" || raw === "CANCEL" || raw === "END" || raw === "QUIT") {
       keyword = "STOP";
-    } else if (raw === "START" || raw === "UNSTOP" || raw === "YES") {
+    } else if (raw === "START" || raw === "UNSTOP") {
+      // NOTE: "YES" is intentionally NOT treated as START here. The quote-reply
+      // detector below interprets YES as quote-approval, which is the more
+      // common case. Carriers expect START/UNSTOP as the canonical opt-in.
       keyword = "START";
     } else if (raw === "HELP" || raw === "INFO") {
       keyword = "HELP";
@@ -167,13 +170,37 @@ Deno.serve(async (req) => {
       // Stamp note into metadata so it surfaces in Doug's comms log
       row.metadata = Object.assign({}, row.metadata || {}, {
         note: keyword + " keyword",
-        auto_reply_pending: autoReply,
+        auto_reply: autoReply,
       });
 
-      // TODO: Wire actual outbound auto-reply via Dialpad SMS API
-      // (dialpad-sms-send function). For now we log the intended reply text
-      // in metadata.auto_reply_pending so it's auditable.
-      console.log("TCPA keyword:", keyword, "from", row.from_number, "would auto-reply with:", autoReply);
+      // Fire the actual auto-reply via dialpad-sms-send. system:true bypasses
+      // the opt-out check (TCPA requires the STOP confirmation to go through
+      // even AFTER opt-out is recorded). Fire-and-forget — a Dialpad hiccup
+      // shouldn't 500 the inbound webhook (Dialpad would retry the inbound).
+      const replyPhone = row.from_number;
+      if (replyPhone && autoReply) {
+        fetch(`${SUPABASE_URL}/functions/v1/dialpad-sms-send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_SERVICE_KEY,
+            "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+          },
+          body: JSON.stringify({
+            to: replyPhone,
+            message: autoReply,
+            clientId: row.client_id || null,
+            system: true,
+          }),
+        })
+          .then(async (r) => {
+            if (!r.ok) {
+              const text = await r.text();
+              console.warn(`auto-reply ${keyword} send failed: HTTP ${r.status} — ${text}`);
+            }
+          })
+          .catch((e) => console.warn(`auto-reply ${keyword} fetch error:`, e));
+      }
     }
   }
 
