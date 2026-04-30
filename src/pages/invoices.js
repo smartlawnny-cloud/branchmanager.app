@@ -749,6 +749,99 @@ var InvoicesPage = {
     }
   },
 
+  _sendReceiptEmail: function(id) {
+    var inv = DB.invoices.getById(id);
+    if (!inv) return;
+    var client = inv.clientId ? DB.clients.getById(inv.clientId) : null;
+    var email = inv.clientEmail || (client && client.email) || '';
+    if (!email) return; // no email on file — silent skip
+    var _c = InvoicesPage._co();
+    var esc = function(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var firstName = (inv.clientName || '').split(' ')[0] || 'there';
+    var total = UI.money(inv.total || 0);
+    var paidDate = inv.paidDate ? new Date(inv.paidDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    var subject = 'Payment Receipt — Invoice #' + inv.invoiceNumber + ' · ' + total + ' · ' + _c.name;
+
+    var body = 'Hi ' + firstName + ',\n\nThank you for your payment of ' + total + '! Your account is paid in full.\n\n'
+      + 'Invoice #' + inv.invoiceNumber + '\n'
+      + (inv.subject ? 'Job: ' + inv.subject + '\n' : '')
+      + 'Amount Paid: ' + total + '\n'
+      + 'Date: ' + paidDate + '\n\n'
+      + 'It was a pleasure working with you. If you\'re happy with our service, we\'d love a Google review!\n\n'
+      + (_c.googleReview ? _c.googleReview + '\n\n' : '')
+      + 'Thanks,\nDoug Brown\n' + _c.name + '\n' + _c.phone;
+
+    // Line items summary
+    var liRows = '';
+    if (inv.lineItems && inv.lineItems.length) {
+      inv.lineItems.forEach(function(item, i) {
+        var amt = item.amount || ((item.qty||1) * (item.rate||0));
+        liRows += '<tr style="background:' + (i%2===0?'#fff':'#f9fafb') + ';">'
+          + '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;color:#374151;font-size:13px;">' + esc(item.service||item.description||'Service') + '</td>'
+          + '<td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f3f4f6;font-weight:600;color:#374151;font-size:13px;">' + UI.money(amt) + '</td>'
+          + '</tr>';
+      });
+    }
+
+    // Social links
+    var socialLinks = [];
+    if (_c.googleReview) socialLinks.push('<a href="' + _c.googleReview + '" style="color:#1a3c12;text-decoration:none;font-weight:700;font-size:12px;">⭐ Leave a Review</a>');
+    if (_c.facebook)     socialLinks.push('<a href="' + _c.facebook + '" style="color:#1877f2;text-decoration:none;font-size:12px;">&#9633; Facebook</a>');
+    if (_c.instagram)    socialLinks.push('<a href="' + _c.instagram + '" style="color:#e1306c;text-decoration:none;font-size:12px;">&#9650; Instagram</a>');
+
+    var htmlBody = '<div style="background:#f5f6f8;padding:24px 0;">'
+      + '<table style="max-width:560px;margin:0 auto;border-collapse:collapse;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">'
+      // Header — green "PAID" bar
+      + '<tr style="background:#059669;">'
+      + '<td style="padding:20px 26px;width:55%;vertical-align:middle;">'
+      + (_c.logo ? '<img src="' + _c.logo + '" style="width:40px;height:40px;object-fit:contain;border-radius:8px;display:block;margin-bottom:8px;" alt="">' : '<div style="background:rgba(255,255,255,.2);border-radius:8px;width:40px;height:40px;text-align:center;line-height:40px;font-size:20px;margin-bottom:8px;">🌳</div>')
+      + '<div style="font-size:15px;font-weight:800;color:#fff;">' + esc(_c.name) + '</div>'
+      + (_c.phone ? '<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:2px;">' + esc(_c.phone) + '</div>' : '')
+      + '</td>'
+      + '<td style="padding:20px 26px;text-align:right;vertical-align:middle;background:#047857;">'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Receipt</div>'
+      + '<div style="font-size:18px;font-weight:900;color:#fff;">#' + esc(inv.invoiceNumber||'') + '</div>'
+      + '<div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-1px;margin:6px 0 4px;">' + total + '</div>'
+      + '<div style="font-size:11px;color:rgba(255,255,255,.8);background:rgba(255,255,255,.15);padding:3px 10px;border-radius:20px;display:inline-block;">✓ PAID IN FULL</div>'
+      + '</td>'
+      + '</tr>'
+      // Thank you message
+      + '<tr style="background:#fff;">'
+      + '<td colspan="2" style="padding:20px 26px;">'
+      + '<p style="font-size:15px;font-weight:700;color:#059669;margin:0 0 8px;">Thank you, ' + esc(firstName) + '! 🎉</p>'
+      + '<p style="font-size:13px;color:#6b7280;line-height:1.6;margin:0;">Your payment of <strong>' + total + '</strong> was received on ' + paidDate + '. Your account is paid in full. This email is your receipt.</p>'
+      + '</td>'
+      + '</tr>'
+      // Line items
+      + (liRows ? '<tr style="background:#fff;"><td colspan="2" style="padding:0 26px 8px;">'
+        + '<table style="width:100%;border-collapse:collapse;">'
+        + '<tr style="background:#374151;"><th style="padding:7px 12px;text-align:left;font-size:11px;color:#fff;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">Service</th><th style="padding:7px 12px;text-align:right;font-size:11px;color:#fff;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">Amount</th></tr>'
+        + liRows
+        + '<tr style="background:#f0fdf4;"><td style="padding:9px 12px;font-weight:700;font-size:14px;color:#166534;">Total Paid</td><td style="padding:9px 12px;text-align:right;font-weight:900;font-size:14px;color:#166534;">' + total + '</td></tr>'
+        + '</table></td></tr>' : '')
+      // Review ask (if Google Review link set)
+      + (_c.googleReview ? '<tr style="background:#f0fdf4;"><td colspan="2" style="padding:16px 26px;text-align:center;border-top:1px solid #d1fae5;">'
+        + '<p style="font-size:13px;color:#374151;margin:0 0 10px;">Happy with our work? It means the world to us! ⭐</p>'
+        + '<a href="' + _c.googleReview + '" style="display:inline-block;background:#1a3c12;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;">⭐ Leave Us a Google Review</a>'
+        + '</td></tr>' : '')
+      // Footer
+      + '<tr style="background:#f9fafb;"><td colspan="2" style="padding:14px 26px;border-top:1px solid #f3f4f6;">'
+      + '<table style="width:100%;border-collapse:collapse;"><tr>'
+      + '<td style="font-size:12px;color:#6b7280;">Questions? Call <strong>' + esc(_c.phone||'') + '</strong></td>'
+      + (_c.website ? '<td style="text-align:right;font-size:12px;"><a href="' + _c.website + '" style="color:#1a3c12;text-decoration:none;">' + esc((_c.website||'').replace(/^https?:\/\//,'')) + '</a></td>' : '<td></td>')
+      + '</tr></table>'
+      + '</td></tr>'
+      // Social bar
+      + (socialLinks.length ? '<tr style="background:#f9fafb;"><td colspan="2" style="padding:10px 26px 16px;border-top:1px solid #f3f4f6;text-align:center;">' + socialLinks.join('<span style="color:#e5e7eb;margin:0 8px;">|</span>') + '</td></tr>' : '')
+      + '</table></div>';
+
+    if (typeof Email !== 'undefined') {
+      Email.send(email, subject, body, { htmlBody: htmlBody }).then(function(result) {
+        if (result && result.success) UI.toast('Receipt sent to ' + email + ' ✓');
+      });
+    }
+  },
+
   showDetail: function(id) {
     var inv = DB.invoices.getById(id);
     if (!inv) return;
@@ -974,6 +1067,10 @@ var InvoicesPage = {
     DB.invoices.update(id, updates);
     UI.toast('Invoice status: ' + status);
     UI.closeModal();
+    // Auto-send receipt if enabled in Settings → Client-Facing Options
+    if (status === 'paid' && localStorage.getItem('bm-auto-receipt') !== 'false') {
+      InvoicesPage._sendReceiptEmail(id);
+    }
     loadPage('invoices');
   },
 

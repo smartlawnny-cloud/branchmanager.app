@@ -23,7 +23,7 @@ var CallCenter = {
       + '</div>';
 
     // ── Tab bar ─────────────────────────────────────────────────
-    var _tabs = [['missed','📵 Missed'],['emails','📧 Emails'],['threads','💬 Messages'],['activity','📋 All Activity']];
+    var _tabs = [['missed','📵 Missed'],['threads','💬 Messages'],['emails','📧 Emails'],['activity','📋 All Activity']];
     html += '<div style="display:flex;border-bottom:2px solid var(--border);margin-bottom:0;gap:0;">';
     _tabs.forEach(function(t) {
       var active = CallCenter._activeTab === t[0];
@@ -283,25 +283,33 @@ var CallCenter = {
 
         // ── Email / BidNet row ───────────────────────────────────
         if (isEmail) {
-          var bidType = meta.bidnet_type || 'new_solicitation';
-          var bidIcon = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📧';
-          var bidLabel = bidType === 'award' ? 'Award' : bidType === 'addendum' ? 'Addendum' : 'New Bid';
-          var bidColor = bidType === 'award' ? '#e65100' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
-          var agency = meta.agency || c.from_number || '';
-          var solNum  = meta.solicitation_number || '';
-          var bidUrl  = meta.bidnet_url || '';
-          var subject = c.body || '';
-          var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
+          var bidType  = meta.email_type || meta.bidnet_type || 'new_solicitation';
+          var bidIcon  = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📋';
+          var bidLabel = bidType === 'award' ? 'Award Notice' : bidType === 'addendum' ? 'Addendum' : 'New Solicitation';
+          var bidColor = bidType === 'award' ? '#92400e' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
+          var bidBg    = bidType === 'award' ? '#fef3c7' : bidType === 'addendum' ? '#f3e8ff' : '#eff6ff';
+          var bidBorder= bidType === 'award' ? '#fde68a' : bidType === 'addendum' ? '#d8b4fe' : '#bfdbfe';
+          var agency   = meta.agency || c.from_number || 'Unknown Agency';
+          var solNum   = meta.sol_number || meta.solicitation_number || '';
+          var solTitle = meta.sol_title || c.body || '';
+          var gmailUrl = meta.thread_id ? 'https://mail.google.com/mail/u/0/#inbox/' + meta.thread_id : '';
+          var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,10);
           var isLast = idx === rows.length - 1;
-          html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-            + '<div style="flex-shrink:0;width:32px;height:32px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + bidIcon + '</div>'
+          var safeId = JSON.stringify(c.id);
+          // Push to email cache so modal can find it
+          if (!CallCenter._emailRows) CallCenter._emailRows = [];
+          if (!CallCenter._emailRows.find(function(r){ return r.id === c.id; })) CallCenter._emailRows.push(c);
+          html += '<div onclick="CallCenter._openEmailModal(' + safeId + ')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '" onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'">'
+            + '<div style="flex-shrink:0;width:34px;height:34px;background:' + bidBg + ';border:1px solid ' + bidBorder + ';border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;">' + bidIcon + '</div>'
             + '<div style="flex:1;min-width:0;">'
-            + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (agency || 'Unknown Agency') + '</div>'
-            + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
-            + (subject ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + subject.slice(0, 90) + (subject.length > 90 ? '…' : '') + '</div>' : '')
+            + '<div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + UI.esc(agency) + '</div>'
+            + '<div style="font-size:11px;font-weight:700;color:' + bidColor + ';margin-top:2px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+            + (solTitle ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + UI.esc(solTitle) + '</div>' : '')
             + '</div>'
-            + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</div>'
-            + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" title="View bid" style="flex-shrink:0;width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:14px;">🔗</a>' : '')
+            + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'
+            + '<span style="font-size:11px;color:var(--text-light);">' + ts + '</span>'
+            + (gmailUrl ? '<a href="' + gmailUrl + '" target="_blank" onclick="event.stopPropagation()" title="Open Gmail" style="width:28px;height:28px;background:none;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:13px;">✉️</a>' : '')
+            + '</div>'
             + '</div>';
           return;
         }
@@ -364,43 +372,107 @@ var CallCenter = {
       var rows = data || [];
 
       if (!rows.length) {
-        el.innerHTML = '<div style="padding:80px 24px;text-align:center;color:var(--text-light);">'
+        el.innerHTML = '<div style="padding:60px 24px;text-align:center;color:var(--text-light);">'
           + '<div style="font-size:40px;margin-bottom:12px;">📧</div>'
           + '<div style="font-size:15px;font-weight:600;margin-bottom:6px;">No emails yet</div>'
-          + '<div style="font-size:13px;">Bid solicitations and email leads will appear here.</div>'
+          + '<div style="font-size:13px;margin-bottom:20px;">BidNet solicitations will appear here automatically.</div>'
+          + '<a href="https://www.bidnetdirect.com" target="_blank" style="display:inline-block;padding:10px 22px;background:#1a3c12;color:#fff;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none;">🔗 Open BidNet Direct</a>'
           + '</div>';
         return;
       }
 
-      var html = '<div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-top:16px;">';
+      // Header with BidNet shortcut
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+        + '<div style="font-size:13px;color:var(--text-light);">' + rows.length + ' bid email' + (rows.length !== 1 ? 's' : '') + '</div>'
+        + '<a href="https://www.bidnetdirect.com" target="_blank" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#1a3c12;color:#fff;border-radius:7px;font-size:12px;font-weight:700;text-decoration:none;">🔗 BidNet Direct</a>'
+        + '</div>';
+
+      html += '<div style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;">';
       rows.forEach(function(c, idx) {
         var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
-        var bidType  = meta.bidnet_type || 'new_solicitation';
-        var bidIcon  = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📧';
-        var bidLabel = bidType === 'award' ? 'Award' : bidType === 'addendum' ? 'Addendum' : 'New Bid';
-        var bidColor = bidType === 'award' ? '#e65100' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
-        var agency   = meta.agency || c.from_number || '';
-        var solNum   = meta.solicitation_number || '';
-        var bidUrl   = meta.bidnet_url || '';
-        var subject  = c.body || '';
-        var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,16).replace('T',' ');
+        // Support both field name conventions
+        var bidType  = meta.email_type || meta.bidnet_type || 'new_solicitation';
+        var bidIcon  = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📋';
+        var bidLabel = bidType === 'award' ? 'Award Notice' : bidType === 'addendum' ? 'Addendum' : 'New Solicitation';
+        var bidColor = bidType === 'award' ? '#92400e' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
+        var bidBg    = bidType === 'award' ? '#fef3c7' : bidType === 'addendum' ? '#f3e8ff' : '#eff6ff';
+        var bidBorder= bidType === 'award' ? '#fde68a' : bidType === 'addendum' ? '#d8b4fe' : '#bfdbfe';
+        var agency   = meta.agency || c.from_number || 'Unknown Agency';
+        var solNum   = meta.sol_number || meta.solicitation_number || '';
+        var solTitle = meta.sol_title || c.body || '';
+        // Gmail deep-link if thread_id present, else BidNet search
+        var gmailUrl = meta.thread_id ? 'https://mail.google.com/mail/u/0/#inbox/' + meta.thread_id : '';
+        var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : (c.created_at||'').slice(0,10);
         var isLast = idx === rows.length - 1;
-        html += '<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '">'
-          + '<div style="flex-shrink:0;width:32px;height:32px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">' + bidIcon + '</div>'
+        var safeId = JSON.stringify(c.id);
+
+        html += '<div onclick="CallCenter._openEmailModal(' + safeId + ')" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + '" onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\'">'
+          + '<div style="flex-shrink:0;width:34px;height:34px;background:' + bidBg + ';border:1px solid ' + bidBorder + ';border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;">' + bidIcon + '</div>'
           + '<div style="flex:1;min-width:0;">'
-          + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (agency || 'Unknown Sender') + '</div>'
-          + '<div style="font-size:12px;color:' + bidColor + ';font-weight:600;margin-top:1px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
-          + (subject ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + subject.slice(0, 90) + (subject.length > 90 ? '…' : '') + '</div>' : '')
+          + '<div style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + UI.esc(agency) + '</div>'
+          + '<div style="font-size:11px;font-weight:700;color:' + bidColor + ';margin-top:2px;">' + bidLabel + (solNum ? ' · ' + solNum : '') + '</div>'
+          + (solTitle ? '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + UI.esc(solTitle) + '</div>' : '')
           + '</div>'
-          + '<div style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</div>'
-          + (bidUrl ? '<a href="' + bidUrl + '" target="_blank" rel="noopener noreferrer" title="View bid" style="flex-shrink:0;width:30px;height:30px;background:none;border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:14px;">🔗</a>' : '')
+          + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'
+          + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+          + (gmailUrl ? '<a href="' + gmailUrl + '" target="_blank" onclick="event.stopPropagation()" title="Open in Gmail" style="width:28px;height:28px;background:none;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:13px;flex-shrink:0;">✉️</a>' : '')
+          + '</div>'
           + '</div>';
       });
       html += '</div>';
       el.innerHTML = html;
+
+      // Store rows for modal lookup
+      CallCenter._emailRows = rows;
     } catch(e) {
       el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light);">Failed to load emails. ' + e.message + '</div>';
     }
+  },
+
+  _emailRows: [],
+
+  _openEmailModal: function(id) {
+    var c = (CallCenter._emailRows || []).find(function(r) { return r.id === id; });
+    if (!c) return;
+    var meta = c.metadata && typeof c.metadata === 'object' ? c.metadata : {};
+    var bidType  = meta.email_type || meta.bidnet_type || 'new_solicitation';
+    var bidIcon  = bidType === 'award' ? '🏆' : bidType === 'addendum' ? '📎' : '📋';
+    var bidLabel = bidType === 'award' ? 'Award Notice' : bidType === 'addendum' ? 'Addendum' : 'New Solicitation';
+    var bidColor = bidType === 'award' ? '#92400e' : bidType === 'addendum' ? '#6a1b9a' : '#1565c0';
+    var agency   = meta.agency || c.from_number || 'Unknown Agency';
+    var solNum   = meta.sol_number || meta.solicitation_number || '';
+    var solTitle = meta.sol_title || c.body || '';
+    var gmailUrl = meta.thread_id ? 'https://mail.google.com/mail/u/0/#inbox/' + meta.thread_id : '';
+    var ts = typeof UI !== 'undefined' && UI.dateRelative ? UI.dateRelative(c.created_at) : c.created_at;
+
+    var html = '<div style="padding:4px 0;">'
+      // Type badge + agency
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">'
+      + '<div style="font-size:28px;">' + bidIcon + '</div>'
+      + '<div>'
+      + '<div style="font-size:16px;font-weight:800;color:var(--text);">' + UI.esc(agency) + '</div>'
+      + '<div style="font-size:12px;font-weight:700;color:' + bidColor + ';margin-top:2px;">' + bidLabel + '</div>'
+      + '</div>'
+      + '</div>'
+      // Details grid
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
+      + (solNum   ? '<div style="background:var(--surface);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-bottom:3px;">Solicitation #</div><div style="font-size:13px;font-weight:600;">' + UI.esc(solNum) + '</div></div>' : '')
+      + '<div style="background:var(--surface);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-bottom:3px;">Received</div><div style="font-size:13px;font-weight:600;">' + UI.esc(ts) + '</div></div>'
+      + (meta.source ? '<div style="background:var(--surface);border-radius:8px;padding:10px 12px;"><div style="font-size:10px;font-weight:700;color:var(--text-light);text-transform:uppercase;margin-bottom:3px;">Source</div><div style="font-size:13px;font-weight:600;">' + UI.esc(meta.source) + '</div></div>' : '')
+      + '</div>'
+      // Title/subject
+      + (solTitle ? '<div style="background:var(--surface);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--text);line-height:1.5;">' + UI.esc(solTitle) + '</div>' : '')
+      // Action buttons
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + (gmailUrl ? '<a href="' + gmailUrl + '" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 0;background:#1a3c12;color:#fff;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;">✉️ Open in Gmail</a>' : '')
+      + '<a href="https://www.bidnetdirect.com" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 0;background:none;color:var(--text);border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">🔗 Open BidNet Direct</a>'
+      + '<button onclick="UI.closeModal();QuotesPage.showForm(null,{description:' + JSON.stringify(UI.esc(solTitle)) + ',source:\'bidnet\'})" style="padding:11px 0;background:none;color:var(--accent);border:1.5px solid var(--accent);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">📋 Create Quote from This Bid</button>'
+      + '</div>'
+      + '</div>';
+
+    UI.showModal(bidIcon + ' ' + UI.esc(agency), html, {
+      footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Close</button>'
+    });
   },
 
   // ── SMS Threads ──────────────────────────────────────────────
@@ -460,18 +532,18 @@ var CallCenter = {
         var isLast = idx === threads.length - 1;
 
         html += '<div onclick="CallCenter._openThread({phone:\'' + safePhone + '\',clientId:\'' + safeId + '\',name:\'' + safeName + '\'})"'
-          + ' style="display:flex;gap:14px;padding:14px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;align-items:center;"'
+          + ' style="display:flex;gap:12px;padding:12px 18px;' + (isLast ? '' : 'border-bottom:1px solid var(--border);') + 'cursor:pointer;align-items:center;"'
           + ' onmouseover="this.style.background=\'var(--surface)\'" onmouseout="this.style.background=\'\';">'
-          + '<div style="flex-shrink:0;width:44px;height:44px;background:var(--green-dark);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;font-weight:700;">' + name.charAt(0).toUpperCase() + '</div>'
+          + '<div style="flex-shrink:0;width:32px;height:32px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;">💬</div>'
           + '<div style="flex:1;min-width:0;">'
-          + '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
-          + '<span style="font-weight:700;font-size:14px;">' + name + '</span>'
-          + '<span style="font-size:11px;color:var(--text-light);">' + ts + '</span>'
+          + '<div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</div>'
+          + '<div style="font-size:12px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+          + (isIn ? '' : 'You: ') + preview + '</div>'
           + '</div>'
-          + '<div style="font-size:13px;color:var(--text-light);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-          + (isIn ? '' : '<span style="color:var(--text-light);">You: </span>') + preview + '</div>'
+          + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'
+          + '<span style="font-size:11px;color:var(--text-light);white-space:nowrap;">' + ts + '</span>'
+          + (unread > 0 && isIn ? '<div style="width:20px;height:20px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;">' + Math.min(unread,9) + '</div>' : '')
           + '</div>'
-          + (unread > 0 && isIn ? '<div style="flex-shrink:0;width:22px;height:22px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;">' + Math.min(unread,9) + '</div>' : '')
           + '</div>';
       });
       html += '</div>';
