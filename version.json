@@ -1,5 +1,5 @@
 {
-  "version": 544,
+  "version": 545,
   "released": "2026-04-30",
-  "notes": "audit fixes: portal CTA messaging, action chip rollback"
+  "notes": "portal live-refresh: 60s poll + visibilitychange"
 }

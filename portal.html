@@ -99,6 +99,19 @@ function clearToken() {
   var token = getToken();
   if (token) {
     verifyAndLoad(token);
+    // Live refresh: re-pull data every 60s while the page is open AND on
+    // visibility change (tab returns to focus). Catches Doug-side updates
+    // — invoice paid, quote sent, job completed — without a manual reload.
+    setInterval(function() {
+      var t = localStorage.getItem('bm-portal-token');
+      if (t && !document.hidden) verifyAndLoad(t);
+    }, 60000);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        var t = localStorage.getItem('bm-portal-token');
+        if (t) verifyAndLoad(t);
+      }
+    });
   } else {
     showLogin();
   }
