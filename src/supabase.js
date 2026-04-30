@@ -425,6 +425,7 @@ var SupabaseDB = {
         var c = payload && payload.new;
         if (!c || c.direction !== 'inbound') return;
         SupabaseDB._notifyInboundComm(c);
+        SupabaseDB._propagateInboundToMessaging(c);
       });
 
       ch.subscribe(function(status) {
@@ -495,6 +496,30 @@ var SupabaseDB = {
         }
       } catch (e) { /* no audio context — silent is fine */ }
     } catch (e) { console.warn('[Realtime] notify failed:', e); }
+  },
+
+  // Propagate an inbound communications row into the Messaging page state:
+  //  - bump bm-msg-unread badge map (keyed by client_id, or by phone-bucket for unmatched)
+  //  - bust window._bmCommsCache so CommsLog.getAll re-fetches fresh
+  //  - bust window._bmUnmatchedSmsCache so MessagingPage shows the new bucket
+  //  - if Messaging page is currently mounted, re-render so the new bubble appears live
+  _propagateInboundToMessaging: function(c) {
+    try {
+      var unread = {};
+      try { unread = JSON.parse(localStorage.getItem('bm-msg-unread') || '{}'); } catch(e) {}
+      var key = c.client_id || ('phone:' + (c.from_number || 'unknown'));
+      unread[key] = (unread[key] || 0) + 1;
+      localStorage.setItem('bm-msg-unread', JSON.stringify(unread));
+
+      if (c.client_id && window._bmCommsCache) {
+        delete window._bmCommsCache[c.client_id];
+      }
+      window._bmUnmatchedSmsCache = null;
+
+      if (window._currentPage === 'messaging' && typeof loadPage === 'function') {
+        loadPage('messaging');
+      }
+    } catch (e) { console.warn('[Realtime] propagate failed:', e); }
   },
 
   _checkNewPayments: async function() {

@@ -4,8 +4,9 @@
  * Ready for Dialpad API when SMS is registered
  */
 var MessagingPage = {
-  _selected: null,
+  _selected: null,        // clientId | 'phone:<last10>' | null
   _msgType: 'text',
+  _unmatchedLoaded: false,
 
   _co: function() {
     return {
@@ -16,9 +17,58 @@ var MessagingPage = {
     };
   },
 
+  // ── Unmatched-phone helpers ─────────────────────────────
+  // Inbound SMS from numbers not in the clients table land in `communications`
+  // with client_id=null. We surface these as pseudo-contacts at the top of the
+  // list so leads aren't lost.
+  _last10: function(phone) {
+    if (!phone) return '';
+    return String(phone).replace(/\D/g, '').slice(-10);
+  },
+  _fmtPhone: function(last10) {
+    if (!last10 || last10.length !== 10) return last10 || '';
+    return '(' + last10.slice(0,3) + ') ' + last10.slice(3,6) + '-' + last10.slice(6);
+  },
+  _loadUnmatchedSms: function() {
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return;
+    if (MessagingPage._unmatchedFetchInFlight) return;
+    MessagingPage._unmatchedFetchInFlight = true;
+    var since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    SupabaseDB.client
+      .from('communications')
+      .select('id, channel, direction, from_number, to_number, body, created_at, status')
+      .is('client_id', null)
+      .eq('channel', 'sms')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(500)
+      .then(function(res) {
+        MessagingPage._unmatchedFetchInFlight = false;
+        if (res.error || !res.data) return;
+        var buckets = {};
+        res.data.forEach(function(r) {
+          var phone = r.direction === 'inbound' ? r.from_number : r.to_number;
+          var k = MessagingPage._last10(phone);
+          if (k.length !== 10) return;
+          if (!buckets[k]) buckets[k] = { last10: k, messages: [], latest: r.created_at };
+          buckets[k].messages.push(r);
+        });
+        window._bmUnmatchedSmsCache = buckets;
+        MessagingPage._unmatchedLoaded = true;
+        if (window._currentPage === 'messaging' && typeof loadPage === 'function') loadPage('messaging');
+      });
+  },
+
   render: function() {
     var clients = DB.clients.getAll().filter(function(c) { return c.phone || c.email; }).slice(0, 50);
     var selectedId = MessagingPage._selected || null;
+    var isPhoneBucket = typeof selectedId === 'string' && selectedId.indexOf('phone:') === 0;
+
+    // Lazy-load unmatched SMS buckets on first render
+    if (!MessagingPage._unmatchedLoaded && !window._bmUnmatchedSmsCache) {
+      MessagingPage._loadUnmatchedSms();
+    }
+    var unmatched = window._bmUnmatchedSmsCache || {};
 
     // Read unread counts
     var unread = {};
@@ -53,6 +103,32 @@ var MessagingPage = {
       + '<button onclick="MessagingPage.newMessage()" style="background:var(--green-dark);color:#fff;border:none;padding:8px 10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">+ New</button>'
       + '</div><div id="msg-contacts" style="flex:1;overflow-y:auto;">';
 
+    // Unmatched-phone buckets at the top
+    var unmatchedKeys = Object.keys(unmatched).sort(function(a, b) {
+      return new Date(unmatched[b].latest) - new Date(unmatched[a].latest);
+    });
+    if (unmatchedKeys.length) {
+      html += '<div style="padding:6px 12px;background:#fff8e1;border-bottom:1px solid #f0e0a8;font-size:10px;font-weight:700;color:#b58105;text-transform:uppercase;letter-spacing:.05em;">📵 Unknown Numbers</div>';
+      unmatchedKeys.forEach(function(k) {
+        var b = unmatched[k];
+        var key = 'phone:' + k;
+        var isActive = selectedId === key;
+        var last = b.messages[0] || {};
+        var preview = (last.body || '').substring(0, 40) + (last.body && last.body.length > 40 ? '...' : '');
+        var time = last.created_at ? UI.dateRelative(last.created_at) : '';
+        var unreadCount = unread[key] || 0;
+        html += '<div onclick="MessagingPage.selectPhone(\'' + k + '\')" style="padding:12px;border-bottom:1px solid #f0f0f0;cursor:pointer;background:' + (isActive ? 'var(--green-bg)' : '#fffdf6') + ';">'
+          + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+          + '<strong style="font-size:13px;">📵 ' + MessagingPage._fmtPhone(k) + '</strong>'
+          + '<div style="display:flex;gap:5px;align-items:center;">'
+          + (unreadCount > 0 ? '<span style="background:var(--red);color:#fff;border-radius:10px;font-size:10px;padding:2px 6px;font-weight:700;">' + unreadCount + '</span>' : '')
+          + '<span style="font-size:10px;color:var(--text-light);">' + time + '</span>'
+          + '</div></div>'
+          + '<div style="font-size:12px;color:var(--text-light);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + UI.esc(preview || 'No preview') + '</div>'
+          + '</div>';
+      });
+    }
+
     clients.forEach(function(c) {
       var isActive = c.id === selectedId;
       var lastComm = CommsLog ? CommsLog.getAll(c.id)[0] : null;
@@ -75,18 +151,48 @@ var MessagingPage = {
     // Right: Conversation
     html += '<div style="display:flex;flex-direction:column;">';
     if (selectedId) {
-      var client = DB.clients.getById(selectedId);
-      var comms = CommsLog ? CommsLog.getAll(selectedId) : [];
+      var client = null;
+      var comms = [];
+      var headerName = '';
+      var headerSub = '';
+
+      if (isPhoneBucket) {
+        var last10 = selectedId.replace('phone:', '');
+        var bucket = unmatched[last10] || { messages: [] };
+        headerName = '📵 ' + MessagingPage._fmtPhone(last10);
+        headerSub = 'Unknown number — not yet a client';
+        // Map bucket rows to thread shape
+        comms = bucket.messages.slice().map(function(r) {
+          return {
+            id: r.id,
+            type: 'text',
+            direction: r.direction,
+            notes: r.body || '',
+            date: r.created_at
+          };
+        });
+      } else {
+        client = DB.clients.getById(selectedId);
+        comms = CommsLog ? CommsLog.getAll(selectedId) : [];
+        headerName = client ? client.name : '';
+        headerSub = client ? (client.phone || client.email || '') : '';
+      }
 
       // Header
+      var headerActions = '';
+      if (isPhoneBucket) {
+        var l10 = selectedId.replace('phone:', '');
+        headerActions = '<button onclick="MessagingPage.convertPhoneToClient(\'' + l10 + '\')" style="background:var(--green-dark);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-weight:700;">+ Convert to Client</button>'
+          + '<button onclick="Dialpad.call(\'' + l10 + '\',null,\'' + MessagingPage._fmtPhone(l10) + '\')" style="background:var(--green-bg);border:1px solid #c8e6c9;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:var(--green-dark);">📞 Call</button>';
+      } else {
+        headerActions = '<button onclick="Dialpad.call(\'' + (client ? (client.phone || '') : '') + '\',\'' + selectedId + '\',\'' + (client ? (client.name || '').replace(/'/g, "\\'") : '') + '\')" style="background:var(--green-bg);border:1px solid #c8e6c9;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:var(--green-dark);">📞 Call</button>'
+          + '<button onclick="Dialpad.showTextModal(\'' + selectedId + '\',\'' + (client ? (client.name || '').replace(/'/g, "\\'") : '') + '\',\'' + (client ? (client.phone || '') : '') + '\')" style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:var(--green-dark);">💬 Text</button>'
+          + '<button onclick="MessagingPage.showTemplates(\'' + selectedId + '\')" style="background:#e3f2fd;border:1px solid #bbdefb;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:#1565c0;">📋 Templates</button>';
+      }
       html += '<div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">'
-        + '<div><strong style="font-size:15px;">' + (client ? client.name : '') + '</strong>'
-        + '<div style="font-size:12px;color:var(--text-light);">' + (client ? client.phone || client.email || '' : '') + '</div></div>'
-        + '<div style="display:flex;gap:6px;">'
-        + '<button onclick="Dialpad.call(\'' + (client ? (client.phone || '') : '') + '\',\'' + selectedId + '\',\'' + (client ? (client.name || '').replace(/'/g, "\\'") : '') + '\')" style="background:var(--green-bg);border:1px solid #c8e6c9;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:var(--green-dark);">📞 Call</button>'
-        + '<button onclick="Dialpad.showTextModal(\'' + selectedId + '\',\'' + (client ? (client.name || '').replace(/'/g, "\\'") : '') + '\',\'' + (client ? (client.phone || '') : '') + '\')" style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:var(--green-dark);">💬 Text</button>'
-        + '<button onclick="MessagingPage.showTemplates(\'' + selectedId + '\')" style="background:#e3f2fd;border:1px solid #bbdefb;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;font-weight:600;color:#1565c0;">📋 Templates</button>'
-        + '</div></div>';
+        + '<div><strong style="font-size:15px;">' + UI.esc(headerName) + '</strong>'
+        + '<div style="font-size:12px;color:var(--text-light);">' + UI.esc(headerSub) + '</div></div>'
+        + '<div style="display:flex;gap:6px;">' + headerActions + '</div></div>';
 
       // Messages
       html += '<div id="msg-thread" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;">';
@@ -150,17 +256,135 @@ var MessagingPage = {
     }, 100);
   },
 
-  send: function(clientId) {
+  selectPhone: function(last10) {
+    var key = 'phone:' + last10;
+    var unread = {};
+    try { unread = JSON.parse(localStorage.getItem('bm-msg-unread') || '{}'); } catch(e) {}
+    delete unread[key];
+    localStorage.setItem('bm-msg-unread', JSON.stringify(unread));
+    MessagingPage._selected = key;
+    loadPage('messaging');
+    setTimeout(function() {
+      var thread = document.getElementById('msg-thread');
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    }, 100);
+  },
+
+  convertPhoneToClient: function(last10) {
+    var fmt = MessagingPage._fmtPhone(last10);
+    UI.showModal('Convert to Client',
+      UI.field('Name', '<input type="text" id="conv-name" placeholder="e.g. Jane Smith" autofocus>')
+      + UI.field('Phone', '<input type="text" id="conv-phone" value="' + fmt + '" readonly style="background:#f5f5f5;">')
+      + UI.field('Notes (optional)', '<textarea id="conv-notes" placeholder="How did they reach out?" style="min-height:60px;"></textarea>'),
+      {
+        footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
+          + ' <button class="btn btn-primary" onclick="MessagingPage._doConvert(\'' + last10 + '\')">Create Client & Link Messages</button>'
+      });
+    setTimeout(function() {
+      var n = document.getElementById('conv-name');
+      if (n) n.focus();
+    }, 50);
+  },
+
+  _doConvert: async function(last10) {
+    var name = (document.getElementById('conv-name') || {}).value || '';
+    name = name.trim();
+    if (!name) { UI.toast('Name is required', 'error'); return; }
+    var notes = (document.getElementById('conv-notes') || {}).value || '';
+
+    var client = {
+      id: (typeof SupabaseDB !== 'undefined' && SupabaseDB._uuid) ? SupabaseDB._uuid() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
+      name: name,
+      phone: MessagingPage._fmtPhone(last10),
+      notes: notes,
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      DB.clients.add(client);
+    } catch (e) { console.warn('local client add failed', e); }
+
+    if (typeof SupabaseDB !== 'undefined' && SupabaseDB.client) {
+      try {
+        var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
+        var row = { id: client.id, name: name, phone: client.phone, notes: notes };
+        if (tid) row.tenant_id = tid;
+        await SupabaseDB.client.from('clients').insert(row);
+
+        // Link existing communications rows for this phone to the new client
+        await SupabaseDB.client
+          .from('communications')
+          .update({ client_id: client.id })
+          .is('client_id', null)
+          .eq('channel', 'sms')
+          .or('from_number.ilike.%' + last10 + '%,to_number.ilike.%' + last10 + '%');
+      } catch (e) {
+        console.warn('cloud convert failed:', e);
+      }
+    }
+
+    // Drop bucket from cache, clear unread, switch selection to the new client
+    if (window._bmUnmatchedSmsCache) delete window._bmUnmatchedSmsCache[last10];
+    if (window._bmCommsCache) delete window._bmCommsCache[client.id];
+    var unread = {};
+    try { unread = JSON.parse(localStorage.getItem('bm-msg-unread') || '{}'); } catch(e) {}
+    delete unread['phone:' + last10];
+    localStorage.setItem('bm-msg-unread', JSON.stringify(unread));
+
+    UI.closeModal();
+    UI.toast('Client created');
+    MessagingPage._selected = client.id;
+    loadPage('messaging');
+  },
+
+  send: function(target) {
     var input = document.getElementById('msg-input');
     if (!input || !input.value.trim()) return;
 
     var type = MessagingPage._msgType || 'text';
     var notes = input.value.trim();
+    var isPhoneBucket = typeof target === 'string' && target.indexOf('phone:') === 0;
+
+    if (isPhoneBucket) {
+      // Unmatched-phone outbound: SMS only, no client_id
+      if (type !== 'text') { UI.toast('Only text supported for unknown numbers — convert to client first', 'error'); return; }
+      var last10 = target.replace('phone:', '');
+      // Optimistic: prepend to bucket cache so it appears immediately
+      if (window._bmUnmatchedSmsCache && window._bmUnmatchedSmsCache[last10]) {
+        window._bmUnmatchedSmsCache[last10].messages.unshift({
+          id: 'optimistic-' + Date.now(),
+          channel: 'sms',
+          direction: 'outbound',
+          to_number: '+1' + last10,
+          body: notes,
+          created_at: new Date().toISOString()
+        });
+        window._bmUnmatchedSmsCache[last10].latest = new Date().toISOString();
+      }
+      Dialpad.sendSMS(last10, notes, null);
+      // Re-fetch in 2s to pick up the real cloud row + dedupe via id
+      setTimeout(function() {
+        MessagingPage._unmatchedLoaded = false;
+        MessagingPage._loadUnmatchedSms();
+      }, 2000);
+      input.value = '';
+      loadPage('messaging');
+      return;
+    }
+
+    var clientId = target;
     var client = DB.clients.getById(clientId);
 
     if (type === 'text' && typeof Dialpad !== 'undefined') {
       var phone = client ? client.phone : '';
+      // Optimistic: log locally so the bubble shows up before the cloud roundtrip
+      Dialpad._logComm(clientId, 'text', 'outbound', notes);
       Dialpad.sendSMS(phone, notes, clientId);
+      // Bust cache + re-render so the cloud-logged row replaces the optimistic one
+      setTimeout(function() {
+        if (window._bmCommsCache) delete window._bmCommsCache[clientId];
+        if (window._currentPage === 'messaging') loadPage('messaging');
+      }, 2000);
     } else if (type === 'email' && typeof Email !== 'undefined' && client && client.email) {
       Email.send(client.email, 'Message from ' + MessagingPage._co().name, notes);
       Dialpad._logComm(clientId, 'email', 'outbound', notes);
