@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quote Approval</title>
+  <title>Quote / Estimate Approval</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f4f0; color: #1d1d1f; min-height: 100vh; }
@@ -84,8 +84,11 @@
     var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     var params = new URLSearchParams(window.location.search);
-    var quoteId = params.get('id');
+    var quoteId  = params.get('id');
     var urlToken = params.get('token');
+    var noSig    = params.get('nosig') === '1';          // signature not required
+    var tcUrl    = params.get('tc') || '';               // T&C URL
+    var docTerm  = params.get('term') === 'estimate' ? 'Estimate' : 'Quote';  // "Quote" or "Estimate"
 
     function el(id) { return document.getElementById(id); }
     function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -166,12 +169,19 @@
       if (isApproved) {
         actionHtml = '<div class="already-approved">'
           + '<div style="font-size:24px;margin-bottom:6px;">✅</div>'
-          + '<div style="font-weight:700;color:#2e7d32;font-size:16px;">Quote Approved</div>'
+          + '<div style="font-weight:700;color:#2e7d32;font-size:16px;">' + docTerm + ' Approved</div>'
           + '<div style="font-size:13px;color:#666;margin-top:4px;">We\'ll be in touch to schedule your service.</div>'
           + '</div>';
       } else if (!isDeclined && !q.deposit_required) {
+        var tcConsentText = 'I have reviewed and agree to the scope of work, pricing, and terms described in this ' + docTerm.toLowerCase() + '.'
+          + (tcUrl ? ' <a href="' + esc(tcUrl) + '" target="_blank" style="color:#1a3c12;">View Terms &amp; Conditions</a>' : '');
         actionHtml = '<div class="actions">'
-          + '<button class="btn btn-approve" id="btn-approve-main" onclick="showSignaturePad()">✅ Approve This Quote</button>'
+          + (noSig
+              // ── No-signature mode: direct approve button ──────────────────
+              ? '<button class="btn btn-approve" id="btn-approve-main" onclick="confirmApproveNoSig()">✅ Approve This ' + docTerm + '</button>'
+              // ── Signature mode (default): signature pad ───────────────────
+              : '<button class="btn btn-approve" id="btn-approve-main" onclick="showSignaturePad()">✅ Approve This ' + docTerm + '</button>'
+            )
           + '<div class="sig-section" id="sig-section">'
           + '<div class="section-label" style="margin-bottom:8px;">Sign to Approve</div>'
           + '<canvas id="sig-canvas" class="sig-canvas" width="700" height="200"></canvas>'
@@ -185,7 +195,7 @@
           + '</div>'
           + '<label style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;cursor:pointer;">'
           + '<input type="checkbox" id="sig-consent" style="width:18px;height:18px;flex-shrink:0;margin-top:2px;">'
-          + '<span style="font-size:12px;color:#666;line-height:1.5;">I consent to signing this document electronically. I acknowledge that my electronic signature has the same legal effect as a handwritten signature under the federal ESIGN Act and ' + esc(BM_CONFIG.state) + ' ESRA. I have reviewed and agree to the scope of work, pricing, and terms described in this quote.</span>'
+          + '<span style="font-size:12px;color:#666;line-height:1.5;">I consent to signing this document electronically. I acknowledge that my electronic signature has the same legal effect as a handwritten signature under the federal ESIGN Act and ' + esc(BM_CONFIG.state) + ' ESRA. ' + tcConsentText + '</span>'
           + '</label>'
           + '<div style="display:flex;gap:8px;margin-top:12px;">'
           + '<button class="btn btn-approve" style="flex:1;" onclick="confirmApprove()">✅ Confirm &amp; Approve</button>'
@@ -219,7 +229,7 @@
       el('app').innerHTML = ''
         + '<div class="header">'
         + '<div class="header-logo">🌳 ' + esc(BM_CONFIG.companyName) + '</div>'
-        + '<h1>Quote #' + esc(q.quote_number || '') + '</h1>'
+        + '<h1>' + docTerm + ' #' + esc(q.quote_number || '') + '</h1>'
         + '<div class="header-status">' + statusBadge + '</div>'
         + '</div>'
         + '<div class="card">'
@@ -376,13 +386,13 @@
         el('app').innerHTML = ''
           + '<div class="header" style="border-radius:12px;">'
           + '<div class="header-logo">🌳 ' + esc(BM_CONFIG.companyName) + '</div>'
-          + '<h1>Quote Approved!</h1>'
+          + '<h1>' + docTerm + ' Approved!</h1>'
           + '</div>'
           + '<div class="card card-standalone" style="border-radius:0 0 12px 12px;">'
           + '<div class="success-card">'
           + '<div class="success-icon">🌳</div>'
           + '<h2>Thank You, ' + esc(name.split(' ')[0]) + '!</h2>'
-          + '<p>Your quote has been approved and your signature has been saved. We\'ll reach out shortly to confirm your scheduled date.</p>'
+          + '<p>Your ' + docTerm.toLowerCase() + ' has been approved and your signature has been saved. We\'ll reach out shortly to confirm your scheduled date.</p>'
           + '<p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneDigits + '" style="color:#1a3c12;font-weight:700;text-decoration:none;font-size:16px;">📞 ' + esc(BM_CONFIG.phone) + '</a></p>'
           + '</div>'
           + '</div>'
@@ -390,6 +400,42 @@
       } catch(e) {
         alert('Could not save approval. Please call ' + BM_CONFIG.phone + ' or email ' + BM_CONFIG.email + '.');
         if (btn) { btn.textContent = '✅ Confirm & Approve'; btn.disabled = false; btn.className = 'btn btn-approve'; }
+      }
+    }
+
+    // No-signature fast-approve path (when bm-require-quote-sig=false in BM Settings)
+    async function confirmApproveNoSig() {
+      var btn = el('btn-approve-main');
+      if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; btn.className = 'btn btn-disabled'; }
+      try {
+        var now = new Date().toISOString();
+        var result = await sb.from('quotes')
+          .update({ status: 'approved', updated_at: now, signed_at: now, signed_user_agent: navigator.userAgent || '' })
+          .eq('id', window._quoteId);
+        if (result.error) throw result.error;
+        var q = window._quoteData || {};
+        fetch(QUOTE_NOTIFY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'approved', quoteId: window._quoteId, quoteNumber: q.quote_number || '', clientName: q.client_name || '', total: q.total || 0, property: q.property || '', clientEmail: q.client_email || '' })
+        }).catch(function(){});
+        el('app').innerHTML = ''
+          + '<div class="header" style="border-radius:12px;">'
+          + '<div class="header-logo">🌳 ' + esc(BM_CONFIG.companyName) + '</div>'
+          + '<h1>' + docTerm + ' Approved!</h1>'
+          + '</div>'
+          + '<div class="card card-standalone" style="border-radius:0 0 12px 12px;">'
+          + '<div class="success-card">'
+          + '<div class="success-icon">🌳</div>'
+          + '<h2>Thank You!</h2>'
+          + '<p>Your ' + docTerm.toLowerCase() + ' has been approved. We\'ll reach out shortly to confirm your scheduled date.</p>'
+          + '<p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneDigits + '" style="color:#1a3c12;font-weight:700;text-decoration:none;font-size:16px;">📞 ' + esc(BM_CONFIG.phone) + '</a></p>'
+          + '</div>'
+          + '</div>'
+          + '<div class="footer"><a href="' + esc(BM_CONFIG.websiteUrl) + '">' + esc(BM_CONFIG.website) + '</a></div>';
+      } catch(e) {
+        alert('Could not save approval. Please call ' + BM_CONFIG.phone + '.');
+        if (btn) { btn.textContent = '✅ Approve This ' + docTerm; btn.disabled = false; btn.className = 'btn btn-approve'; }
       }
     }
 

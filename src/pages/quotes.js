@@ -21,6 +21,18 @@ var QuotesPage = {
     };
   },
 
+  // Returns "Quote" or "Estimate" based on Settings → Client-Facing Options
+  _term: function(cap) {
+    var t = (localStorage.getItem('bm-quote-term') || 'quote') === 'estimate' ? 'estimate' : 'quote';
+    return cap ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+  },
+  // Settings → Show Qty column on quotes/email
+  _showQty: function() { return localStorage.getItem('bm-pdf-show-qty') !== 'false'; },
+  // Settings → Show Unit Price column on quotes/email
+  _showUnitPrice: function() { return localStorage.getItem('bm-pdf-show-unit-price') !== 'false'; },
+  // Settings → T&C URL (shown in quote email footer if set)
+  _tcUrl: function() { return localStorage.getItem('bm-tc-url') || ''; },
+
   _pendingDetail: null,
 
   render: function() {
@@ -277,9 +289,10 @@ var QuotesPage = {
     if (email && typeof Email !== 'undefined') {
       var firstName = (q.clientName || '').split(' ')[0] || 'there';
       var _co2 = QuotesPage._co();
-      var subject = 'Following up on your quote from ' + _co2.name;
+      var _ft = QuotesPage._term(false);
+      var subject = 'Following up on your ' + _ft + ' from ' + _co2.name;
       var body = 'Hi ' + firstName + ',\n\n'
-        + 'I wanted to follow up on the quote I sent over for ' + (q.description || 'tree services') + '.\n\n'
+        + 'I wanted to follow up on the ' + _ft + ' I sent over for ' + (q.description || 'tree services') + '.\n\n'
         + 'Quote #' + q.quoteNumber + ' — ' + UI.money(q.total) + '\n\n'
         + 'Do you have any questions or would you like to move forward? Just reply to this email or give me a call at ' + _co2.phone + '.\n\n'
         + 'Thanks,\nDoug Brown\n' + _co2.name + '\n' + _co2.phone + '\n' + _co2.website;
@@ -574,7 +587,7 @@ var QuotesPage = {
     // Expiry
     html += '<div style="margin-bottom:16px;">'
       + '<input type="hidden" id="q-expires" value="' + (q.expiresAt ? q.expiresAt.substring(0,10) : new Date(Date.now() + 30*86400000).toISOString().substring(0,10)) + '">'
-      + '<div style="font-size:11px;color:var(--text-light);">Quote valid for 30 days.</div>'
+      + '<div style="font-size:11px;color:var(--text-light);">' + QuotesPage._term(true) + ' valid for 30 days.</div>'
       + '</div>';
 
     // ═══ Labor Estimate (renamed from Production Estimate / T&M) ═══
@@ -640,7 +653,7 @@ var QuotesPage = {
       + '<button class="btn btn-outline" onclick="QuotesPage.saveAs(\'draft\')">Save Draft</button>'
       + '<button class="btn btn-primary" onclick="QuotesPage.saveAs(\'sent\')">Save & Send</button>'
       + '</div></div>'
-      + '<h2 style="font-size:20px;margin-bottom:4px;">' + (quoteId ? 'Edit Quote #' + q.quoteNumber : 'New Quote') + '</h2>'
+      + '<h2 style="font-size:20px;margin-bottom:4px;">' + (quoteId ? 'Edit ' + QuotesPage._term(true) + ' #' + q.quoteNumber : 'New ' + QuotesPage._term(true)) + '</h2>'
       + '<div id="q-save-status" style="font-size:11px;color:var(--text-light);margin-bottom:12px;font-style:italic;">Not saved yet — start typing to auto-save.</div>'
       + html
       + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">'
@@ -1767,11 +1780,11 @@ var QuotesPage = {
     var savedId;
     if (quoteId) {
       DB.quotes.update(quoteId, data);
-      UI.toast('Quote updated');
+      UI.toast(QuotesPage._term(true) + ' updated');
       savedId = quoteId;
     } else {
       var newQ = DB.quotes.create(data);
-      UI.toast('Quote created');
+      UI.toast(QuotesPage._term(true) + ' created');
       savedId = newQ.id;
     }
 
@@ -1850,7 +1863,7 @@ var QuotesPage = {
       + '<div style="padding:20px 24px;">'
       + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px;">'
       + '<div>'
-      + '<h2 style="font-size:22px;font-weight:700;margin:0 0 4px;">Quote #' + (q.quoteNumber||'') + ' — ' + UI.esc(q.clientName || '—') + '</h2>'
+      + '<h2 style="font-size:22px;font-weight:700;margin:0 0 4px;">' + QuotesPage._term(true) + ' #' + (q.quoteNumber||'') + ' — ' + UI.esc(q.clientName || '—') + '</h2>'
       + '<div style="font-size:13px;color:var(--text-light);">' + UI.dateShort(q.createdAt) + (q.sentAt ? ' · Sent ' + UI.dateShort(q.sentAt) : '') + '</div>'
       + (q.property ? '<a href="https://maps.apple.com/?daddr=' + encodeURIComponent(q.property) + '" target="_blank" rel="noopener noreferrer" style="display:block;font-size:13px;color:var(--accent);margin-top:2px;text-decoration:none;">📍 ' + UI.esc(q.property) + ' →</a>' : '')
       + '</div>'
@@ -1940,7 +1953,7 @@ var QuotesPage = {
       + '</div>'; // close max-width wrapper
 
     // Render full page
-    document.getElementById('pageTitle').textContent = 'Quote #' + q.quoteNumber;
+    document.getElementById('pageTitle').textContent = QuotesPage._term(true) + ' #' + q.quoteNumber;
     document.getElementById('pageContent').innerHTML = html;
     document.getElementById('pageAction').style.display = 'none';
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -1955,7 +1968,15 @@ var QuotesPage = {
       token = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 16);
       DB.quotes.update(id, { approvalToken: token });
     }
-    return 'https://branchmanager.app/approve.html?id=' + id + '&token=' + token;
+    var url = 'https://branchmanager.app/approve.html?id=' + id + '&token=' + token;
+    // Pass client-facing settings so approve.html (runs in customer's browser) can respect them
+    var requireSig = localStorage.getItem('bm-require-quote-sig') !== 'false';
+    var tcUrl = localStorage.getItem('bm-tc-url') || '';
+    var term = localStorage.getItem('bm-quote-term') || 'quote';
+    if (!requireSig) url += '&nosig=1';
+    if (tcUrl)       url += '&tc=' + encodeURIComponent(tcUrl);
+    if (term === 'estimate') url += '&term=estimate';
+    return url;
   },
 
   _copyApprovalLink: function(id) {
@@ -1980,15 +2001,17 @@ var QuotesPage = {
 
     // Build email preview (Jobber style)
     var _co = QuotesPage._co();
-    var subject = 'Quote #' + q.quoteNumber + ' from ' + _co.name + ' — ' + UI.money(q.total);
+    var _term = QuotesPage._term(true);   // "Quote" or "Estimate"
+    var _terml = QuotesPage._term(false);  // lowercase
+    var subject = _term + ' #' + q.quoteNumber + ' from ' + _co.name + ' — ' + UI.money(q.total);
     var body = 'Hi ' + firstName + ',\n\n'
-      + 'Thanks for reaching out to ' + _co.name + '! Here\'s your quote for the work we discussed:\n\n'
-      + '📋 Quote #' + q.quoteNumber + '\n'
+      + 'Thanks for reaching out to ' + _co.name + '! Here\'s your ' + _terml + ' for the work we discussed:\n\n'
+      + '📋 ' + _term + ' #' + q.quoteNumber + '\n'
       + '📍 ' + (q.property || 'Property on file') + '\n'
       + '💰 Total: ' + UI.money(q.total) + '\n\n';
     if (q.description) body += 'Scope: ' + q.description + '\n\n';
-    body += '👉 View & approve your quote online:\n' + approvalLink + '\n\n'
-      + 'This quote is valid for 30 days. Click the link above to approve or request changes — no login required.\n\n'
+    body += '👉 View & approve your ' + _terml + ' online:\n' + approvalLink + '\n\n'
+      + 'This ' + _terml + ' is valid for 30 days. Click the link above to approve or request changes — no login required.\n\n'
       + 'Questions? Reply to this email or call ' + _co.phone + '.\n\n'
       + 'Thanks,\nDoug Brown\n' + _co.name + '\n' + _co.phone + '\n' + _co.website + '\nLicensed & Fully Insured — ' + _co.licenses;
 
@@ -2014,7 +2037,7 @@ var QuotesPage = {
       // Quote summary
       + '<div style="background:var(--white);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-      + '<div style="font-size:15px;font-weight:700;">Quote #' + q.quoteNumber + '</div>'
+      + '<div style="font-size:15px;font-weight:700;">' + _term + ' #' + q.quoteNumber + '</div>'
       + '<div style="font-size:20px;font-weight:800;color:var(--green-dark);">' + UI.money(q.total) + '</div>'
       + '</div>'
       + '<div style="font-size:13px;color:var(--text-light);margin-bottom:8px;">' + UI.esc(q.clientName || '') + ' · ' + UI.esc(q.property || '') + '</div>'
@@ -2037,10 +2060,10 @@ var QuotesPage = {
       + '<input type="hidden" id="send-body" value="' + UI.esc(body) + '">'
       + '</div>';
 
-    UI.showModal('Send Quote #' + q.quoteNumber, html, {
+    UI.showModal('Send ' + _term + ' #' + q.quoteNumber, html, {
       footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
         + ' <button class="btn btn-outline" onclick="QuotesPage._previewEmail(\'' + id + '\')">👁 Preview Email</button>'
-        + ' <button class="btn btn-primary" onclick="QuotesPage._confirmSend(\'' + id + '\')">📧 Send Quote</button>'
+        + ' <button class="btn btn-primary" onclick="QuotesPage._confirmSend(\'' + id + '\')">📧 Send ' + _term + '</button>'
     });
   },
 
@@ -2054,7 +2077,7 @@ var QuotesPage = {
     overlay.id = 'bm-email-preview-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;display:flex;flex-direction:column;';
     overlay.innerHTML = '<div style="background:#1a1a2e;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">'
-      + '<span style="color:#fff;font-weight:700;font-size:14px;">Email Preview — Quote #' + (q.quoteNumber||'') + '</span>'
+      + '<span style="color:#fff;font-weight:700;font-size:14px;">Email Preview — ' + QuotesPage._term(true) + ' #' + (q.quoteNumber||'') + '</span>'
       + '<button onclick="document.getElementById(\'bm-email-preview-overlay\').remove()" style="background:none;border:none;color:rgba(255,255,255,.7);font-size:24px;cursor:pointer;line-height:1;">×</button>'
       + '</div>'
       + '<iframe id="bm-email-preview-frame" style="flex:1;border:none;background:#f5f6f8;" sandbox="allow-same-origin"></iframe>';
@@ -2066,7 +2089,12 @@ var QuotesPage = {
   _buildEmailHtml: function(id) {
     var q = DB.quotes.getById(id);
     if (!q) return '';
-    var _co = QuotesPage._co();
+    var _co       = QuotesPage._co();
+    var _term     = QuotesPage._term(true);    // "Quote" or "Estimate"
+    var _terml    = QuotesPage._term(false);   // lowercase
+    var _showQty  = QuotesPage._showQty();
+    var _showUnit = QuotesPage._showUnitPrice();
+    var _tcUrl    = QuotesPage._tcUrl();
     var approvalLink = QuotesPage._getApprovalLink(id);
     function fmt(n) { n = parseFloat(n)||0; return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
     function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -2088,8 +2116,8 @@ var QuotesPage = {
         liRows += '<tr style="background:' + bg + ';">'
           + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;font-weight:600;color:#111;font-size:13px;">'     + esc(item.service||'Tree Service') + '</td>'
           + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;">'                 + esc(item.description||'') + '</td>'
-          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#111;font-size:13px;">'  + qty + '</td>'
-          + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:right;color:#111;font-size:13px;">'   + fmt(rate) + '</td>'
+          + (_showQty  ? '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:center;color:#111;font-size:13px;">'  + qty + '</td>' : '')
+          + (_showUnit ? '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:right;color:#111;font-size:13px;">'   + fmt(rate) + '</td>' : '')
           + '<td style="padding:9px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-weight:700;color:#111;font-size:13px;">' + fmt(amt) + '</td>'
           + '</tr>';
       });
@@ -2138,7 +2166,7 @@ var QuotesPage = {
       + (q.clientEmail ? '<div style="font-size:13px;color:#00836c;">'                   + esc(q.clientEmail) + '</div>' : '')
       + '</td>'
       + '<td style="background:#1a3c12;padding:18px 22px;vertical-align:top;width:45%;">'
-      + '<div style="font-size:12px;font-weight:800;color:#fff;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;">Quote #' + esc(String(q.quoteNumber||'')) + '</div>'
+      + '<div style="font-size:12px;font-weight:800;color:#fff;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;">' + _term + ' #' + esc(String(q.quoteNumber||'')) + '</div>'
       + '<table width="100%" cellpadding="0" cellspacing="0">'
       + '<tr><td style="font-size:12px;color:rgba(255,255,255,.65);padding-bottom:5px;">Issued</td><td align="right" style="font-size:12px;color:#fff;font-weight:600;padding-bottom:5px;">'     + issuedDate  + '</td></tr>'
       + '<tr><td style="font-size:12px;color:rgba(255,255,255,.65);">Valid Until</td><td align="right" style="font-size:12px;color:#fff;font-weight:600;">' + validUntil  + '</td></tr>'
@@ -2160,8 +2188,8 @@ var QuotesPage = {
         + '<thead><tr style="background:#374151;">'
         + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:left;letter-spacing:.05em;text-transform:uppercase;width:26%;">Service</th>'
         + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:left;letter-spacing:.05em;text-transform:uppercase;">Description</th>'
-        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:center;letter-spacing:.05em;text-transform:uppercase;width:7%;">Qty</th>'
-        + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:right;letter-spacing:.05em;text-transform:uppercase;width:14%;">Unit Price</th>'
+        + (_showQty  ? '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:center;letter-spacing:.05em;text-transform:uppercase;width:7%;">Qty</th>' : '')
+        + (_showUnit ? '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:right;letter-spacing:.05em;text-transform:uppercase;width:14%;">Unit Price</th>' : '')
         + '<th style="padding:9px 14px;color:#fff;font-size:11px;font-weight:600;text-align:right;letter-spacing:.05em;text-transform:uppercase;width:14%;">Total</th>'
         + '</tr></thead><tbody>' + liRows + '</tbody>'
         + '</table></td></tr>' : '')
@@ -2177,10 +2205,11 @@ var QuotesPage = {
 
       // ── CTA ───────────────────────────────────────────────────────────
       + '<tr><td style="padding:28px 26px;text-align:center;background:#f9fafb;border-top:1px solid #e5e7eb;">'
-      + '<p style="font-size:14px;color:#4b5563;margin:0 0 20px 0;line-height:1.5;">Review your quote and approve it online — no login required.</p>'
+      + '<p style="font-size:14px;color:#4b5563;margin:0 0 20px 0;line-height:1.5;">Review your ' + _terml + ' and approve it online — no login required.</p>'
       + '<a href="' + approvalLink + '" style="display:inline-block;background:#1a3c12;color:#fff;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:800;text-decoration:none;">'
-      + '&#10003;&nbsp; View &amp; Approve Quote</a>'
-      + '<p style="font-size:12px;color:#9ca3af;margin:14px 0 0;line-height:1.4;">This quote is valid for 30 days. You can approve, request changes, or ask questions by replying to this email.</p>'
+      + '&#10003;&nbsp; View &amp; Approve ' + _term + '</a>'
+      + '<p style="font-size:12px;color:#9ca3af;margin:14px 0 0;line-height:1.4;">This ' + _terml + ' is valid for 30 days. You can approve, request changes, or ask questions by replying to this email.</p>'
+      + (_tcUrl ? '<p style="font-size:11px;color:#9ca3af;margin:8px 0 0;"><a href="' + _tcUrl + '" style="color:#6b7280;text-decoration:underline;">Terms &amp; Conditions</a></p>' : '')
       + '</td></tr>'
 
       // ── Footer ────────────────────────────────────────────────────────
@@ -2230,7 +2259,7 @@ var QuotesPage = {
     if (typeof Email !== 'undefined') {
       Email.send(to, subject, body, { htmlBody: htmlBody }).then(function(result) {
         if (result && result.ok) {
-          UI.toast('Quote sent to ' + to + ' ✓');
+          UI.toast(QuotesPage._term(true) + ' sent to ' + to + ' ✓');
         } else {
           UI.toast('Email sent (check for errors)', 'warning');
         }
@@ -2253,17 +2282,17 @@ var QuotesPage = {
     if (status === 'approved') {
       var q = DB.quotes.getById(id);
       if (q && !q.convertedJobId) {
-        UI.confirm('Quote approved! Create a job from this quote?', function() {
+        UI.confirm(QuotesPage._term(true) + ' approved! Create a job from this ' + QuotesPage._term(false) + '?', function() {
           if (typeof Workflow !== 'undefined') {
             var job = Workflow.quoteToJob(id);
             if (job) { UI.toast('✅ Job #' + job.jobNumber + ' created'); loadPage('jobs'); return; }
           }
           QuotesPage.showDetail(id);
-        }, function() { UI.toast('Quote approved'); QuotesPage.showDetail(id); });
+        }, function() { UI.toast(QuotesPage._term(true) + ' approved'); QuotesPage.showDetail(id); });
         return;
       }
     }
-    UI.toast('Quote status: ' + status);
+    UI.toast(QuotesPage._term(true) + ' status: ' + status);
     QuotesPage.showDetail(id);
   },
 
@@ -3227,14 +3256,14 @@ var QuotesPage = {
   _archiveQuote: function(quoteId) {
     if (!confirm('Archive this quote? It will be hidden from the main list.')) return;
     DB.quotes.update(quoteId, { status: 'archived' });
-    UI.toast('Quote archived');
+    UI.toast(QuotesPage._term(true) + ' archived');
     loadPage('quotes');
   },
 
   _deleteQuote: function(quoteId) {
     if (!confirm('Delete this quote permanently? This cannot be undone.')) return;
     DB.quotes.delete(quoteId);
-    UI.toast('Quote deleted');
+    UI.toast(QuotesPage._term(true) + ' deleted');
     loadPage('quotes');
   }
 };
