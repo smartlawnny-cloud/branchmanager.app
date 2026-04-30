@@ -27,9 +27,9 @@ var QuotesPage = {
     return cap ? t.charAt(0).toUpperCase() + t.slice(1) : t;
   },
   // Settings → Show Qty column on quotes/email
-  _showQty: function() { return localStorage.getItem('bm-pdf-show-qty') !== 'false'; },
+  _showQty: function() { return localStorage.getItem('bm-pdf-show-qty') === 'true'; },
   // Settings → Show Unit Price column on quotes/email
-  _showUnitPrice: function() { return localStorage.getItem('bm-pdf-show-unit-price') !== 'false'; },
+  _showUnitPrice: function() { return localStorage.getItem('bm-pdf-show-unit-price') === 'true'; },
   // Settings → T&C URL (shown in quote email footer if set)
   _tcUrl: function() { return localStorage.getItem('bm-tc-url') || ''; },
 

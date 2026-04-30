@@ -491,8 +491,8 @@ var SettingsPage = {
       tipsEnabled:      localStorage.getItem('bm-tips-enabled') !== 'false',
       autoReceipt:      localStorage.getItem('bm-auto-receipt') !== 'false',
       tcUrl:            localStorage.getItem('bm-tc-url') || '',
-      showQty:          localStorage.getItem('bm-pdf-show-qty') !== 'false',
-      showUnitPrice:    localStorage.getItem('bm-pdf-show-unit-price') !== 'false'
+      showQty:          localStorage.getItem('bm-pdf-show-qty') === 'true',
+      showUnitPrice:    localStorage.getItem('bm-pdf-show-unit-price') === 'true'
     };
     html += cardOpen('Client-Facing Options')
       + '<div style="display:flex;flex-direction:column;gap:14px;">'
