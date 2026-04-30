@@ -223,6 +223,7 @@ function renderDashboard() {
     {id:'jobs',     label:'Jobs ('+jobs.length+')'},
   ];
   if (photos.length) tabs.push({id:'photos', label:'Photos ('+photos.length+')'});
+  tabs.push({id:'profile', label:'Profile'});
 
   html += '<div class="tab-bar">';
   tabs.forEach(function(t) {
@@ -260,7 +261,84 @@ function renderTab(tab, d) {
   if (tab === 'quotes')   return renderQuotes(d.quotes || []);
   if (tab === 'jobs')     return renderJobs(d.jobs || []);
   if (tab === 'photos')   return renderPhotos(d.photos || []);
+  if (tab === 'profile')  return renderProfile(d.client || {});
   return '';
+}
+
+// ── Profile (self-service edit) ───────────────────────────────────────────────
+function renderProfile(c) {
+  function field(id, label, type, value, placeholder) {
+    return '<div style="margin-bottom:12px;">'
+      + '<label style="display:block;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">' + esc(label) + '</label>'
+      + '<input id="profile-' + id + '" type="' + type + '" value="' + esc(value || '') + '" placeholder="' + esc(placeholder || '') + '" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;">'
+      + '</div>';
+  }
+  return '<div class="card">'
+    + '<h3>👤 Your Info</h3>'
+    + '<p style="font-size:12px;color:#888;margin:-6px 0 14px;">Update your contact info — we use this for invoices, scheduling, and reaching you about service.</p>'
+    + '<div style="font-size:13px;color:#666;margin-bottom:14px;">Account name: <strong style="color:#1d1d1f;">' + esc(c.name || '—') + '</strong> <span style="color:#aaa;">(contact us if this needs to change)</span></div>'
+    + field('email', 'Email', 'email', c.email, 'you@example.com')
+    + field('phone', 'Phone', 'tel', c.phone, '(555) 123-4567')
+    + field('address', 'Address', 'text', c.address, '123 Main St')
+    + '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;">'
+    +   field('city', 'City', 'text', c.city, '')
+    +   field('state', 'State', 'text', c.state, 'NY')
+    +   field('zip', 'ZIP', 'text', c.zip, '10566')
+    + '</div>'
+    + '<div style="margin-bottom:12px;">'
+    +   '<label style="display:block;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Notes for us</label>'
+    +   '<textarea id="profile-notes" placeholder="Anything we should know? Gate codes, dogs, parking, etc." style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;min-height:70px;font-family:inherit;">' + esc(c.notes || '') + '</textarea>'
+    + '</div>'
+    + '<div id="profile-msg" style="font-size:13px;margin-bottom:8px;display:none;"></div>'
+    + '<button class="btn btn-primary" style="width:100%;padding:12px;" onclick="saveProfile()">Save changes</button>'
+    + '</div>';
+}
+
+function saveProfile() {
+  var token = localStorage.getItem('bm-portal-token');
+  if (!token) { showLogin(); return; }
+  var msg = document.getElementById('profile-msg');
+  function get(id) { var el = document.getElementById('profile-' + id); return el ? el.value.trim() : ''; }
+  var patch = {
+    email: get('email'),
+    phone: get('phone'),
+    address: get('address'),
+    city: get('city'),
+    state: get('state'),
+    zip: get('zip'),
+    notes: get('notes')
+  };
+  if (patch.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(patch.email)) {
+    msg.style.display = 'block'; msg.style.color = '#b91c1c';
+    msg.textContent = 'Please enter a valid email address.';
+    return;
+  }
+  msg.style.display = 'none';
+  var btn = document.querySelector('#portal-tab-content .btn-primary');
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  fetch(PORTAL_API + '/portal-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token, patch: patch })
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, body: d }; }); })
+    .then(function(res) {
+      if (btn) { btn.textContent = 'Save changes'; btn.disabled = false; }
+      if (res.ok && res.body.ok) {
+        msg.style.display = 'block'; msg.style.color = '#166534';
+        msg.textContent = '✓ Saved.';
+        // Update local cache so other tabs reflect the change without re-fetch
+        if (_data) _data.client = Object.assign({}, _data.client || {}, res.body.client || {});
+      } else {
+        msg.style.display = 'block'; msg.style.color = '#b91c1c';
+        msg.textContent = (res.body && res.body.error) || 'Couldn\'t save. Please try again.';
+      }
+    })
+    .catch(function() {
+      if (btn) { btn.textContent = 'Save changes'; btn.disabled = false; }
+      msg.style.display = 'block'; msg.style.color = '#b91c1c';
+      msg.textContent = 'Network error — please try again.';
+    });
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────

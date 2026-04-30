@@ -1,5 +1,5 @@
 {
-  "version": 545,
+  "version": 546,
   "released": "2026-04-30",
-  "notes": "portal live-refresh: 60s poll + visibilitychange"
+  "notes": "customer portal: Profile tab + portal-update edge fn"
 }
