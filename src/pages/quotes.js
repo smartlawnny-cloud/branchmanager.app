@@ -2023,6 +2023,7 @@ var QuotesPage = {
     if (q.description) body += 'Scope: ' + q.description + '\n\n';
     body += '👉 View & approve your ' + _terml + ' online:\n' + approvalLink + '\n\n'
       + 'This ' + _terml + ' is valid for 30 days. Click the link above to approve or request changes — no login required.\n\n'
+      + 'Want to see all your quotes, invoices, and job history any time? Get a portal link: https://branchmanager.app/portal.html\n\n'
       + 'Questions? Reply to this email or call ' + _co.phone + '.\n\n'
       + 'Thanks,\nDoug Brown\n' + _co.name + '\n' + _co.phone + '\n' + _co.website + '\nLicensed & Fully Insured — ' + _co.licenses;
 
@@ -2299,6 +2300,7 @@ var QuotesPage = {
       + '<td style="font-size:12px;color:#6b7280;">Questions? Call or text <strong style="color:#374151;">' + esc(_co.phone||'') + '</strong></td>'
       + '<td align="right" style="font-size:11px;color:#d1d5db;">Licensed &amp; Insured' + (_co.licenses ? ' &nbsp;·&nbsp; ' + esc(_co.licenses) : '') + '</td>'
       + '</tr></table>'
+      + '<div style="margin-top:8px;font-size:11px;color:#9ca3af;">Want to see all your quotes, invoices &amp; job history any time? <a href="https://branchmanager.app/portal.html" style="color:#1a3c12;text-decoration:underline;">Get your portal link &rarr;</a></div>'
       + '</td></tr>'
 
       // ── Social + Review bar ───────────────────────────────────────────

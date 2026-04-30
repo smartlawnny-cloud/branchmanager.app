@@ -638,7 +638,7 @@ var InvoicesPage = {
       + '  Amount Due: ' + amtDue + '\n'
       + (inv.dueDate ? '  Due: ' + UI.dateShort(inv.dueDate) + '\n' : '') + '\n'
       + 'Pay online (card, or tip optional):\n' + payLink + '\n\n'
-      + ''
+      + 'Want to see all your invoices, quotes & job history any time? Get a portal link: https://branchmanager.app/portal.html\n\n'
       + 'Questions? Reply to this email or call/text ' + InvoicesPage._co().phone + '.\n\n'
       + 'Thanks,\nDoug Brown\n' + InvoicesPage._co().name + '\n' + InvoicesPage._co().phone + '\n' + InvoicesPage._co().website;
 
@@ -736,6 +736,7 @@ var InvoicesPage = {
       + (_c.website ? '<td style="text-align:right;font-size:12px;"><a href="' + _c.website + '" style="color:#1a3c12;text-decoration:none;font-weight:600;">' + esc(_c.website.replace(/^https?:\/\//,'')) + '</a></td>' : '<td></td>')
       + '</tr>'
       + '</table>'
+      + '<div style="margin-top:8px;font-size:11px;color:#9ca3af;">Want to see all your invoices, quotes &amp; job history any time? <a href="https://branchmanager.app/portal.html" style="color:#1a3c12;text-decoration:underline;">Get your portal link &rarr;</a></div>'
       + '</td>'
       + '</tr>'
       // ── Social / review bar ───────────────────────────────────────────

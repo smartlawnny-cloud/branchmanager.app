@@ -1,5 +1,5 @@
 {
-  "version": 540,
+  "version": 541,
   "released": "2026-04-30",
-  "notes": "portal CTA on paid.html + approve.html"
+  "notes": "portal links in quote-sent + invoice-sent emails"
 }
