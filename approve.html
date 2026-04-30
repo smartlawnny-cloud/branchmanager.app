@@ -202,6 +202,15 @@
           + '<div style="font-size:24px;margin-bottom:6px;">✅</div>'
           + '<div style="font-weight:700;color:#2e7d32;font-size:16px;">' + docTerm + ' Approved</div>'
           + '<div style="font-size:13px;color:#666;margin-top:4px;">We\'ll be in touch to schedule your service.</div>'
+          + '</div>'
+          + '<div id="portal-cta" style="margin-top:16px;padding:18px;background:#f0f7ff;border:1px solid #cfe2ff;border-radius:12px;">'
+          + '<div style="font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:6px;">📁 Track everything in your portal</div>'
+          + '<div style="font-size:13px;color:#475569;line-height:1.5;margin-bottom:10px;">Get a portal link to view this quote, future quotes, invoices, job history, and photos any time.</div>'
+          + '<div id="portal-form" style="display:flex;gap:6px;flex-wrap:wrap;">'
+          + '<input id="portal-email" type="email" inputmode="email" placeholder="your@email.com" value="' + esc(q.client_email || '') + '" style="flex:1;min-width:180px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">'
+          + '<button onclick="sendPortalLink()" id="portal-btn" style="background:#1e3a8a;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Send link</button>'
+          + '</div>'
+          + '<div id="portal-msg" style="font-size:13px;margin-top:8px;display:none;"></div>'
           + '</div>';
       } else if (!isDeclined && !q.deposit_required) {
         var tcConsentText = 'I have reviewed and agree to the scope of work, pricing, and terms described in this ' + docTerm.toLowerCase() + '.'
@@ -686,6 +695,49 @@
 
     document.title = 'Quote Approval — ' + BM_CONFIG.companyName;
     window.addEventListener('load', loadQuote);
+
+    function sendPortalLink() {
+      var emailInput = document.getElementById('portal-email');
+      var btn = document.getElementById('portal-btn');
+      var msg = document.getElementById('portal-msg');
+      var email = (emailInput.value || '').trim().toLowerCase();
+      if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        msg.style.display = 'block';
+        msg.style.color = '#b91c1c';
+        msg.textContent = 'Please enter a valid email.';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      msg.style.display = 'none';
+      fetch(FN_BASE + '/portal-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, body: d }; }); })
+        .then(function(res) {
+          btn.disabled = false;
+          btn.textContent = 'Send link';
+          msg.style.display = 'block';
+          if (res.ok && res.body.ok) {
+            msg.style.color = '#166534';
+            msg.textContent = '✓ Check your inbox — your portal link is on its way.';
+            document.getElementById('portal-form').style.display = 'none';
+          } else {
+            msg.style.color = '#b91c1c';
+            msg.textContent = (res.body && res.body.error) || 'Something went wrong. Please try again.';
+          }
+        })
+        .catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'Send link';
+          msg.style.display = 'block';
+          msg.style.color = '#b91c1c';
+          msg.textContent = 'Network error — please try again.';
+        });
+    }
+    window.sendPortalLink = sendPortalLink;
   </script>
 </body>
 </html>

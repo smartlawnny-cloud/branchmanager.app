@@ -76,6 +76,18 @@
       </div>
     </div>
 
+    <div class="portal-cta" id="portal-cta" style="margin-top:24px;padding:18px;background:#f0f7ff;border:1px solid #cfe2ff;border-radius:12px;">
+      <div style="font-size:14px;font-weight:700;color:#1e3a8a;margin-bottom:6px;">📁 Want all your activity in one place?</div>
+      <div style="font-size:13px;color:#475569;line-height:1.5;margin-bottom:10px;">Get a portal link to view your invoices, quotes, job history, and photos any time — and pay future invoices in one tap.</div>
+      <div id="portal-form" style="display:flex;gap:6px;flex-wrap:wrap;">
+        <input id="portal-email" type="email" inputmode="email" placeholder="your@email.com"
+          style="flex:1;min-width:180px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+        <button onclick="sendPortalLink()" id="portal-btn"
+          style="background:#1e3a8a;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Send link</button>
+      </div>
+      <div id="portal-msg" style="font-size:13px;margin-top:8px;display:none;"></div>
+    </div>
+
     <div class="footer-links" id="paid-footer-links"></div>
   </div>
   <div class="brand-footer" id="paid-brand-footer"></div>
@@ -123,6 +135,51 @@
 
   // Google Review link is now set dynamically from BM_CONFIG
 })();
+</script>
+<script>
+function sendPortalLink() {
+  var emailInput = document.getElementById('portal-email');
+  var btn = document.getElementById('portal-btn');
+  var msg = document.getElementById('portal-msg');
+  var email = (emailInput.value || '').trim().toLowerCase();
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    msg.style.display = 'block';
+    msg.style.color = '#b91c1c';
+    msg.textContent = 'Please enter a valid email.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  msg.style.display = 'none';
+  fetch('https://ltpivkqahvplapyagljt.supabase.co/functions/v1/portal-auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email })
+  })
+    .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, body: d }; }); })
+    .then(function(res) {
+      btn.disabled = false;
+      btn.textContent = 'Send link';
+      msg.style.display = 'block';
+      // portal-auth always returns ok=true to avoid email enumeration, even
+      // when no client exists. Surface that as friendly text either way.
+      if (res.ok && res.body.ok) {
+        msg.style.color = '#166534';
+        msg.textContent = '✓ Check your inbox — your portal link is on its way.';
+        document.getElementById('portal-form').style.display = 'none';
+      } else {
+        msg.style.color = '#b91c1c';
+        msg.textContent = (res.body && res.body.error) || 'Something went wrong. Please try again.';
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      btn.textContent = 'Send link';
+      msg.style.display = 'block';
+      msg.style.color = '#b91c1c';
+      msg.textContent = 'Network error — please try again.';
+    });
+}
 </script>
 </body>
 </html>

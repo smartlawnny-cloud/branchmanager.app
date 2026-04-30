@@ -1,5 +1,5 @@
 {
-  "version": 539,
+  "version": 540,
   "released": "2026-04-30",
-  "notes": "portal invite uses custom magic-link flow + TCPA auto-reply wired"
+  "notes": "portal CTA on paid.html + approve.html"
 }
