@@ -80,12 +80,37 @@ if grep -q "BUNDLED_VERSION = $NEXT" index.html \
   && grep -q "branch-manager-v$NEXT" sw.js \
   && grep -q "\"version\": $NEXT" version.json; then
   echo ""
-  echo "🎉 All locked to v$NEXT."
-  echo ""
-  echo "Next:"
-  echo "   git add -A && git commit -m \"v$NEXT: <summary>\" && git push"
+  echo "🎉 Version metadata locked to v$NEXT."
 else
   echo ""
   echo "⚠️  Something didn't match — inspect diffs before committing."
   exit 1
 fi
+
+# 5. Build the production bundle. index.html points at
+# dist/bm.bundle.v$NEXT.min.js — without this step the live site 404s on
+# the bundle and the app dies at boot (this happened v537 + v538). Skip
+# with BUMP_NO_BUILD=1 if you really want to defer the build.
+if [[ -z "${BUMP_NO_BUILD:-}" ]]; then
+  echo ""
+  echo "📦 Building bundle dist/bm.bundle.v$NEXT.min.js …"
+  if node scripts/build-bundle.mjs >/dev/null 2>&1; then
+    if [[ -f "dist/bm.bundle.v$NEXT.min.js" ]]; then
+      SIZE=$(ls -lh "dist/bm.bundle.v$NEXT.min.js" | awk '{print $5}')
+      echo "✅ dist/bm.bundle.v$NEXT.min.js built ($SIZE)"
+    else
+      echo "❌ Bundle build ran but dist/bm.bundle.v$NEXT.min.js is missing — STOP and investigate."
+      exit 1
+    fi
+  else
+    echo "❌ Bundle build failed — STOP and investigate (run: node scripts/build-bundle.mjs)."
+    exit 1
+  fi
+else
+  echo ""
+  echo "⚠️  Skipped bundle build (BUMP_NO_BUILD=1). Build manually before pushing or the live site will 404 the bundle."
+fi
+
+echo ""
+echo "Next:"
+echo "   git add -A && git commit -m \"v$NEXT: <summary>\" && git push"
