@@ -1993,11 +1993,17 @@ var QuotesPage = {
     var q = DB.quotes.getById(id);
     if (!q) return;
 
-    // Get client email
+    // Get client email + phone
     var client = q.clientId ? DB.clients.getById(q.clientId) : null;
     var email = (client && client.email) || q.clientEmail || '';
+    var phone = (client && client.phone) || q.clientPhone || '';
     var firstName = (q.clientName || '').split(' ')[0] || 'there';
     var approvalLink = QuotesPage._getApprovalLink(id);
+
+    // Pick a default channel based on what's on file
+    var defaultChannel = email ? 'email' : (phone ? 'sms' : 'email');
+    var hasEmail = !!email;
+    var hasPhone = !!phone;
 
     // Build email preview (Jobber style)
     var _co = QuotesPage._co();
@@ -2026,12 +2032,28 @@ var QuotesPage = {
       });
     }
 
+    // Channel pill button helper — reused 3× below
+    function pillBtn(val, label, disabled) {
+      var dis = disabled ? 'opacity:.4;cursor:not-allowed;' : 'cursor:pointer;';
+      return '<button type="button" id="ch-' + val + '"'
+        + (disabled ? ' disabled' : ' onclick="QuotesPage._setChannel(\'' + val + '\')"')
+        + ' style="flex:1;padding:10px 8px;font-size:13px;font-weight:700;border:1.5px solid var(--border);background:#fff;color:var(--text);border-radius:8px;' + dis + '">'
+        + label + '</button>';
+    }
+
     var html = '<div style="padding:16px;">'
-      // Review card — read only
-      + '<div style="background:var(--bg);border-radius:10px;padding:16px;margin-bottom:16px;">'
-      + '<div style="font-size:13px;color:var(--text-light);margin-bottom:4px;">Sending to</div>'
-      + '<div style="font-size:16px;font-weight:700;">' + UI.esc(email || 'No email on file') + '</div>'
+      // Channel selector + recipient display
+      + '<div style="background:var(--bg);border-radius:10px;padding:14px 16px 16px;margin-bottom:16px;">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text-light);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">Send via</div>'
+      + '<div style="display:flex;gap:6px;margin-bottom:12px;">'
+      +   pillBtn('email', '📧 Email', !hasEmail)
+      +   pillBtn('sms',   '💬 Text',  !hasPhone)
+      +   pillBtn('both',  '📧+💬 Both', !(hasEmail && hasPhone))
+      + '</div>'
+      + '<input type="hidden" id="send-channel" value="' + defaultChannel + '">'
       + '<input type="hidden" id="send-to" value="' + UI.esc(email) + '">'
+      + '<input type="hidden" id="send-phone" value="' + UI.esc(phone) + '">'
+      + '<div id="recipient-display" data-email="' + UI.esc(email) + '" data-phone="' + UI.esc(phone) + '"></div>'
       + '</div>'
 
       // Quote summary
@@ -2063,8 +2085,62 @@ var QuotesPage = {
     UI.showModal('Send ' + _term + ' #' + q.quoteNumber, html, {
       footer: '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
         + ' <button class="btn btn-outline" onclick="QuotesPage._previewEmail(\'' + id + '\')">👁 Preview Email</button>'
-        + ' <button class="btn btn-primary" onclick="QuotesPage._confirmSend(\'' + id + '\')">📧 Send ' + _term + '</button>'
+        + ' <button class="btn btn-primary" id="send-quote-btn" onclick="QuotesPage._confirmSend(\'' + id + '\')">📧 Send ' + _term + '</button>'
     });
+
+    // Apply default-channel highlight + recipient display once modal is in DOM
+    setTimeout(function() { QuotesPage._setChannel(defaultChannel); }, 0);
+  },
+
+  _setChannel: function(ch) {
+    var hidden = document.getElementById('send-channel');
+    if (hidden) hidden.value = ch;
+
+    ['email', 'sms', 'both'].forEach(function(c) {
+      var btn = document.getElementById('ch-' + c);
+      if (!btn || btn.disabled) return;
+      if (c === ch) {
+        btn.style.background = 'var(--green-dark)';
+        btn.style.color = '#fff';
+        btn.style.borderColor = 'var(--green-dark)';
+      } else {
+        btn.style.background = '#fff';
+        btn.style.color = 'var(--text)';
+        btn.style.borderColor = 'var(--border)';
+      }
+    });
+
+    var disp = document.getElementById('recipient-display');
+    if (disp) {
+      var email = disp.dataset.email || '';
+      var phone = disp.dataset.phone || '';
+      var rows = '';
+      if (ch === 'email' || ch === 'both') {
+        rows += '<div style="font-size:14px;font-weight:700;padding:4px 0;">📧 ' + UI.esc(email || '(no email on file)') + '</div>';
+      }
+      if (ch === 'sms' || ch === 'both') {
+        rows += '<div style="font-size:14px;font-weight:700;padding:4px 0;">💬 ' + UI.esc(phone || '(no phone on file)') + '</div>';
+      }
+      disp.innerHTML = rows;
+    }
+
+    var sendBtn = document.getElementById('send-quote-btn');
+    if (sendBtn) {
+      var label = ch === 'sms' ? '💬 Send Text' : (ch === 'both' ? '📧+💬 Send Both' : '📧 Send Email');
+      sendBtn.textContent = label;
+    }
+  },
+
+  _buildSmsBody: function(id) {
+    var q = DB.quotes.getById(id);
+    if (!q) return '';
+    var _co = QuotesPage._co();
+    var _terml = QuotesPage._term(false);
+    var firstName = (q.clientName || '').split(' ')[0] || 'there';
+    var approvalLink = QuotesPage._getApprovalLink(id);
+    return 'Hi ' + firstName + ' — your ' + _terml + ' #' + q.quoteNumber
+      + ' from ' + _co.name + ' is ready (' + UI.money(q.total) + '). View & approve: '
+      + approvalLink;
   },
 
   _previewEmail: function(id) {
@@ -2240,39 +2316,73 @@ var QuotesPage = {
   },
 
   _confirmSend: function(id) {
-    var to = document.getElementById('send-to').value.trim();
-    if (!to) { UI.toast('Enter an email address', 'error'); return; }
-
-    var subject = document.getElementById('send-subject').value;
-    var body = document.getElementById('send-body').value;
+    var channel = (document.getElementById('send-channel') || {}).value || 'email';
+    var to      = (document.getElementById('send-to')      || {}).value || '';
+    var phone   = (document.getElementById('send-phone')   || {}).value || '';
+    var subject = (document.getElementById('send-subject') || {}).value || '';
+    var body    = (document.getElementById('send-body')    || {}).value || '';
     var q = DB.quotes.getById(id);
+    if (!q) return;
 
-    // Disable button to prevent double-send
-    var sendBtn = document.querySelector('.modal-footer .btn-primary');
+    var doEmail = (channel === 'email' || channel === 'both');
+    var doSms   = (channel === 'sms'   || channel === 'both');
+    if (doEmail && !to)    { UI.toast('No email on file', 'error'); return; }
+    if (doSms   && !phone) { UI.toast('No phone on file', 'error'); return; }
+
+    var sendBtn = document.getElementById('send-quote-btn');
     if (sendBtn) { sendBtn.textContent = 'Sending...'; sendBtn.disabled = true; }
-
     UI.closeModal();
 
-    // Build branded HTML email
-    var htmlBody = QuotesPage._buildEmailHtml(id);
+    var jobs = [];
+    var sentVia = [];
 
-    if (typeof Email !== 'undefined') {
-      Email.send(to, subject, body, { htmlBody: htmlBody }).then(function(result) {
-        if (result && result.ok) {
-          UI.toast(QuotesPage._term(true) + ' sent to ' + to + ' ✓');
-        } else {
-          UI.toast('Email sent (check for errors)', 'warning');
-        }
-      }).catch(function() {
-        UI.toast('Failed to send email', 'error');
-      });
-    } else {
-      window.open('mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body), '_blank');
+    if (doEmail && typeof Email !== 'undefined') {
+      var htmlBody = QuotesPage._buildEmailHtml(id);
+      jobs.push(Email.send(to, subject, body, { htmlBody: htmlBody, silent: true })
+        .then(function(r) {
+          var ok = r && (r.success || r.ok);
+          if (ok) sentVia.push('email');
+          return { kind: 'email', ok: ok, error: r && r.error };
+        })
+        .catch(function(e) { return { kind: 'email', ok: false, error: e && e.message }; }));
     }
 
-    // Mark as sent
-    DB.quotes.update(id, { status: 'sent', sentAt: new Date().toISOString(), sentTo: to });
-    QuotesPage.showDetail(id);
+    if (doSms && typeof Dialpad !== 'undefined') {
+      var smsMsg = QuotesPage._buildSmsBody(id);
+      jobs.push(Dialpad.sendSMS(phone, smsMsg, q.clientId)
+        .then(function(r) {
+          // sendSMS returns { success, method } — counts sms_app fallback as ok too
+          var ok = r && (r.success || r.method === 'sms_app');
+          if (ok) sentVia.push('text');
+          return { kind: 'sms', ok: ok, error: r && r.error };
+        })
+        .catch(function(e) { return { kind: 'sms', ok: false, error: e && e.message }; }));
+    }
+
+    Promise.all(jobs).then(function(results) {
+      var failed = results.filter(function(r) { return !r.ok; });
+      if (!failed.length && sentVia.length) {
+        UI.toast(QuotesPage._term(true) + ' sent via ' + sentVia.join(' + ') + ' ✓');
+      } else if (sentVia.length) {
+        UI.toast(QuotesPage._term(true) + ' partly sent (' + sentVia.join(', ') + ') — ' + failed.length + ' failed', 'warning');
+      } else {
+        UI.toast('Failed to send', 'error');
+      }
+
+      // Mark as sent only when at least one channel succeeded
+      if (sentVia.length) {
+        var dest = [];
+        if (sentVia.indexOf('email') !== -1) dest.push(to);
+        if (sentVia.indexOf('text')  !== -1) dest.push(phone);
+        DB.quotes.update(id, {
+          status: 'sent',
+          sentAt: new Date().toISOString(),
+          sentTo: dest.join(' / '),
+          sentChannel: sentVia.join('+')
+        });
+      }
+      QuotesPage.showDetail(id);
+    });
   },
 
   setStatus: function(id, status) {
