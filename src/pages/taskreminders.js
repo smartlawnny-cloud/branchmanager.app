@@ -72,6 +72,7 @@ var TaskReminders = {
     }
     TaskReminders._startChecker();
     TaskReminders._requestNotificationPermission();
+    TaskReminders._initCloudSync();
 
     var tasks = TaskReminders._getAll();
     var now = new Date();
@@ -259,6 +260,7 @@ var TaskReminders = {
     if (!confirm('Delete ' + ids.length + ' task' + (ids.length>1?'s':'') + '?')) return;
     var tasks = TaskReminders._getAll().filter(function(t) { return ids.indexOf(t.id) === -1; });
     TaskReminders._saveAll(tasks);
+    TaskReminders._deleteCloud(ids);
     TaskReminders._clearBulk();
     loadPage('taskreminders');
   },
@@ -551,10 +553,21 @@ var TaskReminders = {
     UI.closeModal();
     var tasks = TaskReminders._getAll().filter(function(t) { return t.id !== id; });
     TaskReminders._saveAll(tasks);
+    TaskReminders._deleteCloud([id]);
     TaskReminders._editing = null;
     var overlay = document.getElementById('bm-task-overlay');
     if (overlay) overlay.remove();
     loadPage(window._currentPage || 'taskreminders');
+  },
+
+  _deleteCloud: function(ids) {
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return;
+    if (!ids || !ids.length) return;
+    try {
+      SupabaseDB.client.from('tasks').delete().in('id', ids).then(function(res) {
+        if (res.error) console.warn('[Tasks] cloud delete failed:', res.error.message);
+      });
+    } catch (e) { console.warn('[Tasks] cloud delete threw:', e); }
   },
 
   _archiveTask: function(id) {
@@ -673,6 +686,153 @@ var TaskReminders = {
 
   _saveAll: function(tasks) {
     localStorage.setItem(TaskReminders.STORAGE_KEY, JSON.stringify(tasks));
+    TaskReminders._pushCloud(tasks);
+  },
+
+  // ── Cloud sync ──────────────────────────────────────────
+  // Tasks were localStorage-only until v538, which meant iPhone (Capacitor) and
+  // the web browser kept divergent task lists. Now both sides upsert to the
+  // Supabase `tasks` table on every save, and pull on init + visibility change.
+
+  _toCloudRow: function(t) {
+    var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
+    return {
+      id: t.id,
+      tenant_id: tid,
+      title: t.title || '',
+      description: t.description || null,
+      assigned_to: t.assignedTo || null,
+      due_date: t.dueDate || null,
+      priority: t.priority || 'medium',
+      category: t.category || null,
+      recurrence: t.recurrence || 'none',
+      action_link: t.actionLink || null,
+      completed: !!t.completed,
+      completed_at: t.completedAt || null,
+      notified: !!t.notified,
+      archived: !!t.archived,
+      created_at: t.createdAt || new Date().toISOString(),
+      updated_at: t.updatedAt || new Date().toISOString()
+    };
+  },
+
+  _fromCloudRow: function(r) {
+    return {
+      id: r.id,
+      title: r.title || '',
+      description: r.description || '',
+      assignedTo: r.assigned_to || '',
+      dueDate: r.due_date || '',
+      priority: r.priority || 'medium',
+      category: r.category || '',
+      recurrence: r.recurrence || 'none',
+      actionLink: r.action_link || '',
+      completed: !!r.completed,
+      completedAt: r.completed_at || null,
+      notified: !!r.notified,
+      archived: !!r.archived,
+      createdAt: r.created_at || new Date().toISOString(),
+      updatedAt: r.updated_at || new Date().toISOString()
+    };
+  },
+
+  _pushCloud: function(tasks) {
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return;
+    if (!tasks || !tasks.length) return;
+    var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
+    if (!tid) return;
+    try {
+      var rows = tasks.map(TaskReminders._toCloudRow);
+      SupabaseDB.client.from('tasks').upsert(rows, { onConflict: 'id' }).then(function(res) {
+        if (res.error) console.warn('[Tasks] cloud push failed:', res.error.message);
+      });
+    } catch (e) { console.warn('[Tasks] cloud push threw:', e); }
+  },
+
+  _pullCloud: function(opts) {
+    opts = opts || {};
+    if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return;
+    var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
+    if (!tid) return;
+    if (TaskReminders._pullInFlight) return;
+    TaskReminders._pullInFlight = true;
+    SupabaseDB.client
+      .from('tasks')
+      .select('*')
+      .eq('tenant_id', tid)
+      .then(function(res) {
+        TaskReminders._pullInFlight = false;
+        if (res.error) {
+          // Table might not exist yet on a stale Supabase instance — log + bail
+          console.warn('[Tasks] cloud pull failed:', res.error.message);
+          return;
+        }
+        if (!res.data) return;
+
+        // Last-write-wins merge keyed by id, comparing updated_at
+        var local = TaskReminders._getAll(true);
+        var byId = {};
+        local.forEach(function(t) { byId[t.id] = t; });
+        var cloudById = {};
+        res.data.forEach(function(r) { cloudById[r.id] = TaskReminders._fromCloudRow(r); });
+
+        var changedFromCloud = false;
+        var toPushUp = [];
+
+        // Cloud → local: take cloud if newer or local missing
+        Object.keys(cloudById).forEach(function(id) {
+          var cloud = cloudById[id];
+          var existing = byId[id];
+          if (!existing || new Date(cloud.updatedAt) > new Date(existing.updatedAt || 0)) {
+            byId[id] = cloud;
+            changedFromCloud = true;
+          }
+        });
+
+        // Local → cloud: push any local not in cloud, or where local is newer
+        local.forEach(function(t) {
+          var cloud = cloudById[t.id];
+          if (!cloud) {
+            toPushUp.push(t);
+          } else if (new Date(t.updatedAt || 0) > new Date(cloud.updatedAt)) {
+            toPushUp.push(t);
+          }
+        });
+
+        var merged = Object.keys(byId).map(function(k) { return byId[k]; });
+        // Write merged set to localStorage WITHOUT going through _saveAll (which
+        // would re-trigger _pushCloud and feedback-loop). _pushCloud below handles
+        // anything that needs to go up.
+        localStorage.setItem(TaskReminders.STORAGE_KEY, JSON.stringify(merged));
+        if (toPushUp.length) TaskReminders._pushCloud(toPushUp);
+
+        if ((changedFromCloud || opts.alwaysRender) && window._currentPage === 'taskreminders' && typeof loadPage === 'function') {
+          loadPage('taskreminders');
+        }
+      });
+  },
+
+  _initCloudSync: function() {
+    if (TaskReminders._cloudSyncInited) return;
+    TaskReminders._cloudSyncInited = true;
+    TaskReminders._pullCloud();
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) TaskReminders._pullCloud();
+    });
+    window.addEventListener('focus', function() { TaskReminders._pullCloud(); });
+
+    // Realtime: receive task changes from other devices
+    try {
+      if (typeof SupabaseDB !== 'undefined' && SupabaseDB.client && SupabaseDB.client.channel) {
+        var ch = SupabaseDB.client.channel('bm-tasks-' + Math.random().toString(36).slice(2, 8));
+        ch.on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, function() {
+          clearTimeout(TaskReminders._rtDebounce);
+          TaskReminders._rtDebounce = setTimeout(function() { TaskReminders._pullCloud(); }, 600);
+        });
+        ch.subscribe();
+        TaskReminders._rtChannel = ch;
+      }
+    } catch (e) { console.warn('[Tasks] realtime sub failed:', e); }
   },
 
   _getById: function(id) {
