@@ -32,6 +32,8 @@ const GOOGLE_REVIEW_URL   = "https://g.page/r/CcVkZHV_EKlEEBM/review";
 const COMPANY_NAME        = "Second Nature Tree Service";
 const COMPANY_PHONE       = "(914) 391-5233";
 const OWNER_NAME          = "Doug Brown";
+const TENANT_ID           = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5";
+const COMPANY_ADDRESS     = "Second Nature Tree LLC · 1 Highland Industrial Park, Peekskill, NY 10566";
 
 // Toggle individual triggers via Supabase secrets (default: enabled)
 const REVIEW_ENABLED         = Deno.env.get("AUTOMATION_REVIEW")         !== "false";
@@ -70,14 +72,15 @@ async function alreadySent(triggerType: string, recordId: string): Promise<boole
   return !!(data && data.length > 0);
 }
 
-async function logSend(clientId: string | null, triggerType: string, recordId: string, toEmail: string, subject: string) {
+async function logSend(clientId: string | null, triggerType: string, recordId: string, toEmail: string, subject: string, status: string = "sent", errorMsg: string = "") {
   await sb.from("communications").insert({
+    tenant_id:  TENANT_ID,
     client_id:  clientId || null,
     channel:    "email",
     direction:  "outbound",
-    status:     "sent",
+    status:     status,
     body:       subject,
-    metadata:   { trigger: triggerType, record_id: recordId, to: toEmail },
+    metadata:   { trigger: triggerType, record_id: recordId, to: toEmail, ...(errorMsg ? { error: errorMsg } : {}) },
   });
 }
 
@@ -85,8 +88,10 @@ function esc(s: string): string {
   return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
-function emailHtml(bodyText: string): string {
+function emailHtml(bodyText: string, recipientEmail: string): string {
   const lines = bodyText.split("\n").map(l => `<p style="margin:0 0 10px;">${esc(l) || "&nbsp;"}</p>`).join("");
+  const encodedEmail = encodeURIComponent(recipientEmail || "");
+  const unsubUrl = `https://branchmanager.app/unsubscribe?token=pending&email=${encodedEmail}`;
   return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;font-size:15px;color:#333;max-width:600px;margin:0 auto;padding:24px;">
     <div style="background:#1a3c12;padding:16px 24px;border-radius:8px 8px 0 0;">
       <div style="font-size:18px;font-weight:700;color:#fff;">${esc(COMPANY_NAME)}</div>
@@ -97,6 +102,11 @@ function emailHtml(bodyText: string): string {
     <div style="font-size:11px;color:#999;text-align:center;margin-top:16px;">
       ${esc(COMPANY_NAME)} · ${esc(COMPANY_PHONE)} · <a href="mailto:${esc(REPLY_TO)}" style="color:#999;">${esc(REPLY_TO)}</a>
     </div>
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0 16px;">
+    <p style="font-size:11px;color:#999;line-height:1.5;text-align:center;">
+      ${esc(COMPANY_ADDRESS)}<br>
+      <a href="${unsubUrl}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from marketing emails.
+    </p>
   </body></html>`;
 }
 
@@ -112,7 +122,8 @@ async function runReviewRequests(): Promise<{ sent: number; skipped: number }> {
 
   const { data: jobs, error } = await sb
     .from("jobs")
-    .select("id, client_id, client_name, job_number, description, total, updated_at, completed_at")
+    .select("id, client_id, client_name, job_number, description, total, updated_at, completed_date")
+    .eq("tenant_id", TENANT_ID)
     .eq("status", "completed")
     .lte("updated_at", until)
     .gte("updated_at", since);
@@ -123,33 +134,40 @@ async function runReviewRequests(): Promise<{ sent: number; skipped: number }> {
   let sent = 0, skipped = 0;
 
   for (const job of jobs) {
-    if (await alreadySent("review_request", job.id)) { skipped++; continue; }
+    try {
+      if (await alreadySent("review_request", job.id)) { skipped++; continue; }
 
-    let email = "";
-    let firstName = (job.client_name || "").split(" ")[0] || "there";
-    if (job.client_id) {
-      const { data: cl } = await sb.from("clients").select("email, name").eq("id", job.client_id).single();
-      if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
-    }
-    if (!email) { skipped++; continue; }
+      let email = "";
+      let firstName = (job.client_name || "").split(" ")[0] || "there";
+      if (job.client_id) {
+        const { data: cl } = await sb.from("clients").select("email, name").eq("id", job.client_id).eq("tenant_id", TENANT_ID).single();
+        if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
+      }
+      if (!email) { skipped++; continue; }
 
-    const jobNum  = job.job_number ? `#${job.job_number}` : "";
-    const jobDesc = job.description || "your tree service";
-    const subject = "Your tree work is complete — how did we do?";
-    const body =
-      `Hi ${firstName},\n\n` +
-      `We have finished the work at your property! Job ${jobNum} (${jobDesc}) is now complete.\n\n` +
-      `We hope everything looks great. If you notice anything that needs attention, please let us know right away and we will take care of it.\n\n` +
-      `If you were happy with the service, it would mean a lot if you could leave us a quick Google review. It only takes a minute and really helps our small business:\n\n` +
-      `${GOOGLE_REVIEW_URL}\n\n` +
-      `Thank you for choosing ${COMPANY_NAME}. We appreciate your business and hope to work with you again!\n\n` +
-      `${OWNER_NAME}\n` +
-      `${COMPANY_PHONE}`;
+      const jobNum  = job.job_number ? `#${job.job_number}` : "";
+      const jobDesc = job.description || "your tree service";
+      const subject = "Your tree work is complete — how did we do?";
+      const body =
+        `Hi ${firstName},\n\n` +
+        `We have finished the work at your property! Job ${jobNum} (${jobDesc}) is now complete.\n\n` +
+        `We hope everything looks great. If you notice anything that needs attention, please let us know right away and we will take care of it.\n\n` +
+        `If you were happy with the service, it would mean a lot if you could leave us a quick Google review. It only takes a minute and really helps our small business:\n\n` +
+        `${GOOGLE_REVIEW_URL}\n\n` +
+        `Thank you for choosing ${COMPANY_NAME}. We appreciate your business and hope to work with you again!\n\n` +
+        `${OWNER_NAME}\n` +
+        `${COMPANY_PHONE}`;
 
-    const ok = await sendEmail(email, subject, emailHtml(body));
-    if (ok) {
-      await logSend(job.client_id, "review_request", job.id, email, subject);
-      sent++;
+      const ok = await sendEmail(email, subject, emailHtml(body, email));
+      if (ok) {
+        await logSend(job.client_id, "review_request", job.id, email, subject);
+        sent++;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("review_request iteration failed for job", job.id, msg);
+      try { await logSend(job.client_id || null, "review_request", job.id, "", "review_request failed", "failed", msg); } catch (_) {}
+      skipped++;
     }
   }
 
@@ -168,6 +186,7 @@ async function runQuoteFollowups(): Promise<{ sent: number; skipped: number }> {
   const { data: quotes, error } = await sb
     .from("quotes")
     .select("id, client_id, client_name, quote_number, description, total, updated_at")
+    .eq("tenant_id", TENANT_ID)
     .eq("status", "sent")
     .lte("updated_at", until)
     .gte("updated_at", since);
@@ -178,34 +197,41 @@ async function runQuoteFollowups(): Promise<{ sent: number; skipped: number }> {
   let sent = 0, skipped = 0;
 
   for (const q of quotes) {
-    if (await alreadySent("quote_followup_7d", q.id)) { skipped++; continue; }
+    try {
+      if (await alreadySent("quote_followup_7d", q.id)) { skipped++; continue; }
 
-    let email = "";
-    let firstName = (q.client_name || "").split(" ")[0] || "there";
-    if (q.client_id) {
-      const { data: cl } = await sb.from("clients").select("email, name").eq("id", q.client_id).single();
-      if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
-    }
-    if (!email) { skipped++; continue; }
+      let email = "";
+      let firstName = (q.client_name || "").split(" ")[0] || "there";
+      if (q.client_id) {
+        const { data: cl } = await sb.from("clients").select("email, name").eq("id", q.client_id).eq("tenant_id", TENANT_ID).single();
+        if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
+      }
+      if (!email) { skipped++; continue; }
 
-    const quoteNum = q.quote_number ? `#${q.quote_number}` : "";
-    const total    = q.total ? `$${Number(q.total).toLocaleString("en-US", { minimumFractionDigits: 0 })}` : "";
-    const jobDesc  = q.description || "your tree service";
-    const sentDate = new Date(q.updated_at).toLocaleDateString("en-US", { month: "long", day: "numeric" });
-    const approveUrl = `https://branchmanager.app/approve.html?id=${q.id}`;
-    const subject  = `Following up on your tree service quote ${quoteNum}`;
-    const body =
-      `Hi ${firstName},\n\n` +
-      `I wanted to follow up on the estimate we sent on ${sentDate} for ${jobDesc}.\n\n` +
-      `Your quote (${quoteNum}) came to ${total}. If you have any questions about the scope of work or pricing, I am happy to walk through it with you.\n\n` +
-      `You can also view and approve your quote online:\n${approveUrl}\n\n` +
-      `We have availability coming up and would love to get you on the schedule. Just reply to this email or give us a call at ${COMPANY_PHONE}.\n\n` +
-      `Thanks,\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
+      const quoteNum = q.quote_number ? `#${q.quote_number}` : "";
+      const total    = q.total ? `$${Number(q.total).toLocaleString("en-US", { minimumFractionDigits: 0 })}` : "";
+      const jobDesc  = q.description || "your tree service";
+      const sentDate = new Date(q.updated_at).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+      const approveUrl = `https://branchmanager.app/approve.html?id=${q.id}`;
+      const subject  = `Following up on your tree service quote ${quoteNum}`;
+      const body =
+        `Hi ${firstName},\n\n` +
+        `I wanted to follow up on the estimate we sent on ${sentDate} for ${jobDesc}.\n\n` +
+        `Your quote (${quoteNum}) came to ${total}. If you have any questions about the scope of work or pricing, I am happy to walk through it with you.\n\n` +
+        `You can also view and approve your quote online:\n${approveUrl}\n\n` +
+        `We have availability coming up and would love to get you on the schedule. Just reply to this email or give us a call at ${COMPANY_PHONE}.\n\n` +
+        `Thanks,\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
 
-    const ok = await sendEmail(email, subject, emailHtml(body));
-    if (ok) {
-      await logSend(q.client_id, "quote_followup_7d", q.id, email, subject);
-      sent++;
+      const ok = await sendEmail(email, subject, emailHtml(body, email));
+      if (ok) {
+        await logSend(q.client_id, "quote_followup_7d", q.id, email, subject);
+        sent++;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("quote_followup iteration failed for quote", q.id, msg);
+      try { await logSend(q.client_id || null, "quote_followup_7d", q.id, "", "quote_followup failed", "failed", msg); } catch (_) {}
+      skipped++;
     }
   }
 
@@ -226,6 +252,7 @@ async function runUpsells(): Promise<{ sent: number; skipped: number }> {
   const { data: invoices, error } = await sb
     .from("invoices")
     .select("id, client_id, client_name, invoice_number, total, paid_date, updated_at")
+    .eq("tenant_id", TENANT_ID)
     .eq("status", "paid")
     .gte("updated_at", since)
     .lte("updated_at", until);
@@ -236,36 +263,43 @@ async function runUpsells(): Promise<{ sent: number; skipped: number }> {
   let sent = 0, skipped = 0;
 
   for (const inv of invoices) {
-    // If paid_date is set, verify it's also in the right window (paid_date takes priority)
-    if (inv.paid_date) {
-      const pd = new Date(inv.paid_date).getTime();
-      if (pd > new Date(until).getTime() || pd < new Date(since).getTime()) { skipped++; continue; }
-    }
+    try {
+      // If paid_date is set, verify it's also in the right window (paid_date takes priority)
+      if (inv.paid_date) {
+        const pd = new Date(inv.paid_date).getTime();
+        if (pd > new Date(until).getTime() || pd < new Date(since).getTime()) { skipped++; continue; }
+      }
 
-    if (await alreadySent("upsell_30d", inv.id)) { skipped++; continue; }
+      if (await alreadySent("upsell_30d", inv.id)) { skipped++; continue; }
 
-    let email = "";
-    let firstName = (inv.client_name || "").split(" ")[0] || "there";
-    if (inv.client_id) {
-      const { data: cl } = await sb.from("clients").select("email, name").eq("id", inv.client_id).single();
-      if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
-    }
-    if (!email) { skipped++; continue; }
+      let email = "";
+      let firstName = (inv.client_name || "").split(" ")[0] || "there";
+      if (inv.client_id) {
+        const { data: cl } = await sb.from("clients").select("email, name").eq("id", inv.client_id).eq("tenant_id", TENANT_ID).single();
+        if (cl?.email) { email = cl.email; firstName = (cl.name || "").split(" ")[0] || firstName; }
+      }
+      if (!email) { skipped++; continue; }
 
-    const invoiceNum = inv.invoice_number ? `#${inv.invoice_number}` : "";
-    const subject    = `Ready for your next tree service, ${firstName}?`;
-    const body =
-      `Hi ${firstName},\n\n` +
-      `It has been about a month since we completed your job (invoice ${invoiceNum}). Hope everything at your property is looking great!\n\n` +
-      `Spring and summer are our busiest seasons — if you have been thinking about any additional tree work (pruning, removal, stump grinding, cleanups), now is a great time to get on the schedule before the calendar fills up.\n\n` +
-      `Just reply to this email or give us a call at ${COMPANY_PHONE} and we can get you a quick estimate.\n\n` +
-      `And if you know anyone who needs tree work, we really appreciate the referral — word of mouth is how we built this business.\n\n` +
-      `Thanks again,\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
+      const invoiceNum = inv.invoice_number ? `#${inv.invoice_number}` : "";
+      const subject    = `Ready for your next tree service, ${firstName}?`;
+      const body =
+        `Hi ${firstName},\n\n` +
+        `It has been about a month since we completed your job (invoice ${invoiceNum}). Hope everything at your property is looking great!\n\n` +
+        `Spring and summer are our busiest seasons — if you have been thinking about any additional tree work (pruning, removal, stump grinding, cleanups), now is a great time to get on the schedule before the calendar fills up.\n\n` +
+        `Just reply to this email or give us a call at ${COMPANY_PHONE} and we can get you a quick estimate.\n\n` +
+        `And if you know anyone who needs tree work, we really appreciate the referral — word of mouth is how we built this business.\n\n` +
+        `Thanks again,\n${OWNER_NAME}\n${COMPANY_NAME}\n${COMPANY_PHONE}`;
 
-    const ok = await sendEmail(email, subject, emailHtml(body));
-    if (ok) {
-      await logSend(inv.client_id, "upsell_30d", inv.id, email, subject);
-      sent++;
+      const ok = await sendEmail(email, subject, emailHtml(body, email));
+      if (ok) {
+        await logSend(inv.client_id, "upsell_30d", inv.id, email, subject);
+        sent++;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("upsell iteration failed for invoice", inv.id, msg);
+      try { await logSend(inv.client_id || null, "upsell_30d", inv.id, "", "upsell failed", "failed", msg); } catch (_) {}
+      skipped++;
     }
   }
 

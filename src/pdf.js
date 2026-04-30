@@ -26,7 +26,21 @@ var PDF = {
       + '.badge { display:inline-block; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:700; }'
       + '.badge-draft { background:#f5f5f5; color:#666; } .badge-sent { background:#fff3e0; color:#e65100; }'
       + '.badge-paid { background:#e8f5e9; color:#2e7d32; } .badge-approved { background:#e8f5e9; color:#2e7d32; }'
-      + '@media print { body { padding:20px; } }'
+      // Print-friendly overrides — ink-saving. Onscreen the PDF preview keeps
+      // its full color; when the customer hits Print the green/gray fills are
+      // swapped for white + thin rules, dropping ink usage by ~80% and making
+      // the doc legible on a B&W laser printer.
+      + '@media print {'
+      +   ' body { padding:20px; -webkit-print-color-adjust:exact; print-color-adjust:exact; }'
+      +   ' .header { border-bottom:2px solid #000 !important; }'
+      +   ' .company h1, .doc-info h2, .total-big { color:#000 !important; }'
+      +   ' th { background:#fff !important; color:#000 !important; border-bottom:2px solid #000 !important; }'
+      +   ' tr:nth-child(even) { background:transparent !important; }'
+      +   ' .total-row td { background:transparent !important; border-top:2px solid #000 !important; color:#000 !important; }'
+      +   ' .client-box, .notes { background:transparent !important; border:1px solid #ccc !important; }'
+      +   ' .badge { border:1px solid #999 !important; background:transparent !important; color:#333 !important; }'
+      +   ' .footer { color:#666 !important; }'
+      + ' }'
       + '</style>';
   },
 

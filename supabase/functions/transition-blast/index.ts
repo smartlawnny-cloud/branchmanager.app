@@ -24,16 +24,38 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const ADMIN_TOKEN    = Deno.env.get('BM_ADMIN_TOKEN') ?? '';
 const TENANT_ID      = '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // Second Nature
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, x-bm-admin' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 
-// Constant-time compare so admin-token check isn't timing-leaky.
-function safeEq(a: string, b: string) {
-  if (!a || !b || a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
+// Owner-only gate. Verifies the caller's Supabase Auth JWT and confirms
+// either (a) email is in the hardcoded owner whitelist OR (b) team_members
+// row exists with role in (owner, admin). Stops the previous open-relay
+// behavior where `confirm:"send-it"` (literal string in source comments)
+// was the only gate. Caller must include `Authorization: Bearer <jwt>`
+// where jwt is the supabase session access_token.
+const OWNER_EMAILS = ['info@peekskilltree.com', 'doug@peekskilltree.com'];
+async function requireOwner(req: Request): Promise<{ ok: true; userId: string; email: string } | { ok: false; status: number; error: string }> {
+  const auth = req.headers.get('Authorization') || '';
+  const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!jwt) return { ok: false, status: 401, error: 'Missing Authorization Bearer token' };
+  const ur = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { 'apikey': SERVICE_KEY, 'Authorization': 'Bearer ' + jwt }
+  });
+  if (!ur.ok) return { ok: false, status: 401, error: 'Invalid or expired session' };
+  const user = await ur.json();
+  if (!user || !user.id) return { ok: false, status: 401, error: 'Invalid session payload' };
+  const email = (user.email || '').toLowerCase();
+  if (OWNER_EMAILS.indexOf(email) !== -1) return { ok: true, userId: user.id, email };
+  // Fallback: check team_members for owner/admin role
+  const tmRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/team_members?auth_id=eq.${user.id}&role=in.(owner,admin)&select=id&limit=1`,
+    { headers: { 'apikey': SERVICE_KEY, 'Authorization': 'Bearer ' + SERVICE_KEY } }
+  );
+  if (tmRes.ok) {
+    const mems = await tmRes.json();
+    if (mems && mems.length) return { ok: true, userId: user.id, email };
+  }
+  return { ok: false, status: 403, error: 'Not an owner/admin' };
 }
 
 function buildEmail(firstName: string) {
@@ -108,16 +130,8 @@ serve(async (req: Request) => {
   });
 
   try {
-    // Admin gate — was previously gated only on a public "send-it" string. Anyone
-    // with the URL could fire 285+ emails. Now requires an x-bm-admin header that
-    // matches BM_ADMIN_TOKEN secret. Set via:
-    //   supabase secrets set BM_ADMIN_TOKEN=<long-random-string> --project-ref ltpivkqahvplapyagljt
-    if (!ADMIN_TOKEN) {
-      return json(503, { ok: false, error: 'Server misconfigured: BM_ADMIN_TOKEN env var not set' });
-    }
-    if (!safeEq(req.headers.get('x-bm-admin') || '', ADMIN_TOKEN)) {
-      return json(401, { ok: false, error: 'Unauthorized — missing or invalid x-bm-admin header' });
-    }
+    const gate = await requireOwner(req);
+    if (!gate.ok) return json(gate.status, { ok: false, error: gate.error });
 
     const body = await req.json().catch(() => ({}));
     const dry  = body?.dry_run !== false;

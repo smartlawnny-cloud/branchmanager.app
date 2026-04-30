@@ -174,7 +174,20 @@ var Stripe = {
       + '</div>';
   },
 
-  saveSecretKey: function() {
+  // Returns the current Supabase Auth session JWT or null. Used to gate
+  // owner-only edge functions (save-stripe-secret, stripe-create-link,
+  // transition-blast). Without this header the edge fn returns 401, which
+  // stops the prior money-grade exploit where any caller could PATCH a
+  // tenant's stripe_secret_key to attacker-controlled sk_live_...
+  _getOwnerJwt: async function() {
+    try {
+      if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return null;
+      var s = await SupabaseDB.client.auth.getSession();
+      return (s && s.data && s.data.session && s.data.session.access_token) || null;
+    } catch (e) { return null; }
+  },
+
+  saveSecretKey: async function() {
     var el = document.getElementById('stripe-sk-save');
     var sk = el ? el.value.trim() : '';
     if (!sk || !sk.startsWith('sk_')) {
@@ -184,10 +197,12 @@ var Stripe = {
     }
     var tid = (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null;
     if (!tid) { UI.toast('No tenant — sign in?', 'error'); return; }
+    var jwt = await Stripe._getOwnerJwt();
+    if (!jwt) { UI.toast('Sign in required to save Stripe key (owner-only)', 'error'); return; }
     UI.toast('Verifying with Stripe…');
     fetch('https://ltpivkqahvplapyagljt.supabase.co/functions/v1/save-stripe-secret', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
       body: JSON.stringify({ tenantId: tid, secretKey: sk, verify: true })
     }).then(function(r) { return r.json(); }).then(function(res) {
       if (el) el.value = '';
@@ -196,7 +211,7 @@ var Stripe = {
     }).catch(function(e) { UI.toast('Network error: ' + e.message, 'error'); });
   },
 
-  autoCreateLink: function() {
+  autoCreateLink: async function() {
     var skEl = document.getElementById('stripe-sk');
     var sk = skEl ? skEl.value.trim() : '';
     if (!sk || !sk.startsWith('sk_')) {
@@ -204,11 +219,13 @@ var Stripe = {
       if (skEl) skEl.focus();
       return;
     }
+    var jwt = await Stripe._getOwnerJwt();
+    if (!jwt) { UI.toast('Sign in required to create Payment Link (owner-only)', 'error'); return; }
     UI.toast('Creating Payment Link with Stripe…');
     var SUPA_URL = 'https://ltpivkqahvplapyagljt.supabase.co';
     fetch(SUPA_URL + '/functions/v1/stripe-create-link', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + jwt },
       body: JSON.stringify({
         secretKey: sk,
         successUrl: 'https://branchmanager.app/paid.html',

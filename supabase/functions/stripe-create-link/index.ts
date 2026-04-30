@@ -18,17 +18,34 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, x-bm-admin' };
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const ADMIN_TOKEN = Deno.env.get('BM_ADMIN_TOKEN') ?? '';
 
-// Constant-time compare so the admin-token check isn't timing-leaky.
-function safeEq(a: string, b: string) {
-  if (!a || !b || a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
+// Owner-only gate — verifies caller's Supabase Auth JWT and confirms either
+// (a) email is in OWNER_EMAILS or (b) team_members role in (owner, admin).
+const OWNER_EMAILS = ['info@peekskilltree.com', 'doug@peekskilltree.com'];
+async function requireOwner(req: Request): Promise<{ ok: true; userId: string; email: string } | { ok: false; status: number; error: string }> {
+  const auth = req.headers.get('Authorization') || '';
+  const jwt = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!jwt) return { ok: false, status: 401, error: 'Missing Authorization Bearer token' };
+  const ur = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { 'apikey': SERVICE_ROLE_KEY, 'Authorization': 'Bearer ' + jwt }
+  });
+  if (!ur.ok) return { ok: false, status: 401, error: 'Invalid or expired session' };
+  const user = await ur.json();
+  if (!user || !user.id) return { ok: false, status: 401, error: 'Invalid session payload' };
+  const email = (user.email || '').toLowerCase();
+  if (OWNER_EMAILS.indexOf(email) !== -1) return { ok: true, userId: user.id, email };
+  const tmRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/team_members?auth_id=eq.${user.id}&role=in.(owner,admin)&select=id&limit=1`,
+    { headers: { 'apikey': SERVICE_ROLE_KEY, 'Authorization': 'Bearer ' + SERVICE_ROLE_KEY } }
+  );
+  if (tmRes.ok) {
+    const mems = await tmRes.json();
+    if (mems && mems.length) return { ok: true, userId: user.id, email };
+  }
+  return { ok: false, status: 403, error: 'Not an owner/admin' };
 }
 
 // Persist link to tenants.config.stripe_base_link via service role (bypasses
@@ -76,6 +93,12 @@ async function stripeForm(path: string, secretKey: string, params: Record<string
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+
+  const gate = await requireOwner(req);
+  if (!gate.ok) {
+    return new Response(JSON.stringify({ ok: false, error: gate.error }),
+      { status: gate.status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+  }
 
   try {
     const { secretKey, successUrl, productName, tenantId } = await req.json();

@@ -26,6 +26,13 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function safeEq(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
 function esc(s: unknown): string {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -217,7 +224,7 @@ serve(async (req: Request) => {
     const sigBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload));
     const computedSig = Array.from(new Uint8Array(sigBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    if (computedSig !== sigHex) {
+    if (!safeEq(computedSig, sigHex)) {
       console.error('Webhook signature mismatch');
       return new Response('Signature mismatch', { status: 401 });
     }
@@ -342,28 +349,55 @@ serve(async (req: Request) => {
           console.log(`No client email for invoice #${invoiceNumber} — skipping receipt`);
         }
 
-        // Notify Doug
-        const sendgridKey = Deno.env.get('SENDGRID_API_KEY') ?? '';
-        if (sendgridKey) {
-          await fetch('https://api.sendgrid.com/v3/mail/send', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${sendgridKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              personalizations: [{ to: [{ email: 'info@peekskilltree.com', name: 'Team' }] }],
-              from: { email: 'info@peekskilltree.com', name: 'Second Nature Tree Service' },
-              subject: `💳 Payment received — Invoice #${invoiceNumber} — $${amountDollars.toFixed(2)}`,
-              content: [{
-                type: 'text/plain',
-                value: `Invoice #${invoiceNumber} for ${inv.client_name} was just paid online.\n\nAmount: $${amountDollars.toFixed(2)}\nMethod: Stripe / Credit Card\nEmail: ${customerEmail}\n\nThe invoice has been automatically marked as paid in Branch Manager.\n\nhttps://branchmanager.app/`
-              }]
-            })
-          });
-        }
+        // Notify Doug via Resend (send-email edge fn)
+        const notifyText = `Invoice #${invoiceNumber} for ${inv.client_name} was just paid online.\n\nAmount: $${amountDollars.toFixed(2)}\nMethod: Stripe / Credit Card\nEmail: ${customerEmail}\n\nThe invoice has been automatically marked as paid in Branch Manager.\n\nhttps://branchmanager.app/`;
+        const notifyHtml = `<p>Invoice #${esc(invoiceNumber)} for ${esc(inv.client_name)} was just paid online.</p>`
+          + `<p><strong>Amount:</strong> $${amountDollars.toFixed(2)}<br>`
+          + `<strong>Method:</strong> Stripe / Credit Card<br>`
+          + `<strong>Email:</strong> ${esc(customerEmail)}</p>`
+          + `<p>The invoice has been automatically marked as paid in Branch Manager.</p>`
+          + `<p><a href="https://branchmanager.app/">https://branchmanager.app/</a></p>`;
+        await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'info@peekskilltree.com',
+            subject: `💳 Payment received — Invoice #${invoiceNumber} — $${amountDollars.toFixed(2)}`,
+            html: notifyHtml,
+            text: notifyText
+          })
+        }).catch((e) => console.error('Doug notify email failed:', e));
       } else {
-        console.warn(`Invoice not found for ref: ${clientRef}`);
+        // Stripe-confirmed payment that we cannot reconcile to a BM invoice.
+        // Return 500 so Stripe retries (up to 3 days) — buys time to fix data.
+        // Also fire an alert email to Doug so he knows immediately.
+        console.error(`Invoice not found for ref: ${clientRef} — payment_intent=${paymentIntentId} amount=$${(amountPaid/100).toFixed(2)}`);
+        const dashUrl = `https://dashboard.stripe.com/payments/${paymentIntentId}`;
+        const alertText = `A Stripe payment succeeded but the matching BM invoice could not be found.\n\n`
+          + `client_reference_id: ${clientRef}\n`
+          + `Stripe ID: ${paymentIntentId}\n`
+          + `Amount: $${(amountPaid/100).toFixed(2)}\n`
+          + `Customer email: ${customerEmail || '(none)'}\n\n`
+          + `Stripe Dashboard: ${dashUrl}\n\n`
+          + `Stripe will retry this webhook for up to 3 days. Fix the invoice (create/restore it with matching invoice_number) and the next retry will mark it paid automatically.`;
+        const alertHtml = `<p>A Stripe payment succeeded but the matching BM invoice could not be found.</p>`
+          + `<p><strong>client_reference_id:</strong> ${esc(clientRef)}<br>`
+          + `<strong>Stripe ID:</strong> ${esc(paymentIntentId)}<br>`
+          + `<strong>Amount:</strong> $${(amountPaid/100).toFixed(2)}<br>`
+          + `<strong>Customer email:</strong> ${esc(customerEmail || '(none)')}</p>`
+          + `<p><a href="${dashUrl}">Open in Stripe Dashboard</a></p>`
+          + `<p>Stripe will retry this webhook for up to 3 days. Fix the invoice (create/restore it with matching invoice_number) and the next retry will mark it paid automatically.</p>`;
+        await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: 'info@peekskilltree.com',
+            subject: `🚨 Stripe webhook: invoice not found for paid session`,
+            html: alertHtml,
+            text: alertText
+          })
+        }).catch((e) => console.error('Alert email failed:', e));
+        return new Response('Invoice not found — retry', { status: 500 });
       }
     }
   }

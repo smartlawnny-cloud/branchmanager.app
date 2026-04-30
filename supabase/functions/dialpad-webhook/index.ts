@@ -110,6 +110,73 @@ Deno.serve(async (req) => {
     row.client_id = await findClientByPhone(lookupPhone);
   }
 
+  // ── TCPA opt-out keyword handling for inbound SMS.
+  // STOP/STOPALL/UNSUBSCRIBE/CANCEL/END/QUIT → opt out
+  // START/UNSTOP/YES → opt back in
+  // HELP/INFO → help reply
+  // Always still log the inbound message; just stamp metadata.note + try to
+  // patch clients.sms_opt_out when sender matches a known client.
+  if (row.channel === "sms" && row.direction === "inbound") {
+    const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5"; // Second Nature Tree
+    const raw = (row.body || "").trim().toUpperCase();
+    var keyword = "";
+    if (raw === "STOP" || raw === "STOPALL" || raw === "UNSUBSCRIBE" || raw === "CANCEL" || raw === "END" || raw === "QUIT") {
+      keyword = "STOP";
+    } else if (raw === "START" || raw === "UNSTOP" || raw === "YES") {
+      keyword = "START";
+    } else if (raw === "HELP" || raw === "INFO") {
+      keyword = "HELP";
+    }
+
+    if (keyword) {
+      var autoReply = "";
+      if (keyword === "STOP") {
+        autoReply = "You're unsubscribed. Reply START to opt back in.";
+      } else if (keyword === "START") {
+        autoReply = "You're opted back in. Reply STOP to unsubscribe.";
+      } else if (keyword === "HELP") {
+        autoReply = "Second Nature Tree Service. Reply STOP to unsubscribe. Standard msg/data rates may apply. Call (914) 391-5233.";
+      }
+
+      // Patch clients.sms_opt_out for matched client (by last-10 phone)
+      if (keyword === "STOP" || keyword === "START") {
+        const last10 = normPhone(row.from_number);
+        if (last10.length >= 10) {
+          const optOut = keyword === "STOP";
+          const patchUrl = `${SUPABASE_URL}/rest/v1/clients?phone=ilike.*${last10}*&tenant_id=eq.${TENANT_ID}`;
+          try {
+            await fetch(patchUrl, {
+              method: "PATCH",
+              headers: {
+                "apikey": SUPABASE_SERVICE_KEY,
+                "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+              },
+              body: JSON.stringify({
+                sms_opt_out: optOut,
+                sms_opt_out_at: optOut ? new Date().toISOString() : null,
+              }),
+            });
+          } catch (e) {
+            console.warn("sms_opt_out patch failed:", e);
+          }
+        }
+      }
+
+      // Stamp note into metadata so it surfaces in Doug's comms log
+      row.metadata = Object.assign({}, row.metadata || {}, {
+        note: keyword + " keyword",
+        auto_reply_pending: autoReply,
+      });
+
+      // TODO: Wire actual outbound auto-reply via Dialpad SMS API
+      // (dialpad-sms-send function). For now we log the intended reply text
+      // in metadata.auto_reply_pending so it's auditable.
+      console.log("TCPA keyword:", keyword, "from", row.from_number, "would auto-reply with:", autoReply);
+    }
+  }
+
   // Upsert (idempotent on dialpad_id)
   const { error } = await sb
     .from("communications")

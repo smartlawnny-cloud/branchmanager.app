@@ -22,6 +22,31 @@ var Email = {
 
   _isValidEmail: function(e) { return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); },
 
+  // Deliverability guard — refuse to re-send to addresses Resend has marked
+  // bounced/complained (resend-webhook edge fn flips clients.email_status).
+  // Lookup is best-effort: if Supabase is slow/unreachable or the column
+  // doesn't exist yet, ALLOW the send. Never block on a slow query.
+  _isBlockedRecipient: async function(to) {
+    try {
+      // BM's Supabase singleton is named SupabaseDB.client (not Supacloud).
+      if (typeof SupabaseDB === 'undefined' || !SupabaseDB.client) return false;
+      var lookup = SupabaseDB.client
+        .from('clients')
+        .select('email_status')
+        .ilike('email', to)
+        .limit(1);
+      // Race a 1.5s timeout so a hung request doesn't block outbound email.
+      var timeout = new Promise(function(resolve){ setTimeout(function(){ resolve({ data: null, error: 'timeout' }); }, 1500); });
+      var result = await Promise.race([lookup, timeout]);
+      if (!result || result.error || !result.data || !result.data.length) return false;
+      var status = result.data[0].email_status;
+      return status === 'bounced' || status === 'complained';
+    } catch (e) {
+      console.warn('[Email] deliverability lookup failed (allowing send):', e);
+      return false;
+    }
+  },
+
   _mailto: function(to, subject, body) {
     window.open('mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
   },
@@ -33,6 +58,14 @@ var Email = {
     if (!Email._isValidEmail(to)) {
       UI.toast('Invalid recipient: ' + to, 'error');
       return { success: false, method: 'invalid', error: 'bad recipient' };
+    }
+
+    // Deliverability guard — skip known-bad recipients (hard bounce / spam
+    // complaint flagged by resend-webhook). Lookup is fail-open via timeout.
+    var blocked = await Email._isBlockedRecipient(to);
+    if (blocked) {
+      if (!options.silent) UI.toast('Skipped: ' + to + ' is on bounce/complaint list', 'error');
+      return { success: false, method: 'blocked', error: 'recipient flagged bounced/complained' };
     }
 
     var SUPA_URL = 'https://ltpivkqahvplapyagljt.supabase.co';

@@ -50,6 +50,26 @@ Deno.serve(async (req) => {
 
   const toFormatted = normPhone(to);
 
+  // ── TCPA opt-out check. Lookup recipient by last-10 digits; if they have
+  // sms_opt_out=true, refuse with 403. Unknown numbers (no client row) pass
+  // through — might be a non-client lead.
+  const last10 = to.replace(/\D/g, "").slice(-10);
+  if (last10.length >= 10) {
+    const { data: optData } = await sb
+      .from("clients")
+      .select("id, name, sms_opt_out")
+      .ilike("phone", `%${last10}%`)
+      .eq("tenant_id", TENANT_ID)
+      .limit(1);
+    if (optData && optData.length && optData[0].sms_opt_out === true) {
+      return cors(JSON.stringify({
+        ok: false,
+        error: "Recipient has opted out of SMS",
+        client_name: optData[0].name || null,
+      }), 403);
+    }
+  }
+
   // Build Dialpad payload
   const dpPayload: Record<string, unknown> = {
     to_numbers: [toFormatted],

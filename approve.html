@@ -57,6 +57,23 @@
     .sig-section { display: none; margin-top: 16px; border-top: 1px solid #eee; padding-top: 16px; }
     .sig-clear { background: none; border: none; color: #999; font-size: 12px; cursor: pointer; margin-top: 4px; text-decoration: underline; }
     .sig-legal { font-size: 11px; color: #999; margin-top: 10px; line-height: 1.5; }
+    .sig-toggle { background: none; border: none; color: #1a3c12; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 4px 0; margin-bottom: 6px; font-weight: 600; }
+    .sig-typed-input {
+      width: 100%; height: 80px; border: 2px solid #1a3c12; border-radius: 8px;
+      background: #fff; padding: 12px 16px; font-size: 38px; line-height: 1.2;
+      font-family: 'Brush Script MT', 'Lucida Handwriting', cursive; color: #1a3c12;
+      display: block;
+    }
+    .sig-typed-input:focus { outline: none; border-color: #245219; }
+    .hic-box { background: #f9f9f9; border: 1px solid #d8d8d8; border-radius: 8px; padding: 12px 14px; margin-top: 18px; font-size: 11px; line-height: 1.55; color: #333; }
+    .hic-box p { margin: 0 0 8px; }
+    .hic-box p:last-child { margin-bottom: 0; }
+    .hic-box strong { color: #1a3c12; }
+    .li-photos { display: grid; grid-template-columns: repeat(auto-fill, 60px); gap: 4px; margin-top: 6px; }
+    .li-photos a { display: block; width: 60px; height: 60px; border-radius: 8px; overflow: hidden; }
+    .li-photos img { width: 60px; height: 60px; object-fit: cover; display: block; border: 1px solid #e0e0e0; border-radius: 8px; }
+    .btn-decline { background: #fff; color: #b32d2d; border: 2px solid #d99a9a; }
+    .btn-decline:hover { background: #fdf3f3; }
     @media (max-width: 480px) {
       .page { padding: 10px; }
       .header { padding: 16px 18px; }
@@ -128,9 +145,17 @@
       if (items.length) {
         items.forEach(function(item) {
           var amt = item.amount || ((item.qty || 1) * (item.rate || 0));
+          var photosHtml = '';
+          if (Array.isArray(item.photos) && item.photos.length) {
+            var thumbs = item.photos.slice(0, 3).map(function(url) {
+              var safe = esc(url);
+              return '<a href="' + safe + '" target="_blank" rel="noopener"><img src="' + safe + '" alt="line item photo" loading="lazy"></a>';
+            }).join('');
+            photosHtml = '<div class="li-photos">' + thumbs + '</div>';
+          }
           lineRows += '<tr>'
             + '<td style="font-weight:600;">' + esc(item.service || 'Service') + '</td>'
-            + '<td style="color:#666;font-size:13px;">' + esc(item.description || '') + '</td>'
+            + '<td style="color:#666;font-size:13px;">' + esc(item.description || '') + photosHtml + '</td>'
             + '<td>' + (item.qty || 1) + '</td>'
             + '<td>' + money(item.rate) + '</td>'
             + '<td><strong>' + money(amt) + '</strong></td>'
@@ -184,10 +209,17 @@
             )
           + '<div class="sig-section" id="sig-section">'
           + '<div class="section-label" style="margin-bottom:8px;">Sign to Approve</div>'
+          + '<button type="button" class="sig-toggle" id="sig-toggle-btn" onclick="toggleSigMode()">⌨ Type signature instead</button>'
+          + '<div id="sig-draw-wrap">'
           + '<canvas id="sig-canvas" class="sig-canvas" width="700" height="200"></canvas>'
           + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">'
           + '<div style="font-size:12px;color:#aaa;">Draw your signature above</div>'
           + '<button class="sig-clear" onclick="clearSignature()">✕ Clear</button>'
+          + '</div>'
+          + '</div>'
+          + '<div id="sig-typed-wrap" style="display:none;">'
+          + '<input type="text" id="sig-typed" class="sig-typed-input" placeholder="Type your signature" autocomplete="off" aria-label="Type your signature">'
+          + '<div style="font-size:12px;color:#aaa;margin-top:4px;">Type your full legal name as your signature</div>'
           + '</div>'
           + '<div style="margin-top:14px;">'
           + '<div class="section-label">Full Name</div>'
@@ -209,8 +241,15 @@
           + '<textarea id="changes-text" rows="4" placeholder="e.g. Please also quote removing the oak in the backyard, and can you include stump grinding?"></textarea>'
           + '<button class="btn btn-approve" style="margin-top:10px;" onclick="submitChanges()">Send Request</button>'
           + '</div>'
+          + '<button class="btn btn-decline" onclick="toggleDecline()">❌ Decline This ' + docTerm + '</button>'
+          + '<div class="changes-form" id="decline-form">'
+          + '<div class="section-label" style="margin-bottom:8px;">Reason — optional</div>'
+          + '<textarea id="decline-text" rows="3" placeholder="Let us know why (optional). This helps us improve."></textarea>'
+          + '<button class="btn btn-decline" style="margin-top:10px;" onclick="submitDecline()">Confirm Decline</button>'
           + '</div>'
-          + depositHtml;
+          + '</div>'
+          + depositHtml
+          + HIC_HTML;
       } else if (!isDeclined) {
         actionHtml = depositHtml
           + '<div style="margin-top:8px;">'
@@ -219,8 +258,18 @@
           + '<div class="section-label" style="margin-bottom:8px;">What would you like changed?</div>'
           + '<textarea id="changes-text" rows="4" placeholder="Describe what you\'d like us to change..."></textarea>'
           + '<button class="btn btn-approve" style="margin-top:10px;" onclick="submitChanges()">Send Request</button>'
-          + '</div></div>';
+          + '</div>'
+          + '<button class="btn btn-decline" onclick="toggleDecline()">❌ Decline This ' + docTerm + '</button>'
+          + '<div class="changes-form" id="decline-form">'
+          + '<div class="section-label" style="margin-bottom:8px;">Reason — optional</div>'
+          + '<textarea id="decline-text" rows="3" placeholder="Let us know why (optional). This helps us improve."></textarea>'
+          + '<button class="btn btn-decline" style="margin-top:10px;" onclick="submitDecline()">Confirm Decline</button>'
+          + '</div></div>'
+          + HIC_HTML;
+      } else {
+        actionHtml = HIC_HTML;
       }
+      if (isApproved) actionHtml = actionHtml + HIC_HTML;
 
       // Expiry info for meta grid
       var expiryMeta = q.expires_at
@@ -270,8 +319,52 @@
 
     var QUOTE_NOTIFY_URL = 'https://ltpivkqahvplapyagljt.supabase.co/functions/v1/quote-notify';
 
+    // ── NY Westchester/Putnam HIC required disclosures (≥$500 jobs) ─────
+    var HIC_HTML = '<div class="hic-box" role="region" aria-label="Required legal disclosures">'
+      + '<p><strong>Right to Cancel.</strong> You, the buyer, may cancel this transaction at any time prior to midnight of the third business day after the date of this contract. To cancel, deliver a signed and dated written notice of cancellation to Second Nature Tree Service, 1 Highland Industrial Park, Peekskill, NY 10566, or email info@peekskilltree.com. Cancellation must be received within three business days.</p>'
+      + '<p><strong>Mechanic\'s Lien Notice.</strong> Under New York law, this contractor or any subcontractor who performs work or supplies materials for your home may have a lien against your real property if not paid. You have the right to require that the contractor post a payment bond or maintain a separate bank account for your funds.</p>'
+      + '<p><strong>Licensed &amp; Insured.</strong> Westchester County HIC #WC-32079 · Putnam County HIC #PC-50644</p>'
+      + '</div>';
+
     // ── Signature pad ──────────────────────────────────────────
     var _sigDrawing = false;
+    var _sigMode = 'draw'; // 'draw' | 'typed'
+
+    // Toggle between drawn and typed signature
+    function toggleSigMode() {
+      var drawWrap = el('sig-draw-wrap');
+      var typedWrap = el('sig-typed-wrap');
+      var btn = el('sig-toggle-btn');
+      if (!drawWrap || !typedWrap) return;
+      if (_sigMode === 'draw') {
+        _sigMode = 'typed';
+        drawWrap.style.display = 'none';
+        typedWrap.style.display = 'block';
+        if (btn) btn.textContent = '✎ Draw signature instead';
+        var inp = el('sig-typed');
+        if (inp) inp.focus();
+      } else {
+        _sigMode = 'draw';
+        drawWrap.style.display = 'block';
+        typedWrap.style.display = 'none';
+        if (btn) btn.textContent = '⌨ Type signature instead';
+      }
+    }
+
+    // Render typed signature to a canvas data URL so storage path is unchanged
+    function _typedSigToDataURL(text) {
+      var c = document.createElement('canvas');
+      c.width = 700; c.height = 200;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = '#1a3c12';
+      ctx.font = "italic 96px 'Brush Script MT', 'Lucida Handwriting', cursive";
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, c.width / 2, c.height / 2);
+      return c.toDataURL('image/png');
+    }
 
     function showSignaturePad() {
       var sec = el('sig-section');
@@ -338,12 +431,18 @@
     async function confirmApprove() {
       var name = (el('sig-name') ? el('sig-name').value.trim() : '');
       if (!name) { alert('Please type your full name to confirm.'); return; }
-      if (_sigIsEmpty()) { alert('Please draw your signature above.'); return; }
+      var sigData = '';
+      if (_sigMode === 'typed') {
+        var typed = el('sig-typed') ? el('sig-typed').value.trim() : '';
+        if (!typed) { alert('Please type your signature above.'); return; }
+        sigData = _typedSigToDataURL(typed);
+      } else {
+        if (_sigIsEmpty()) { alert('Please draw your signature above.'); return; }
+        var canvas = el('sig-canvas');
+        sigData = canvas ? canvas.toDataURL('image/png') : '';
+      }
       var consentBox = document.getElementById('sig-consent');
       if (consentBox && !consentBox.checked) { alert('Please check the consent box to proceed.'); return; }
-
-      var canvas = el('sig-canvas');
-      var sigData = canvas ? canvas.toDataURL('image/png') : '';
       var btn = document.querySelector('#sig-section .btn-approve');
       if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; btn.className = 'btn btn-disabled'; }
 
@@ -491,6 +590,60 @@
       } catch(e) {
         alert('Could not send request. Please call ' + BM_CONFIG.phone + '.');
         if (btn) { btn.textContent = 'Send Request'; btn.disabled = false; }
+      }
+    }
+
+    function toggleDecline() {
+      var form = el('decline-form');
+      if (!form) return;
+      form.style.display = form.style.display === 'none' || !form.style.display ? 'block' : 'none';
+    }
+
+    async function submitDecline() {
+      var reason = el('decline-text') ? el('decline-text').value.trim() : '';
+      var btn = document.querySelector('#decline-form .btn-decline');
+      if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+      try {
+        var now = new Date().toISOString();
+        var result3 = await sb.from('quotes')
+          .update({ status: 'declined', client_decline_reason: reason, declined_at: now, updated_at: now })
+          .eq('id', window._quoteId);
+        if (result3.error) throw result3.error;
+
+        var q = window._quoteData || {};
+        // quote-notify currently rejects 'declined' — fire-and-forget so failure is silent
+        fetch(QUOTE_NOTIFY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'declined',
+            quoteId: window._quoteId,
+            quoteNumber: q.quote_number || '',
+            clientName: q.client_name || '',
+            total: q.total || 0,
+            property: q.property || '',
+            declineReason: reason,
+            clientEmail: q.client_email || ''
+          })
+        }).catch(function(){});
+
+        el('app').innerHTML = ''
+          + '<div class="header" style="border-radius:12px;">'
+          + '<div class="header-logo">🌳 ' + esc(BM_CONFIG.companyName) + '</div>'
+          + '<h1>Decision Recorded</h1>'
+          + '</div>'
+          + '<div class="card card-standalone" style="border-radius:0 0 12px 12px;">'
+          + '<div class="success-card">'
+          + '<div class="success-icon">📝</div>'
+          + '<h2>Got it — we\'ve recorded your decision</h2>'
+          + '<p>Thanks for letting us know. If anything changes or you\'d like to revisit, just give us a call.</p>'
+          + '<p style="margin-top:20px;"><a href="tel:' + BM_CONFIG.phoneDigits + '" style="color:#1a3c12;font-weight:700;text-decoration:none;font-size:16px;">📞 ' + esc(BM_CONFIG.phone) + '</a></p>'
+          + '</div>'
+          + '</div>'
+          + '<div class="footer"><a href="' + esc(BM_CONFIG.websiteUrl) + '">' + esc(BM_CONFIG.website) + '</a></div>';
+      } catch(e) {
+        alert('Could not record decline. Please call ' + BM_CONFIG.phone + '.');
+        if (btn) { btn.textContent = 'Confirm Decline'; btn.disabled = false; }
       }
     }
 
