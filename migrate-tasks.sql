@@ -47,3 +47,7 @@ CREATE POLICY tasks_tenant_delete ON tasks FOR DELETE
 
 -- Realtime so device A sees device B's writes within ~1s
 ALTER PUBLICATION supabase_realtime ADD TABLE tasks;
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

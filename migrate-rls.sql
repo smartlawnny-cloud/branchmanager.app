@@ -82,3 +82,7 @@ CREATE POLICY "Anon read settings" ON settings FOR SELECT TO anon USING (true);
 --
 -- Everything else requires authentication.
 -- ══════════════════════════════════════
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

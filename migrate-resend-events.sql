@@ -15,3 +15,7 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS email_status_at timestamptz;
 CREATE INDEX IF NOT EXISTS clients_email_status_idx
   ON clients(email_status)
   WHERE email_status <> 'ok';
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

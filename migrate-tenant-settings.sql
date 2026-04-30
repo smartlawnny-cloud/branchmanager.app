@@ -107,3 +107,7 @@ end $$;
 --   1. Reload the app (peekskilltree.com/branchmanager/?reset=1)
 --   2. Go to Settings → re-save the Claude key (or any other key)
 --   3. Log in on a second device → it should pull the keys automatically.
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

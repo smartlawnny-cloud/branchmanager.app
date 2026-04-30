@@ -173,3 +173,7 @@ end; $$;
 
 -- Done. After running: reload BM, toggle the new "Passive Location Tracking"
 -- setting under Settings → Location Services, and allow location when prompted.
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

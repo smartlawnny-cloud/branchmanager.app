@@ -60,3 +60,7 @@ CREATE POLICY "Anon update crew_locations"
 
 -- Enable realtime for this table
 ALTER PUBLICATION supabase_realtime ADD TABLE crew_locations;
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

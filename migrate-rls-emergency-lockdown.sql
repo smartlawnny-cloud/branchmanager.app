@@ -92,3 +92,7 @@ FROM pg_policies
 WHERE schemaname = 'public'
   AND 'anon' = ANY(roles)
 ORDER BY tablename, policyname;
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

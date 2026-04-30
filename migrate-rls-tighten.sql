@@ -60,3 +60,7 @@ ORDER BY tablename, policyname;
 --   storage.objects · "Public read job photos"   · SELECT · job-photos bucket
 --   storage.objects · "Anon upload job photos"   · INSERT · job-photos bucket
 -- ANY OTHER ANON ROW = SECURITY HOLE. Drop it.
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

@@ -184,3 +184,7 @@ END $$;
 --   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = t) THEN
 --     EXECUTE format('ALTER TABLE %I DISABLE ROW LEVEL SECURITY;', t);
 --   END IF; END LOOP; END $$;
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

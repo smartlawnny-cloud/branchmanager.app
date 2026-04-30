@@ -27,3 +27,7 @@ DROP POLICY IF EXISTS "comms_read" ON communications;
 DROP POLICY IF EXISTS "comms_write" ON communications;
 CREATE POLICY "comms_read" ON communications FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "comms_write" ON communications FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';

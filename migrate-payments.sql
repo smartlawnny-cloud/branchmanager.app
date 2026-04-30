@@ -47,3 +47,7 @@ CREATE TRIGGER payments_updated_at BEFORE UPDATE ON payments
   FOR EACH ROW EXECUTE FUNCTION update_payments_updated_at();
 
 SELECT 'payments table created' AS status, COUNT(*) AS row_count FROM payments;
+
+-- Force PostgREST to refresh its schema cache so new columns/tables/RLS
+-- show up immediately on the API. Idempotent — safe to re-run.
+NOTIFY pgrst, 'reload schema';
