@@ -144,6 +144,29 @@ var EquipmentPage = {
         dirty = true;
       }
 
+      // Migration B (May 1 2026): backfill VINs / serials / years that Doug provided.
+      // Only set if currently blank — never overwrite values Doug edited himself.
+      var fleet = {
+        'eq1':  { year: '2011', make: 'Ford', model: 'F-750', name: '2011 Ford F-750 Bucket Truck (Altec)', serial: '3FRPF7FC9BV085425', loanRef: '155642', notes: 'Forestry Package · Altec Elevator Bucket' },
+        'eq2':  { year: '2004', make: 'Ford', model: 'F-550', name: '2004 Ford F-550 Chip Truck', serial: '1FDAF57P24EB71582' },
+        'eq3':  { year: '2019', make: 'Ram',  model: '2500',  name: '2019 Ram 2500',                 serial: '3C6UR5JL1KG623338' },
+        'eq4':  { year: '2005', make: 'Bandit', model: '200XP', name: '2005 Bandit 200XP Chipper',   serial: '020785' },
+        'eq4c': {                make: 'Bandit', model: '254',   name: 'Bandit 254 Chipper',          serial: '4FMUS151191R001171' }
+      };
+      Object.keys(fleet).forEach(function(eid) {
+        var item = list.find(function(e) { return e.id === eid; });
+        if (!item) return;
+        Object.keys(fleet[eid]).forEach(function(k) {
+          if (!item[k]) { item[k] = fleet[eid][k]; dirty = true; }
+        });
+      });
+
+      // Add Eastonmade 22-28 log splitter w/ conveyor (May 1 2026)
+      if (!list.find(function(e) { return e.id === 'eq11'; })) {
+        list.push({ id: 'eq11', name: 'Eastonmade 22-28 Log Splitter', category: 'Equipment', make: 'Eastonmade', model: '22-28', status: 'active', value: 18000, hours: 0, notes: 'Attached conveyor', nextService: 'Hydraulic fluid check' });
+        dirty = true;
+      }
+
       if (dirty) localStorage.setItem('bm-equipment', JSON.stringify(list));
       return list;
     }

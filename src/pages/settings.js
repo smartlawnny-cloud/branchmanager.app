@@ -239,6 +239,86 @@ var SettingsPage = {
       + '<div style="margin-top:14px;text-align:right;"><button onclick="SettingsPage.saveCompany()" style="background:var(--green-dark);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">Save</button></div>'
       + '</div></details>';
 
+    // ─── 🆔 Business Registration & Compliance ───
+    // Stores business identifiers Doug needs to reference frequently:
+    // DOT, EIN, SUI, WC, PC, TCIA, ISA, DOS, Disability policy.
+    // Sensitive fields (DOT PIN, EIN) are password-masked with show/hide toggle.
+    var compliance = {
+      dotNum:        localStorage.getItem('bm-co-dot-num') || '',
+      dotPin:        localStorage.getItem('bm-co-dot-pin') || '',
+      ein:           localStorage.getItem('bm-co-ein') || '',
+      sui:           localStorage.getItem('bm-co-sui') || '',
+      wcNum:         localStorage.getItem('bm-co-wc-num') || '',
+      wcPolicy:      localStorage.getItem('bm-co-wc-policy') || '',
+      pcNum:         localStorage.getItem('bm-co-pc-num') || '',
+      tciaId:        localStorage.getItem('bm-co-tcia-id') || '',
+      isaId:         localStorage.getItem('bm-co-isa-id') || '',
+      disabilityPol: localStorage.getItem('bm-co-disability-policy') || '',
+      dosCurrent:    localStorage.getItem('bm-co-dos-current') || '',
+      dosPrior:      localStorage.getItem('bm-co-dos-prior') || ''
+    };
+    var maskField = function(id, val, label, hint) {
+      return '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">' + label + (hint ? ' <span style="font-weight:400;font-size:10px;color:var(--text-light);">· ' + hint + '</span>' : '') + '</label>'
+        + '<div style="display:flex;gap:6px;">'
+        +   '<input id="' + id + '" type="password" value="' + UI.esc(val) + '" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box;">'
+        +   '<button type="button" onclick="(function(b){var i=b.previousElementSibling;i.type=i.type===\'password\'?\'text\':\'password\';b.textContent=i.type===\'password\'?\'👁\':\'🔒\';})(this)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0 10px;cursor:pointer;font-size:14px;">👁</button>'
+        + '</div></div>';
+    };
+    var plainField = function(id, val, label, hint) {
+      return '<div><label style="font-size:12px;font-weight:600;color:var(--text-light);display:block;margin-bottom:4px;">' + label + (hint ? ' <span style="font-weight:400;font-size:10px;color:var(--text-light);">· ' + hint + '</span>' : '') + '</label>'
+        + '<input id="' + id + '" value="' + UI.esc(val) + '" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:ui-monospace,monospace;box-sizing:border-box;"></div>';
+    };
+    html += cardOpen('🆔 Business Registration &amp; Compliance')
+      + '<div style="font-size:12px;color:var(--text-light);margin-bottom:10px;line-height:1.5;">Public IDs and registration #s. Sensitive fields (DOT PIN, EIN) are masked — tap 👁 to reveal. <strong>Never store passwords here</strong> — use Apple Keychain or 1Password.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+      +   plainField('cmp-dot',         compliance.dotNum,        'US DOT Number',        'public, FMCSA-searchable')
+      +   maskField('cmp-dotpin',      compliance.dotPin,        'DOT PIN',              'sensitive · masks FMCSA writes')
+      +   plainField('cmp-dos-current', compliance.dosCurrent,    'NY DOS # (current)',   'Department of State entity #')
+      +   plainField('cmp-dos-prior',   compliance.dosPrior,      'NY DOS # (prior entity)', 'historical reference')
+      +   maskField('cmp-ein',         compliance.ein,           'EIN',                  'tax ID, sensitive')
+      +   plainField('cmp-sui',         compliance.sui,           'NYS SUI #',            'unemployment insurance')
+      +   plainField('cmp-wc-num',      compliance.wcNum,         'Workers Comp #',       'NYSIF account #')
+      +   plainField('cmp-wc-policy',   compliance.wcPolicy,      'WC Policy #',          'NYSIF policy ID')
+      +   plainField('cmp-disability',  compliance.disabilityPol, 'Disability Policy #',  'ShelterPoint')
+      +   plainField('cmp-pc',          compliance.pcNum,         'Pesticide Cert (PC) #', 'NY DEC')
+      +   plainField('cmp-tcia',        compliance.tciaId,        'TCIA Member ID',       'Tree Care Industry Assoc.')
+      +   plainField('cmp-isa',         compliance.isaId,         'ISA Member ID',        'Intl. Society of Arboriculture')
+      + '</div>'
+      + '<div style="margin-top:14px;text-align:right;"><button onclick="SettingsPage.saveCompliance()" style="background:var(--green-dark);color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">Save</button></div>'
+      + '</div></details>';
+
+    // ─── 🔗 Vendor & Utility Logins ───
+    // Stores URL + username + account # for each site Doug uses. Passwords are
+    // EXPLICITLY NOT STORED — guidance points to Apple Keychain / 1Password.
+    var logins = JSON.parse(localStorage.getItem('bm-co-vendor-logins') || '[]');
+    html += cardOpen('🔗 Vendor &amp; Utility Logins')
+      + '<div style="background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#7e2d10;line-height:1.5;">'
+      +   '<strong>⚠ No passwords here.</strong> This list stores URLs + usernames only. Passwords belong in Apple Keychain (Settings → Passwords on iPhone/Mac) or a password manager like 1Password. If a password gets pasted here it will be ignored.'
+      + '</div>'
+      + '<div id="vendor-logins-list">';
+    if (logins.length === 0) {
+      html += '<div style="font-size:13px;color:var(--text-light);padding:6px 0;">No logins saved yet.</div>';
+    } else {
+      logins.forEach(function(v, i) {
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;padding:8px;background:#f8f9fa;border:1px solid var(--border);border-radius:8px;">'
+          +   '<div><label style="font-size:11px;color:var(--text-light);">Label</label><input data-vl-i="' + i + '" data-vl-k="label" value="' + UI.esc(v.label || '') + '" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;box-sizing:border-box;"></div>'
+          +   '<div><label style="font-size:11px;color:var(--text-light);">URL</label><input data-vl-i="' + i + '" data-vl-k="url" value="' + UI.esc(v.url || '') + '" placeholder="https://..." style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;box-sizing:border-box;"></div>'
+          +   '<div><label style="font-size:11px;color:var(--text-light);">Username</label><input data-vl-i="' + i + '" data-vl-k="username" value="' + UI.esc(v.username || '') + '" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:ui-monospace,monospace;box-sizing:border-box;"></div>'
+          +   '<div><label style="font-size:11px;color:var(--text-light);">Account #</label><input data-vl-i="' + i + '" data-vl-k="account" value="' + UI.esc(v.account || '') + '" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:ui-monospace,monospace;box-sizing:border-box;"></div>'
+          +   '<div style="display:flex;gap:4px;">'
+          +     (v.url ? '<a href="' + UI.esc(v.url) + '" target="_blank" rel="noopener" style="background:#1565c0;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 10px;border-radius:5px;">Open</a>' : '')
+          +     '<button onclick="SettingsPage.removeVendorLogin(' + i + ')" style="background:#dc3545;color:#fff;border:none;padding:6px 10px;border-radius:5px;font-size:11px;cursor:pointer;">✕</button>'
+          +   '</div>'
+          + '</div>';
+      });
+    }
+    html += '</div>'
+      + '<div style="margin-top:10px;display:flex;gap:8px;">'
+      +   '<button onclick="SettingsPage.addVendorLogin()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;cursor:pointer;">+ Add Login</button>'
+      +   '<button onclick="SettingsPage.saveVendorLogins()" style="background:var(--green-dark);color:#fff;border:none;font-size:12px;font-weight:700;padding:8px 14px;border-radius:6px;cursor:pointer;">Save All</button>'
+      + '</div>'
+      + '</div></details>';
+
     // ── Social & Reviews ──
     var sr = {
       googleReview: CompanyInfo.get('googleReviewUrl'),
@@ -2222,6 +2302,66 @@ var SettingsPage = {
     var taxEl = document.getElementById('co-tax-rate');
     if (taxEl) localStorage.setItem('bm-tax-rate', parseFloat(taxEl.value) || 0);
     UI.toast('Company info saved ✅');
+  },
+
+  saveCompliance: function() {
+    var map = {
+      'cmp-dot':         'bm-co-dot-num',
+      'cmp-dotpin':      'bm-co-dot-pin',
+      'cmp-ein':         'bm-co-ein',
+      'cmp-sui':         'bm-co-sui',
+      'cmp-wc-num':      'bm-co-wc-num',
+      'cmp-wc-policy':   'bm-co-wc-policy',
+      'cmp-pc':          'bm-co-pc-num',
+      'cmp-tcia':        'bm-co-tcia-id',
+      'cmp-isa':         'bm-co-isa-id',
+      'cmp-disability':  'bm-co-disability-policy',
+      'cmp-dos-current': 'bm-co-dos-current',
+      'cmp-dos-prior':   'bm-co-dos-prior'
+    };
+    Object.keys(map).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) localStorage.setItem(map[id], el.value.trim());
+    });
+    UI.toast('Compliance info saved ✅');
+  },
+
+  // Vendor logins are URL+username+account only — the form has no password
+  // input, and any password-shaped string typed into the username field gets
+  // stripped before save (defense against accidental paste of a password).
+  addVendorLogin: function() {
+    var list = JSON.parse(localStorage.getItem('bm-co-vendor-logins') || '[]');
+    list.push({ label: '', url: '', username: '', account: '' });
+    localStorage.setItem('bm-co-vendor-logins', JSON.stringify(list));
+    loadPage('settings');
+  },
+  removeVendorLogin: function(index) {
+    var list = JSON.parse(localStorage.getItem('bm-co-vendor-logins') || '[]');
+    list.splice(index, 1);
+    localStorage.setItem('bm-co-vendor-logins', JSON.stringify(list));
+    loadPage('settings');
+  },
+  saveVendorLogins: function() {
+    var list = JSON.parse(localStorage.getItem('bm-co-vendor-logins') || '[]');
+    var inputs = document.querySelectorAll('[data-vl-i]');
+    inputs.forEach(function(input) {
+      var i = parseInt(input.getAttribute('data-vl-i'), 10);
+      var k = input.getAttribute('data-vl-k');
+      if (!list[i]) list[i] = {};
+      list[i][k] = (input.value || '').trim();
+    });
+    // Defensive scrub: if anything looks like a password (≥10 chars w/ digit+special),
+    // refuse to save it in the username field. Pasted passwords get rejected.
+    var looksLikePassword = function(s) {
+      return /^.{10,}$/.test(s) && /\d/.test(s) && /[!@#$%^&*()]/.test(s) && !/@/.test(s);
+    };
+    var scrubbed = false;
+    list.forEach(function(v) {
+      if (looksLikePassword(v.username || '')) { v.username = ''; scrubbed = true; }
+      if (looksLikePassword(v.account || ''))  { v.account = '';  scrubbed = true; }
+    });
+    localStorage.setItem('bm-co-vendor-logins', JSON.stringify(list));
+    UI.toast(scrubbed ? '⚠ Removed something that looked like a password — never paste passwords here' : 'Logins saved ✅', scrubbed ? 'error' : 'success');
   },
 
   _previewLogo: function(url) {
