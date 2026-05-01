@@ -621,9 +621,11 @@ var EquipmentPage = {
       html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
         + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔩 Kubota D902-E4B Cooling Kit · OEM Part Numbers</div>';
 
-      // Per-part rows with direct Messick's + R&L links
+      // Per-part rows with direct Messick's product URL (verified Apr 30 — all 4
+      // parts live at /parts/kubota/{PN} with Add-to-Cart on the page itself).
+      // R&L still uses search since their product slugs aren't predictable.
       parts.forEach(function(p) {
-        var msUrl = 'https://www.messicks.com/search?q=' + encodeURIComponent(p.pn);
+        var msUrl = 'https://www.messicks.com/parts/kubota/' + encodeURIComponent(p.pn);
         var rlUrl = 'https://rlpartssupply.com/?s=' + encodeURIComponent(p.pn) + '&post_type=product';
         html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffe082;font-size:12px;">'
           +   '<div style="flex:1;min-width:0;"><strong>' + p.name + '</strong>'
@@ -634,7 +636,7 @@ var EquipmentPage = {
       });
 
       // "Open all 4" — pops 4 tabs in one click for Messick's, then 4 for R&L
-      var msUrls = parts.map(function(p) { return 'https://www.messicks.com/search?q=' + encodeURIComponent(p.pn); });
+      var msUrls = parts.map(function(p) { return 'https://www.messicks.com/parts/kubota/' + encodeURIComponent(p.pn); });
       var rlUrls = parts.map(function(p) { return 'https://rlpartssupply.com/?s=' + encodeURIComponent(p.pn) + '&post_type=product'; });
       html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">'
         +   '<button onclick="EquipmentPage._openAll(' + JSON.stringify(msUrls).replace(/"/g, '&quot;') + ')" style="background:#1565c0;color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🛒 Order All 4 · Messick\'s</button>'
