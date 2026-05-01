@@ -568,6 +568,16 @@ var EquipmentPage = {
     localStorage.setItem('bm-equipment-docs-' + id, JSON.stringify(docs));
   },
 
+  // Pop a list of URLs in new tabs, staggered ~150ms so popup-blockers don't
+  // collapse them into one. Used by the "Order all 4" parts buttons.
+  _openAll: function(urls) {
+    if (!urls || !urls.length) return;
+    urls.forEach(function(u, i) {
+      setTimeout(function() { window.open(u, '_blank', 'noopener'); }, i * 150);
+    });
+    if (typeof UI !== 'undefined' && UI.toast) UI.toast('Opening ' + urls.length + ' tabs…');
+  },
+
   _renderDocs: function(id) {
     var docs = EquipmentPage._getDocs(id);
     var typeIcon  = { manual: '📕', parts: '🔧', diagram: '📐', cert: '📋', other: '📄' };
@@ -598,21 +608,39 @@ var EquipmentPage = {
       html += '</div>';
     }
 
-    // OEM part number quick-reference for the Giant 254T / Kubota D902-E4B
+    // OEM part number quick-reference for the Giant 254T / Kubota D902-E4B.
+    // Each row deep-links into Messick's + R&L search for that exact part #
+    // so one click jumps to the product page (where Doug can add to cart).
     if (id === 'eq4b') {
+      var parts = [
+        { name: 'Water Pump',        pn: '1E051-73036' },
+        { name: 'W/P Gasket',        pn: '16871-73430' },
+        { name: 'Thermostat',        pn: '19434-73015' },
+        { name: 'T-stat Gasket',     pn: '16221-73270' }
+      ];
       html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
-        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔩 OEM Kubota D902-E4B Part Numbers</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px;">'
-        + '<div><strong>Water Pump</strong>: 1E051-73036</div>'
-        + '<div><strong>W/P Gasket</strong>: 16871-73430</div>'
-        + '<div><strong>Thermostat</strong>: 19434-73015</div>'
-        + '<div><strong>T-stat Gasket</strong>: 16221-73270</div>'
+        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔩 Kubota D902-E4B Cooling Kit · OEM Part Numbers</div>';
+
+      // Per-part rows with direct Messick's + R&L links
+      parts.forEach(function(p) {
+        var msUrl = 'https://www.messicks.com/search?q=' + encodeURIComponent(p.pn);
+        var rlUrl = 'https://rlpartssupply.com/?s=' + encodeURIComponent(p.pn) + '&post_type=product';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffe082;font-size:12px;">'
+          +   '<div style="flex:1;min-width:0;"><strong>' + p.name + '</strong>'
+          +     '<div style="font-family:ui-monospace,monospace;font-size:11px;color:#8a6d00;">' + p.pn + '</div></div>'
+          +   '<a href="' + msUrl + '" target="_blank" rel="noopener" style="background:#1565c0;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Messick\'s</a>'
+          +   '<a href="' + rlUrl + '" target="_blank" rel="noopener" style="background:#e65100;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">R&amp;L</a>'
+          + '</div>';
+      });
+
+      // "Open all 4" — pops 4 tabs in one click for Messick's, then 4 for R&L
+      var msUrls = parts.map(function(p) { return 'https://www.messicks.com/search?q=' + encodeURIComponent(p.pn); });
+      var rlUrls = parts.map(function(p) { return 'https://rlpartssupply.com/?s=' + encodeURIComponent(p.pn) + '&post_type=product'; });
+      html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">'
+        +   '<button onclick="EquipmentPage._openAll(' + JSON.stringify(msUrls).replace(/"/g, '&quot;') + ')" style="background:#1565c0;color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🛒 Order All 4 · Messick\'s</button>'
+        +   '<button onclick="EquipmentPage._openAll(' + JSON.stringify(rlUrls).replace(/"/g, '&quot;') + ')" style="background:#e65100;color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🛒 Order All 4 · R&amp;L</button>'
         + '</div>'
-        + '<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
-        + '<a href="https://www.messicks.com/search?q=" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#1565c0;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 Messick\'s</a>'
-        + '<a href="https://rlpartssupply.com" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;background:#e65100;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;">🛒 R&amp;L Parts Supply</a>'
-        + '</div>'
-        + '<div style="font-size:11px;color:var(--text-light);margin-top:5px;">Both sell Kubota OEM parts by part number · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Both sell Kubota OEM by part # · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
         + '</div>';
     }
 
