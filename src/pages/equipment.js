@@ -631,6 +631,26 @@ var EquipmentPage = {
       EquipmentPage._saveDocs(id, seed4c);
       return seed4c;
     }
+    // Pre-seed Stihl MS 462 (eq8) — operator manual from Stihl USA
+    if (id === 'eq8') {
+      var seed8 = [
+        { id: 'doc-ms462-1', name: 'Stihl MS 462 Operator Manual', type: 'manual',
+          url: 'https://www.stihlusa.com/WebContent/CMSFileLibrary/OwnersManuals/MS-462C-M-Owners-Manual.pdf',
+          addedAt: '2026-05-01', note: 'Stihl USA — operator + maintenance' }
+      ];
+      EquipmentPage._saveDocs(id, seed8);
+      return seed8;
+    }
+    // Pre-seed Stihl MS 261 (eq9) — operator manual from Stihl USA
+    if (id === 'eq9') {
+      var seed9 = [
+        { id: 'doc-ms261-1', name: 'Stihl MS 261 Operator Manual', type: 'manual',
+          url: 'https://www.stihlusa.com/WebContent/CMSFileLibrary/OwnersManuals/MS-261-Owners-Manual.pdf',
+          addedAt: '2026-05-01', note: 'Stihl USA — operator + maintenance' }
+      ];
+      EquipmentPage._saveDocs(id, seed9);
+      return seed9;
+    }
     // Pre-seed Bandit 200XP Chipper (eq4) — Stephenson Equipment manual
     if (id === 'eq4') {
       var seed4 = [
@@ -646,6 +666,34 @@ var EquipmentPage = {
 
   _saveDocs: function(id, docs) {
     localStorage.setItem('bm-equipment-docs-' + id, JSON.stringify(docs));
+  },
+
+  // Render a Stihl-style wear-parts box. Stihl OEM #s deep-link to Bailey's
+  // search (most reliable third-party Stihl-OEM retailer); NGK plugs deep-link
+  // to Amazon since Bailey's stocking is spotty. Same visual pattern as the
+  // Giant 254T cooling-kit and Bandit 254 chipper-knife boxes for consistency.
+  _renderStihlPartsCard: function(title, parts) {
+    var box = '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
+      + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🪚 ' + title + '</div>';
+
+    parts.forEach(function(p) {
+      var bUrl = 'https://www.baileysonline.com/search?searchTerm=' + encodeURIComponent(p.pn);
+      var sUrl = 'https://www.sherrilltree.com/search?q=' + encodeURIComponent(p.pn);
+      box += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffe082;font-size:12px;">'
+        +   '<div style="flex:1;min-width:0;"><strong>' + p.name + '</strong>'
+        +     '<div style="font-family:ui-monospace,monospace;font-size:11px;color:#8a6d00;">' + p.pn + ' · <span style="font-family:inherit;color:var(--text-light);">' + p.desc + '</span></div></div>'
+        +   '<a href="' + bUrl + '" target="_blank" rel="noopener" style="background:#e65100;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Bailey\'s</a>'
+        +   '<a href="' + sUrl + '" target="_blank" rel="noopener" style="background:#1565c0;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Sherrill</a>'
+        + '</div>';
+    });
+
+    var bUrls = parts.map(function(p) { return 'https://www.baileysonline.com/search?searchTerm=' + encodeURIComponent(p.pn); });
+    box += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">'
+      +   '<button onclick="EquipmentPage._openAll(' + JSON.stringify(bUrls).replace(/"/g, '&quot;') + ')" style="background:#e65100;color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🛒 Open All at Bailey\'s</button>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Bailey\'s ships Stihl OEM nationwide · or call your local Stihl dealer</div>'
+      + '</div>';
+    return box;
   },
 
   // Pop a list of URLs in new tabs, staggered ~150ms so popup-blockers don't
@@ -725,6 +773,40 @@ var EquipmentPage = {
         + '</div>'
         + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Both sell Kubota OEM by part # · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
         + '</div>';
+    }
+
+    // ── Stihl MS 462 wear-parts card (eq8) ──
+    // Standard high-frequency consumables for the climber's saw. Chain
+    // depends on bar length; we show all 3 common options (25"/28"/32")
+    // and let Doug click whichever matches his bar. Plug + air filter +
+    // fuel filter are universal across bar configs.
+    if (id === 'eq8') {
+      var partsMS462 = [
+        { name: 'Spark Plug',           pn: 'NGK BPMR7A',        desc: 'cross: Bosch WSR6F · Stihl 0000-400-7000' },
+        { name: 'Air Filter HD2',       pn: '1142-120-1604',     desc: 'pleated, replaces foam 1142-120-1600' },
+        { name: 'Fuel Filter',          pn: '0000-350-3504',     desc: 'inline + tank pickup, fits all Stihl' },
+        { name: '7T 3/8" Rim Sprocket', pn: '1142-642-1252',     desc: 'split-rim, change w/ every 2-3 chains' },
+        { name: 'Chain · 25" / 84DL',   pn: '33 RS3 84',         desc: '3/8" pitch · .063 gauge · OEM 3614-005-0084' },
+        { name: 'Chain · 28" / 92DL',   pn: '33 RS3 92',         desc: '3/8" pitch · .063 gauge' },
+        { name: 'Bar · 25" Rollomatic', pn: '3003-008-6817',     desc: 'Light bar · 3/8" .063 std mount' }
+      ];
+      html += EquipmentPage._renderStihlPartsCard('Stihl MS 462 — Wear Parts', partsMS462);
+    }
+
+    // ── Stihl MS 261 wear-parts card (eq9) ──
+    // The lighter limbing/midsized saw. Same plug + fuel filter as MS 462.
+    // Air filter is a different HD2 part. Chains in 18"/20" bar configs.
+    if (id === 'eq9') {
+      var partsMS261 = [
+        { name: 'Spark Plug',           pn: 'NGK BPMR7A',        desc: 'cross: Bosch WSR6F · Stihl 0000-400-7000' },
+        { name: 'Air Filter HD2',       pn: '1141-120-1610',     desc: 'pleated, fits MS 261 / 271 / 291' },
+        { name: 'Fuel Filter',          pn: '0000-350-3504',     desc: 'same as MS 462' },
+        { name: '7T 3/8" Rim Sprocket', pn: '1141-640-2002',     desc: 'split-rim · for 3/8" P chain' },
+        { name: 'Chain · 18" / 66DL',   pn: '63 PS3 66',         desc: '3/8" P pitch · .050 gauge' },
+        { name: 'Chain · 20" / 72DL',   pn: '63 PS3 72',         desc: '3/8" P pitch · .050 gauge' },
+        { name: 'Bar · 18" Rollomatic', pn: '3005-000-4717',     desc: 'Light bar · 3/8" P .050 std mount' }
+      ];
+      html += EquipmentPage._renderStihlPartsCard('Stihl MS 261 — Wear Parts', partsMS261);
     }
 
     // Bandit 254 Chipper (eq4c) — chipper knife OEM box.
