@@ -631,6 +631,22 @@ var EquipmentPage = {
       EquipmentPage._saveDocs(id, seed4c);
       return seed4c;
     }
+    // Pre-seed Eastonmade 22-28 (eq11) — manufacturer site link.
+    // No public PDF manual — the company ships printed manuals with each
+    // unit. Doug should scan + drop into Supabase Storage when he gets a
+    // chance; this seed at least makes the brand site one tap away.
+    if (id === 'eq11') {
+      var seed11 = [
+        { id: 'doc-em1', name: 'Eastonmade Wood Splitters — Manuals & Parts', type: 'manual',
+          url: 'https://eastonmadewoodsplitters.com/dealer-locator/',
+          addedAt: '2026-05-01', note: 'Call mfr (931) 670-5557 for PDF · printed copy ships with unit' },
+        { id: 'doc-em2', name: 'Honda GX390 Engine Owner\'s Manual', type: 'manual',
+          url: 'https://cdn.powerequipment.honda.com/engines/pdf/manuals/31Z5T617.pdf',
+          addedAt: '2026-05-01', note: 'Standard 13hp engine on 22-28 builds' }
+      ];
+      EquipmentPage._saveDocs(id, seed11);
+      return seed11;
+    }
     // Pre-seed Stihl MS 462 (eq8) — operator manual from Stihl USA
     if (id === 'eq8') {
       var seed8 = [
@@ -772,6 +788,44 @@ var EquipmentPage = {
         +   '<button onclick="EquipmentPage._logCoolingKit(\'eq4b\',\'R&amp;L Parts Supply\')" style="background:var(--green-dark);color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📝 Log This Order (R&amp;L)</button>'
         + '</div>'
         + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Both sell Kubota OEM by part # · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '</div>';
+    }
+
+    // ── Eastonmade 22-28 wear parts card (eq11) ──
+    // The 22-28 ships with a Honda GX390 13hp standard. Common consumables:
+    // hydraulic filter, hydraulic fluid (AW-46), conveyor belt + drive chain,
+    // engine wear parts (plug, air filter, oil filter). Eastonmade's parts
+    // line goes through dealers; Honda engine parts via Honda dealers / NAPA.
+    if (id === 'eq11') {
+      var partsEM = [
+        { name: 'Hydraulic Filter (10-mic)',  pn: 'Donaldson P164164', desc: 'spin-on · most 22-28 builds' },
+        { name: 'Hydraulic Fluid AW-46',      pn: 'AW-46 ISO',          desc: '5 gal pail · 22-28 takes ~10 gal total' },
+        { name: 'Honda GX390 Air Filter',     pn: '17210-ZE3-505',      desc: 'engine: standard pleated paper element' },
+        { name: 'Honda GX390 Spark Plug',     pn: 'BPR6ES (NGK)',       desc: 'gap 0.028"-0.031"' },
+        { name: 'Honda GX390 Oil Filter',     pn: '15400-PLM-A02',      desc: 'cartridge style' },
+        { name: 'Conveyor V-Belt',            pn: 'A-section · 4L-series', desc: 'measure run before ordering — model-dependent' },
+        { name: 'Conveyor Drive Chain',       pn: '#50 roller chain',   desc: 'cut to length per Eastonmade spec' }
+      ];
+
+      html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
+        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🪓 Eastonmade 22-28 + Honda GX390 · Wear Parts</div>';
+
+      partsEM.forEach(function(p) {
+        var aUrl = 'https://www.amazon.com/s?k=' + encodeURIComponent(p.pn);
+        var nUrl = 'https://www.napaonline.com/en/search?q=' + encodeURIComponent(p.pn);
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffe082;font-size:12px;">'
+          +   '<div style="flex:1;min-width:0;"><strong>' + p.name + '</strong>'
+          +     '<div style="font-family:ui-monospace,monospace;font-size:11px;color:#8a6d00;">' + p.pn + ' · <span style="font-family:inherit;color:var(--text-light);">' + p.desc + '</span></div></div>'
+          +   '<a href="' + aUrl + '" target="_blank" rel="noopener" style="background:#ff9900;color:#000;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Amazon</a>'
+          +   '<a href="' + nUrl + '" target="_blank" rel="noopener" style="background:#c62828;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">NAPA</a>'
+          + '</div>';
+      });
+
+      html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">'
+        +   '<a href="tel:+19316705557" style="background:#7e2d10;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">📞 Call Eastonmade</a>'
+        +   '<a href="https://eastonmadewoodsplitters.com/dealer-locator/" target="_blank" rel="noopener" style="background:#0d47a1;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">Find Dealer</a>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Eastonmade · (931) 670-5557 · TN-based · ships nationwide via dealer network</div>'
         + '</div>';
     }
 
