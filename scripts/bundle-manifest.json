@@ -61,6 +61,7 @@
     "src/pages/videoquote.js",
     "src/pages/voicequote.js",
     "src/pages/chipdrops.js",
+    "src/pages/hiringpool.js",
     "src/pages/tracking.js",
     "src/pages/treemeasure.js",
     "src/pages/search.js",
