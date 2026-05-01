@@ -121,12 +121,30 @@ var EquipmentPage = {
     var stored = localStorage.getItem('bm-equipment');
     if (stored) {
       var list = JSON.parse(stored);
-      // Migration: ensure eq4b (Bandit 254 / Giant 254T — has all the Dan Wojick manuals
-      // + Kubota D902-E4B parts box) is present for users seeded before Apr 29 2026.
-      if (!list.find(function(e) { return e.id === 'eq4b'; })) {
-        list.push({ id: 'eq4b', name: 'Bandit 254 Chipper', category: 'Equipment', make: 'Bandit', model: '254', status: 'active', value: 35000, hours: 0, nextService: 'Blade sharpen @ 50 hrs' });
-        localStorage.setItem('bm-equipment', JSON.stringify(list));
+      var dirty = false;
+
+      // Migration A (May 1 2026): eq4b was originally seeded as "Bandit 254 Chipper"
+      // but the Kubota D902-E4B engine + Giant manuals actually belong to the
+      // Giant 254T Loader. Rename in place, then add a separate eq4c for the
+      // real Bandit 254 Chipper that Doug also owns.
+      var eq4b = list.find(function(e) { return e.id === 'eq4b'; });
+      if (eq4b && eq4b.name === 'Bandit 254 Chipper') {
+        eq4b.name = 'Giant 254T Loader';
+        eq4b.category = 'Equipment';
+        eq4b.make = 'Giant';
+        eq4b.model = '254T';
+        dirty = true;
       }
+      if (!eq4b) {
+        list.push({ id: 'eq4b', name: 'Giant 254T Loader', category: 'Equipment', make: 'Giant', model: '254T', status: 'active', value: 35000, hours: 0, nextService: 'Hydraulic fluid + cooling kit' });
+        dirty = true;
+      }
+      if (!list.find(function(e) { return e.id === 'eq4c'; })) {
+        list.push({ id: 'eq4c', name: 'Bandit 254 Chipper', category: 'Equipment', make: 'Bandit', model: '254', status: 'active', value: 35000, hours: 0, nextService: 'Blade sharpen @ 50 hrs' });
+        dirty = true;
+      }
+
+      if (dirty) localStorage.setItem('bm-equipment', JSON.stringify(list));
       return list;
     }
     // Seed with common tree service equipment
@@ -135,7 +153,8 @@ var EquipmentPage = {
       { id: 'eq2', name: 'Chip Truck', category: 'Trucks', make: '', model: '', status: 'active', value: 45000, hours: 0 },
       { id: 'eq3', name: 'Ram 2500', category: 'Trucks', make: 'Ram', model: '2500', status: 'active', value: 45000, hours: 0 },
       { id: 'eq4', name: 'Bandit 200XP Chipper', category: 'Equipment', make: 'Bandit', model: '200XP', status: 'active', value: 35000, hours: 0, nextService: 'Blade sharpen @ 50 hrs' },
-      { id: 'eq4b', name: 'Bandit 254 Chipper', category: 'Equipment', make: 'Bandit', model: '254', status: 'active', value: 35000, hours: 0, nextService: 'Blade sharpen @ 50 hrs' },
+      { id: 'eq4b', name: 'Giant 254T Loader', category: 'Equipment', make: 'Giant', model: '254T', status: 'active', value: 35000, hours: 0, nextService: 'Hydraulic fluid + cooling kit' },
+      { id: 'eq4c', name: 'Bandit 254 Chipper', category: 'Equipment', make: 'Bandit', model: '254', status: 'active', value: 35000, hours: 0, nextService: 'Blade sharpen @ 50 hrs' },
       { id: 'eq6', name: 'Loader', category: 'Equipment', make: '', model: '', status: 'active', value: 25000, hours: 0 },
       { id: 'eq7', name: 'Climbing Gear Set', category: 'Safety', make: '', model: '', status: 'active', value: 3000, nextService: 'Annual inspection' },
       { id: 'eq8', name: 'Stihl MS 462', category: 'Saws', make: 'Stihl', model: 'MS 462', status: 'active', value: 1100, hours: 0 },
@@ -273,26 +292,36 @@ var EquipmentPage = {
     });
   },
 
-  logService: function(id) {
+  logService: function(id, preset) {
     var all = EquipmentPage.getAll();
     var eq = all.find(function(e) { return e.id === id; });
     if (!eq) return;
+    preset = preset || {};
 
     var html = '<div style="display:grid;gap:10px;">'
       + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Service Type</label>'
       + '<select id="svc-type" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;">'
       + '<option>Oil Change</option><option>Blade Sharpen</option><option>Filter Replace</option>'
-      + '<option>Annual Inspection</option><option>Repair</option><option>Other</option>'
+      + '<option>Annual Inspection</option><option' + (preset.type === 'Repair' ? ' selected' : '') + '>Repair</option><option>Other</option>'
       + '</select></div>'
       + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Notes</label>'
-      + '<input type="text" id="svc-notes" placeholder="What was done?" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
+      + '<input type="text" id="svc-notes" value="' + UI.esc(preset.notes || '') + '" placeholder="What was done?" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
       + '<div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Cost ($)</label>'
-      + '<input type="number" id="svc-cost" placeholder="0" step="0.01" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
+      + '<input type="number" id="svc-cost" value="' + (preset.cost || '') + '" placeholder="0" step="0.01" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:14px;"></div>'
       + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
       + '<button class="btn btn-outline" onclick="UI.closeModal()">Cancel</button>'
       + '<button class="btn btn-primary" onclick="EquipmentPage._saveService(\'' + id + '\')">Log Service</button>'
       + '</div></div>';
     UI.showModal('Log Service — ' + eq.name, html);
+  },
+
+  // Pre-filled service log for the Bandit 254 cooling kit order — click in the
+  // 🔩 parts box, fill in the cost when the R&L invoice arrives.
+  _logCoolingKit: function(id, vendor) {
+    EquipmentPage.logService(id, {
+      type: 'Repair',
+      notes: 'Cooling kit ordered from ' + vendor + ': water pump (1E051-73036), W/P gasket (16871-73430), thermostat (19434-73015), T-stat gasket (16221-73270)'
+    });
   },
 
   _saveService: function(id) {
@@ -536,7 +565,7 @@ var EquipmentPage = {
         return docs;
       }
     } catch(e) {}
-    // Pre-seed Bandit 254 Chipper (Giant/1200 w/ Kubota D902-E4B) with Dan Wojick's manuals
+    // Pre-seed Giant 254T Loader (Kubota D902-E4B engine) with Dan Wojick's manuals
     if (id === 'eq4b') {
       var seed = [
         { id: 'doc-g1', name: 'Operator Manual', type: 'manual',
@@ -608,9 +637,9 @@ var EquipmentPage = {
       html += '</div>';
     }
 
-    // OEM part number quick-reference for the Giant 254T / Kubota D902-E4B.
-    // Each row deep-links into Messick's + R&L search for that exact part #
-    // so one click jumps to the product page (where Doug can add to cart).
+    // OEM part number quick-reference for the Giant 254T Loader / Kubota D902-E4B.
+    // Each row deep-links to the Messick's product page so Add-to-Cart is one tap.
+    // R&L still uses search since their slugs aren't predictable.
     if (id === 'eq4b') {
       var parts = [
         { name: 'Water Pump',        pn: '1E051-73036' },
@@ -619,7 +648,7 @@ var EquipmentPage = {
         { name: 'T-stat Gasket',     pn: '16221-73270' }
       ];
       html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
-        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔩 Kubota D902-E4B Cooling Kit · OEM Part Numbers</div>';
+        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔩 Giant 254T · Kubota D902-E4B Cooling Kit · OEM Part Numbers</div>';
 
       // Per-part rows with direct Messick's product URL (verified Apr 30 — all 4
       // parts live at /parts/kubota/{PN} with Add-to-Cart on the page itself).
@@ -641,6 +670,7 @@ var EquipmentPage = {
       html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">'
         +   '<button onclick="EquipmentPage._openAll(' + JSON.stringify(msUrls).replace(/"/g, '&quot;') + ')" style="background:#1565c0;color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🛒 Order All 4 · Messick\'s</button>'
         +   '<button onclick="EquipmentPage._openAll(' + JSON.stringify(rlUrls).replace(/"/g, '&quot;') + ')" style="background:#e65100;color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🛒 Order All 4 · R&amp;L</button>'
+        +   '<button onclick="EquipmentPage._logCoolingKit(\'eq4b\',\'R&amp;L Parts Supply\')" style="background:var(--green-dark);color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📝 Log This Order (R&amp;L)</button>'
         + '</div>'
         + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Both sell Kubota OEM by part # · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
         + '</div>';
