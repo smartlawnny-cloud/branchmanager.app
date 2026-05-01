@@ -302,6 +302,60 @@ var CloudSync = {
     UI.toast('Syncing with cloud...');
     await CloudSync.init();
     UI.toast('Data refreshed from cloud!');
+  },
+
+  // Cloud-Health diagnostic. Returns a structured snapshot covering:
+  //  - Supabase auth session (present / expires / email)
+  //  - Local Auth.user (BM session, may be Supabase- or local-fallback)
+  //  - Per-table cloud read counts (head:true so we don't pull rows)
+  //  - Pending cloud-push-queue depth
+  // Rendered by SettingsPage._renderCloudHealth() in Settings → Advanced.
+  diagnose: async function() {
+    var snap = {
+      checkedAt: new Date().toISOString(),
+      supabaseReady: !!(typeof SupabaseDB !== 'undefined' && SupabaseDB.ready),
+      bmUser: null, supabaseSession: null,
+      tenantId: (typeof DB !== 'undefined' && DB.getTenantId) ? DB.getTenantId() : null,
+      tableCounts: {}, queueDepth: 0, queueSample: [], errors: []
+    };
+    if (typeof Auth !== 'undefined' && Auth.user) {
+      snap.bmUser = { email: Auth.user.email, role: Auth.role || Auth.user.role };
+    }
+    // Supabase session
+    if (snap.supabaseReady && SupabaseDB.client && SupabaseDB.client.auth) {
+      try {
+        var s = await SupabaseDB.client.auth.getSession();
+        if (s && s.data && s.data.session) {
+          var sess = s.data.session;
+          snap.supabaseSession = {
+            email: sess.user && sess.user.email,
+            userId: sess.user && sess.user.id,
+            expiresAt: sess.expires_at ? new Date(sess.expires_at * 1000).toISOString() : null,
+            expiresInMin: sess.expires_at ? Math.round((sess.expires_at * 1000 - Date.now()) / 60000) : null
+          };
+        }
+      } catch(e) { snap.errors.push('auth.getSession: ' + e.message); }
+    }
+    // Per-table cloud read counts (head:true returns count without rows)
+    var tables = ['clients','quotes','jobs','invoices','vehicles','communications','tasks','team_messages'];
+    if (snap.supabaseReady && SupabaseDB.client) {
+      var probes = tables.map(function(t) {
+        return SupabaseDB.client.from(t).select('*', { count: 'exact', head: true }).then(function(r) {
+          return { table: t, count: r.count, error: r.error && r.error.message };
+        }).catch(function(e) { return { table: t, count: null, error: e.message }; });
+      });
+      var results = await Promise.all(probes);
+      results.forEach(function(r) { snap.tableCounts[r.table] = { count: r.count, error: r.error }; });
+    }
+    // Queue depth (db.js _pushToCloud retry queue)
+    try {
+      var q = JSON.parse(localStorage.getItem('bm-cloud-push-queue') || '[]');
+      snap.queueDepth = q.length;
+      snap.queueSample = q.slice(0, 5).map(function(op) {
+        return { table: op.table, id: op.id, method: op.method, status: op.lastStatus, queuedAt: op.queuedAt };
+      });
+    } catch(e) { snap.errors.push('queue read: ' + e.message); }
+    return snap;
   }
 };
 

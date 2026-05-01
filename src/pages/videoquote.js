@@ -102,7 +102,8 @@ var VideoQuote = {
   _recordVideo: function() {
     var input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'video/*';
+    input.accept = 'video/*,video/quicktime,video/mp4,.mov,.mp4,.m4v,.webm';
+    input.setAttribute('capture', 'environment');
     input.onchange = function(e) {
       var file = e.target.files[0];
       if (file) VideoQuote._handleVideo(file);
@@ -114,7 +115,7 @@ var VideoQuote = {
   _uploadVideo: function() {
     var input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'video/*';
+    input.accept = 'video/*,video/quicktime,video/mp4,.mov,.mp4,.m4v,.webm,.avi,.mkv';
     input.onchange = function(e) {
       var file = e.target.files[0];
       if (file) VideoQuote._handleVideo(file);
@@ -131,9 +132,9 @@ var VideoQuote = {
     VideoQuote._processing = false;
     VideoQuote._currentFrame = 0;
 
-    // Check file size (100MB max)
-    if (file.size > 100 * 1024 * 1024) {
-      UI.toast('Video too large. Please keep under 100MB.', 'error');
+    // Check file size (500MB max — iPhone 4K .mov can easily exceed 100MB)
+    if (file.size > 500 * 1024 * 1024) {
+      UI.toast('Video too large (' + Math.round(file.size / 1024 / 1024) + 'MB). Please keep under 500MB or trim the clip.', 'error');
       return;
     }
 
@@ -192,11 +193,16 @@ var VideoQuote = {
 
     video.onerror = function() {
       URL.revokeObjectURL(url);
+      var ext = (file.name || '').split('.').pop().toLowerCase();
+      var hint = ext === 'mov'
+        ? 'iPhone .mov files are sometimes HEVC-encoded which this browser can\'t decode. On iPhone Settings → Camera → Formats, switch to "Most Compatible" and re-record, or convert to MP4.'
+        : 'Try a different format (MP4, MOV with H.264, WebM).';
       if (procEl) {
         procEl.innerHTML = '<div style="background:#ffebee;border-radius:10px;padding:16px;text-align:center;">'
-          + '<div style="font-size:14px;font-weight:600;color:#c62828;">Could not load video</div>'
-          + '<div style="font-size:12px;color:var(--text-light);margin-top:4px;">Try a different format (MP4, MOV, WebM)</div></div>';
+          + '<div style="font-size:14px;font-weight:600;color:#c62828;">Could not load video (' + (file.type || ext || 'unknown format') + ')</div>'
+          + '<div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.4;">' + hint + '</div></div>';
       }
+      UI.toast('Video format not supported by browser', 'error');
     };
 
     video.src = url;

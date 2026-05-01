@@ -1406,6 +1406,19 @@ var SettingsPage = {
 
     // Templates & Automation moved up into the BUSINESS meta-group.
 
+    // ─── Cloud Health (v550, Apr 30) ─────────────────────────────────────
+    // Built after the "fleet stuck" + quote #496 silent-cloud-failure
+    // incidents. One-click diagnostic for: Supabase auth state, per-table
+    // read counts, queued writes. Anything red here = something is broken.
+    html += cardOpen('Cloud Health', { icon: 'activity' })
+      +     '<div id="cloud-health-out" style="font-size:13px;color:var(--text-light);padding:6px 0 12px;">Click "Run diagnostic" below.</div>'
+      +     '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +       '<button onclick="SettingsPage._runCloudHealth()" class="btn btn-primary" style="font-size:12px;">Run diagnostic</button>'
+      +       '<button onclick="if(typeof CloudSync!==\'undefined\'&&CloudSync.refresh)CloudSync.refresh()" class="btn btn-outline" style="font-size:12px;">Force re-sync</button>'
+      +       '<button onclick="if(confirm(\'Sign out and re-sign in to restore cloud sync? Local data preserved.\'))Auth.logout()" class="btn btn-outline" style="font-size:12px;">Re-sign in</button>'
+      +     '</div>'
+      + cardClose();
+
     // ═══ close ADVANCED meta-group ═══
     html += groupClose();
 
@@ -1427,6 +1440,66 @@ var SettingsPage = {
 
     html += '</div>';
     return html;
+  },
+
+  // Cloud Health diagnostic — renders SettingsPage's #cloud-health-out box
+  // with the result of CloudSync.diagnose(). One row per check, traffic-light
+  // colored. Built to surface "fleet stuck"-style silent failures in one click.
+  _runCloudHealth: function() {
+    var out = document.getElementById('cloud-health-out');
+    if (!out) return;
+    if (typeof CloudSync === 'undefined' || !CloudSync.diagnose) {
+      out.innerHTML = '<span style="color:#c62828;">CloudSync not loaded.</span>';
+      return;
+    }
+    out.innerHTML = '<em>Probing cloud…</em>';
+    CloudSync.diagnose().then(function(s) {
+      function row(label, val, color) {
+        return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">'
+          + '<span style="color:var(--text-light);">' + label + '</span>'
+          + '<span style="color:' + (color || 'var(--text)') + ';font-weight:600;text-align:right;max-width:60%;word-break:break-word;">' + val + '</span>'
+          + '</div>';
+      }
+      var html = '';
+      // Auth state — most important, top
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Auth state</div>';
+      var sess = s.supabaseSession;
+      if (sess) {
+        var expColor = sess.expiresInMin == null ? 'var(--text)' : (sess.expiresInMin > 60 ? '#2e7d32' : (sess.expiresInMin > 0 ? '#a37200' : '#c62828'));
+        html += row('Supabase session', '✅ ' + (sess.email || sess.userId), '#2e7d32');
+        if (sess.expiresInMin != null) html += row('Session expires in', sess.expiresInMin + ' min', expColor);
+      } else {
+        html += row('Supabase session', '❌ none — writes will be RLS-rejected', '#c62828');
+      }
+      html += row('BM session (local)', s.bmUser ? (s.bmUser.email + ' · ' + (s.bmUser.role || 'owner')) : '(none)', s.bmUser ? 'var(--text)' : '#a37200');
+      html += row('Tenant id', s.tenantId || '(none)', s.tenantId ? 'var(--text)' : '#a37200');
+
+      // Per-table reads
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;">Cloud reads (rows visible to this session)</div>';
+      Object.keys(s.tableCounts).forEach(function(t) {
+        var c = s.tableCounts[t];
+        var col = c.error ? '#c62828' : (c.count === 0 ? '#a37200' : '#2e7d32');
+        var val = c.error ? '⚠ ' + c.error.slice(0, 48) : (c.count + ' rows');
+        html += row(t, val, col);
+      });
+
+      // Queue
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;">Pending writes</div>';
+      var qCol = s.queueDepth === 0 ? '#2e7d32' : (s.queueDepth > 5 ? '#c62828' : '#a37200');
+      html += row('Queue depth', s.queueDepth + ' op' + (s.queueDepth === 1 ? '' : 's'), qCol);
+      if (s.queueSample.length) {
+        s.queueSample.forEach(function(op) {
+          html += row(op.method + ' ' + op.table, '#' + (op.id||'').slice(-6) + ' · status ' + (op.status||'?'), '#a37200');
+        });
+      }
+      if (s.errors.length) {
+        html += '<div style="margin-top:14px;padding:8px 12px;background:#fef2f2;border-radius:6px;color:#991b1b;font-size:12px;">' + s.errors.join('<br>') + '</div>';
+      }
+      html += '<div style="margin-top:12px;font-size:11px;color:var(--text-light);">Probed at ' + new Date(s.checkedAt).toLocaleTimeString() + '</div>';
+      out.innerHTML = html;
+    }).catch(function(e) {
+      out.innerHTML = '<span style="color:#c62828;">Diagnostic error: ' + (e && e.message) + '</span>';
+    });
   },
 
   // Make every settings card collapsible — idempotent, runs after render.
