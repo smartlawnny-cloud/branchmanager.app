@@ -21,12 +21,41 @@ async function fetchUngeocoded() {
   return r.ok ? await r.json() : [];
 }
 
-async function geocode(addr) {
-  const u = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(addr);
-  const r = await fetch(u, { headers: { 'User-Agent': 'BranchManager/1.0 (+https://branchmanager.app)' } });
-  if (!r.ok) return null;
-  const j = await r.json();
-  return Array.isArray(j) && j.length ? { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) } : null;
+// Doug's Tree Sheet has many addresses without ", NY" — geocoders default
+// to disambiguating to whatever's most populous globally. Append NY when
+// the address looks like it lacks a state/country, to bias toward Westchester/
+// Putnam/Orange/Dutchess. (Caught Apr 30 when "19 Woodlawn Dr, Carmel"
+// resolved to Carmel, IN instead of Carmel, NY.)
+function biasToNY(addr) {
+  if (/\b(NY|New York|N\.Y\.)\b/i.test(addr)) return addr;
+  if (/USA|United States/i.test(addr)) return addr;
+  return addr + ', NY';
+}
+
+async function geocode(addr, retries = 3) {
+  const biased = biasToNY(addr);
+  const u = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&q=' + encodeURIComponent(biased);
+  for (let i = 0; i < retries; i++) {
+    try {
+      const r = await fetch(u, { headers: { 'User-Agent': 'BranchManager/1.0 (+https://branchmanager.app)' } });
+      if (!r.ok) {
+        if (r.status === 429 || r.status === 503) { await sleep(5000 * (i + 1)); continue; }
+        return null;
+      }
+      const j = await r.json();
+      if (!Array.isArray(j) || !j.length) return null;
+      const lat = parseFloat(j[0].lat), lng = parseFloat(j[0].lon);
+      // Sanity check: SNT operates in Westchester/Putnam/Orange/Dutchess/Rockland.
+      // Reject anything outside the broad NY metro bounding box — false matches
+      // (Carmel IN, etc.) get filtered here instead of polluting the table.
+      if (lat < 40.4 || lat > 42.4 || lng < -75 || lng > -72.5) return null;
+      return { lat, lng };
+    } catch (e) {
+      // Network blip or rate-limit drop — back off and retry
+      await sleep(3000 * (i + 1));
+    }
+  }
+  return null;
 }
 
 async function patch(id, lat, lng) {
@@ -57,7 +86,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
       console.log('  💥 ' + row.name + ' — ' + e.message);
       fail++;
     }
-    await sleep(1100); // Nominatim policy: ≤1 req/sec
+    await sleep(1500); // Nominatim policy: ≤1 req/sec; 1.5s gives breathing room
   }
   console.log('\nDone. ' + ok + ' geocoded · ' + miss + ' no-result · ' + fail + ' errors.');
 })();
