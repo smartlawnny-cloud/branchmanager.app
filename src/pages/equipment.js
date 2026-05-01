@@ -324,6 +324,14 @@ var EquipmentPage = {
     });
   },
 
+  // Pre-filled service log for the Bandit 254 chipper knife order from Stephenson.
+  _logChipperKnives: function(id, vendor) {
+    EquipmentPage.logService(id, {
+      type: 'Blade Sharpen',
+      notes: 'Chipper knives ordered from ' + vendor + ' for Bandit 254 (verify OEM by serial: 900-9900-02 set / 900-9901-18 single / 900-9902-00 bedknife)'
+    });
+  },
+
   _saveService: function(id) {
     var type = document.getElementById('svc-type').value;
     var notes = document.getElementById('svc-notes').value;
@@ -590,6 +598,26 @@ var EquipmentPage = {
       EquipmentPage._saveDocs(id, seed);
       return seed;
     }
+    // Pre-seed Bandit 254 Chipper (eq4c) — Stephenson Equipment manual
+    if (id === 'eq4c') {
+      var seed4c = [
+        { id: 'doc-b1', name: 'Bandit 250-254 Hand-Fed Chipper Manual', type: 'manual',
+          url: 'https://www.stephensonequipment.com/wp-content/uploads/2023/08/bandit-handfed-chipper-250-254-manual-8-07.pdf',
+          addedAt: '2026-05-01', note: 'Stephenson Equipment — operator + parts diagrams' }
+      ];
+      EquipmentPage._saveDocs(id, seed4c);
+      return seed4c;
+    }
+    // Pre-seed Bandit 200XP Chipper (eq4) — Stephenson Equipment manual
+    if (id === 'eq4') {
+      var seed4 = [
+        { id: 'doc-b200-1', name: 'Bandit 90XP / 150XP / 200XP Hand-Fed Chipper Manual', type: 'manual',
+          url: 'https://www.stephensonequipment.com/wp-content/uploads/2023/08/bandit-handfed-chipper-90XP-150XP-200XP.pdf',
+          addedAt: '2026-05-01', note: 'Stephenson Equipment — operator + parts diagrams' }
+      ];
+      EquipmentPage._saveDocs(id, seed4);
+      return seed4;
+    }
     return [];
   },
 
@@ -673,6 +701,45 @@ var EquipmentPage = {
         +   '<button onclick="EquipmentPage._logCoolingKit(\'eq4b\',\'R&amp;L Parts Supply\')" style="background:var(--green-dark);color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📝 Log This Order (R&amp;L)</button>'
         + '</div>'
         + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Both sell Kubota OEM by part # · Dan Wojick @ Belfast Inc. (844) 344-3478</div>'
+        + '</div>';
+    }
+
+    // Bandit 254 Chipper (eq4c) — chipper knife OEM box.
+    // The 254 has TWO knife generations depending on serial #:
+    //   • Pre-SN1080 ("Gen 1"): 7-1/4" x 4" x 3/8", 4-knife set kit OEM 900-9900-02
+    //   • SN1080+ ("254XP"):    7-1/4" x 4-1/2" x 1/2", single knife OEM 900-9901-18
+    // Both shown here until Doug confirms his serial #. Bedknife OEM 900-9902-00
+    // is the same across generations.
+    if (id === 'eq4c') {
+      html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
+        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔪 Bandit 254 · Chipper Knives · OEM Part Numbers</div>'
+        + '<div style="font-size:11px;color:#8a6d00;margin-bottom:8px;font-style:italic;">Two generations — check serial # plate. Pre-SN1080 = Gen 1, SN1080+ = XP.</div>';
+
+      var knifeParts = [
+        { name: 'Knife Kit (Gen 1, pre-SN1080)', pn: '900-9900-02', desc: '4 blades + hardware · 7-1/4" x 4" x 3/8"' },
+        { name: 'Knife (SN1080+ / 254XP)',       pn: '900-9901-18', desc: 'single blade · 7-1/4" x 4-1/2" x 1/2"' },
+        { name: 'Bedknife (both gens)',          pn: '900-9902-00', desc: 'Simonds 7.2" x 4" x 1/2"' }
+      ];
+
+      knifeParts.forEach(function(p) {
+        // Sherrilltree carries Bandit OEMs by part #; eBay/Bailey's are alternates.
+        // Stephenson is Bandit dealer — call/email for OEM at dealer pricing.
+        var sUrl = 'https://www.sherrilltree.com/search?q=' + encodeURIComponent(p.pn);
+        var bUrl = 'https://www.baileysonline.com/search?searchTerm=' + encodeURIComponent(p.pn);
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffe082;font-size:12px;">'
+          +   '<div style="flex:1;min-width:0;"><strong>' + p.name + '</strong>'
+          +     '<div style="font-family:ui-monospace,monospace;font-size:11px;color:#8a6d00;">' + p.pn + ' · <span style="font-family:inherit;color:var(--text-light);">' + p.desc + '</span></div></div>'
+          +   '<a href="' + sUrl + '" target="_blank" rel="noopener" style="background:#1565c0;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Sherrill</a>'
+          +   '<a href="' + bUrl + '" target="_blank" rel="noopener" style="background:#e65100;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Bailey\'s</a>'
+          + '</div>';
+      });
+
+      html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+        +   '<a href="tel:+18002523949" style="background:#7e2d10;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">📞 Call Stephenson</a>'
+        +   '<a href="https://www.stephensonequipment.com/parts/" target="_blank" rel="noopener" style="background:#7e2d10;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">Stephenson Parts Page</a>'
+        +   '<button onclick="EquipmentPage._logChipperKnives(\'eq4c\',\'Stephenson Equipment\')" style="background:var(--green-dark);color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📝 Log Knife Order (Stephenson)</button>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Stephenson is the Bandit dealer · 1-800-252-3949 · best for OEM at dealer pricing</div>'
         + '</div>';
     }
 
