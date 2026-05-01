@@ -119,7 +119,16 @@ var EquipmentPage = {
 
   getAll: function() {
     var stored = localStorage.getItem('bm-equipment');
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      var list = JSON.parse(stored);
+      // Migration: ensure eq4b (Bandit 254 / Giant 254T — has all the Dan Wojick manuals
+      // + Kubota D902-E4B parts box) is present for users seeded before Apr 29 2026.
+      if (!list.find(function(e) { return e.id === 'eq4b'; })) {
+        list.push({ id: 'eq4b', name: 'Bandit 254 Chipper', category: 'Equipment', make: 'Bandit', model: '254', status: 'active', value: 35000, hours: 0, nextService: 'Blade sharpen @ 50 hrs' });
+        localStorage.setItem('bm-equipment', JSON.stringify(list));
+      }
+      return list;
+    }
     // Seed with common tree service equipment
     var defaults = [
       { id: 'eq1', name: 'Bucket Truck', category: 'Trucks', make: '', model: '', status: 'active', value: 85000, hours: 0, nextService: 'Oil change @ 5000 mi' },
