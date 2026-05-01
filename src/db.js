@@ -262,6 +262,11 @@ var DB = (function() {
           // for Doug to notice. 5xx + network may resolve on its own.
           r.text().then(function(t) {
             console.warn('[DB cloud push]', table, r.status, t.slice(0, 200));
+            // 401/403 = auth/RLS rejection. Surface the loud "cloud signed
+            // out" badge so it's not silent (Apr 30 #496 incident).
+            if ((r.status === 401 || r.status === 403) && typeof CloudSync !== 'undefined' && CloudSync._markCloudSignedOut) {
+              CloudSync._markCloudSignedOut('Cloud rejected ' + table + ' write (' + r.status + ') — re-sign in to sync.');
+            }
           }).catch(function(){});
           _queueAdd({ key: key, table: table, id: record.id, method: method, payload: snakeRow, queuedAt: Date.now(), lastStatus: r.status });
         }

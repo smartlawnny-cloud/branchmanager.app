@@ -1,5 +1,5 @@
 {
-  "version": 548,
+  "version": 549,
   "released": "2026-04-30",
-  "notes": "send page redesign — editable email + SMS preview before send"
+  "notes": "loud cloud-auth badge — silent RLS rejections won't recur"
 }

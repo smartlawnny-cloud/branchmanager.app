@@ -76,6 +76,14 @@ var CloudSync = {
     CloudSync.lastSync = Date.now();
     if (typeof SupabaseDB !== 'undefined' && SupabaseDB._debug) console.debug('CloudSync: done — ' + totalRows + ' total rows cached');
 
+    // Probe auth state — surface the loud "Cloud signed out" badge if the
+    // Supabase session has lapsed. Repeats every 60s so a mid-session expiry
+    // is caught before the next silent write rejection.
+    CloudSync._checkAuthHealth();
+    if (!CloudSync._authHealthInterval) {
+      CloudSync._authHealthInterval = setInterval(function() { CloudSync._checkAuthHealth(); }, 60 * 1000);
+    }
+
     // Don't blow away an open form/detail when sync ticks. Only redirect on
     // INITIAL boot (when window._currentPage isn't set yet).
     var hasOpenForm = document.getElementById('inv-form')
@@ -119,8 +127,10 @@ var CloudSync = {
           if (res.error) {
             console.warn('Cloud create error (' + table + '):', res.error.message, res.error.code);
             CloudSync._markUnsynced();
-            // Loud toast so silent cloud failures stop happening unnoticed
-            if (typeof UI !== 'undefined' && UI.toast) {
+            if (CloudSync._isAuthError(res.error)) {
+              CloudSync._markCloudSignedOut('Create rejected on ' + table + ' — Supabase session missing.');
+              if (typeof UI !== 'undefined' && UI.toast) UI.toast('⚠ Cloud save blocked — sign in to sync (' + table + ')', 'error');
+            } else if (typeof UI !== 'undefined' && UI.toast) {
               UI.toast('⚠ Cloud save failed (' + table + '): ' + res.error.message.slice(0, 80), 'error');
             }
           }
@@ -144,7 +154,12 @@ var CloudSync = {
               if (res.error) {
                 console.warn('Cloud update error (' + table + '):', res.error.message);
                 CloudSync._markUnsynced();
-                if (typeof UI !== 'undefined' && UI.toast) UI.toast('⚠ Cloud update failed (' + table + '): ' + res.error.message.slice(0, 80), 'error');
+                if (CloudSync._isAuthError(res.error)) {
+                  CloudSync._markCloudSignedOut('Update rejected on ' + table + ' — Supabase session missing.');
+                  if (typeof UI !== 'undefined' && UI.toast) UI.toast('⚠ Cloud update blocked — sign in to sync (' + table + ')', 'error');
+                } else if (typeof UI !== 'undefined' && UI.toast) {
+                  UI.toast('⚠ Cloud update failed (' + table + '): ' + res.error.message.slice(0, 80), 'error');
+                }
               }
             }).catch(function(e) {
               CloudSync._markUnsynced();
@@ -196,6 +211,71 @@ var CloudSync = {
   _clearUnsynced: function() {
     var el = document.getElementById('sync-indicator');
     if (el) el.remove();
+  },
+
+  // Loud "you're signed out of the cloud" badge. Different from _markUnsynced
+  // (which means "queued, will retry"). This means "writes are silently being
+  // rejected by RLS — re-auth required." Background of the silent-#496 incident
+  // on Apr 30 — quote was created locally but cloud kept returning 401 because
+  // the Supabase auth session had lapsed and BM was running in local-auth-only
+  // mode where every write hits the anon RLS wall.
+  _markCloudSignedOut: function(reason) {
+    var el = document.getElementById('cloud-auth-badge');
+    if (!el) {
+      var topbar = document.querySelector('.topbar-actions');
+      if (!topbar) return;
+      el = document.createElement('button');
+      el.id = 'cloud-auth-badge';
+      el.type = 'button';
+      el.textContent = '🔴 Cloud signed out — Sign in';
+      el.title = reason || 'Writes are not reaching the cloud. Click to re-sign in.';
+      el.style.cssText = 'background:#dc2626;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px;animation:pulse 2s infinite;';
+      el.onclick = function() {
+        if (typeof Auth !== 'undefined' && Auth.logout) {
+          if (confirm('Sign out and re-sign in to restore cloud sync? Your local data is preserved.')) Auth.logout();
+        } else {
+          window.location.href = window.location.pathname + '?logout=1';
+        }
+      };
+      topbar.insertBefore(el, topbar.firstChild);
+    } else if (reason) {
+      el.title = reason;
+    }
+  },
+
+  _clearCloudSignedOut: function() {
+    var el = document.getElementById('cloud-auth-badge');
+    if (el) el.remove();
+  },
+
+  // Proactive auth-state probe. Runs on init + every 60s. If supabase has no
+  // session and the BM is running on the local-auth fallback, surface the loud
+  // badge BEFORE the user discovers it via a silent failure.
+  _checkAuthHealth: function() {
+    if (!SupabaseDB || !SupabaseDB.client || !SupabaseDB.client.auth) return;
+    SupabaseDB.client.auth.getSession().then(function(res) {
+      var hasSession = !!(res && res.data && res.data.session);
+      if (hasSession) {
+        CloudSync._clearCloudSignedOut();
+      } else if (typeof Auth !== 'undefined' && Auth.user) {
+        // BM thinks user is logged in (local fallback) but cloud doesn't
+        // have a session. Writes will silently fail. Show the badge.
+        CloudSync._markCloudSignedOut('Local session active but no Supabase session — re-sign in to restore cloud writes.');
+      }
+    }).catch(function() { /* offline — don't badge */ });
+  },
+
+  // Recognize an auth/RLS rejection from a Supabase error object. PostgREST
+  // returns 401 for missing/expired JWT and code '42501' (insufficient
+  // privilege) when an RLS policy blocks the row. Either way the user needs
+  // to re-auth to make writes land.
+  _isAuthError: function(err) {
+    if (!err) return false;
+    var msg = String(err.message || '').toLowerCase();
+    var code = String(err.code || '');
+    if (code === '42501' || code === 'PGRST301' || code === '401' || code === '403') return true;
+    if (/jwt|row-level security|permission denied|not authorized|new row violates row-level/i.test(msg)) return true;
+    return false;
   },
 
   // Convert camelCase object to snake_case
