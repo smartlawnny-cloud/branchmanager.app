@@ -775,6 +775,68 @@ var EquipmentPage = {
         + '</div>';
     }
 
+    // ── Bandit 200XP chipper knife OEM box (eq4) ──
+    // Bandit's 150/200/250/254 XP family all share the same knife — Modern
+    // Group lists 900-9901-18 as fitting the 200XP. Bedknife is universal.
+    if (id === 'eq4') {
+      html += '<div style="margin-top:12px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px;">'
+        + '<div style="font-size:12px;font-weight:700;color:#8a6d00;margin-bottom:8px;">🔪 Bandit 200XP · Chipper Knives · OEM Part Numbers</div>';
+
+      var knifeParts200 = [
+        { name: 'Knife (single)',           pn: '900-9901-18', desc: '7-1/4" x 4-1/2" x 1/2" · fits 150/200/250/254 XP' },
+        { name: 'Knife Set (4 + hardware)', pn: '900-9900-02', desc: 'Gen 1 alt set · 7-1/4" x 4" x 3/8"' },
+        { name: 'Bedknife',                 pn: '900-9902-00', desc: 'Simonds 7.2" x 4" x 1/2" · all gens' }
+      ];
+
+      knifeParts200.forEach(function(p) {
+        var sUrl = 'https://www.sherrilltree.com/search?q=' + encodeURIComponent(p.pn);
+        var bUrl = 'https://www.baileysonline.com/search?searchTerm=' + encodeURIComponent(p.pn);
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #ffe082;font-size:12px;">'
+          +   '<div style="flex:1;min-width:0;"><strong>' + p.name + '</strong>'
+          +     '<div style="font-family:ui-monospace,monospace;font-size:11px;color:#8a6d00;">' + p.pn + ' · <span style="font-family:inherit;color:var(--text-light);">' + p.desc + '</span></div></div>'
+          +   '<a href="' + sUrl + '" target="_blank" rel="noopener" style="background:#1565c0;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Sherrill</a>'
+          +   '<a href="' + bUrl + '" target="_blank" rel="noopener" style="background:#e65100;color:#fff;text-decoration:none;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;flex-shrink:0;">Bailey\'s</a>'
+          + '</div>';
+      });
+
+      html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+        +   '<a href="tel:+18002523949" style="background:#7e2d10;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">📞 Call Stephenson</a>'
+        +   '<button onclick="EquipmentPage._logChipperKnives(\'eq4\',\'Stephenson Equipment\')" style="background:var(--green-dark);color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📝 Log Knife Order</button>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Stephenson is the Bandit dealer · 1-800-252-3949</div>'
+        + '</div>';
+    }
+
+    // ── Truck VIN-based Parts Lookup card (eq1, eq2, eq3 — any Trucks-category) ──
+    // Generic launcher: takes the truck's VIN/serial and pops up retailer
+    // shortcuts. RockAuto + NAPA accept VIN in their search; FleetPride is
+    // for the heavy-duty F-750. Doug picks whichever vendor has the part.
+    var eqRow = EquipmentPage.getAll().find(function(e) { return e.id === id; });
+    if (eqRow && eqRow.category === 'Trucks' && eqRow.serial && eqRow.serial.length >= 11) {
+      var vin = eqRow.serial;
+      // RockAuto's URL pattern: yymmnewline-style; their landing page accepts
+      // the VIN as a query string but the catalog UI auto-disambiguates.
+      var raUrl = 'https://www.rockauto.com/en/catalog?vin=' + encodeURIComponent(vin);
+      var napaUrl = 'https://www.napaonline.com/en/search?searchType=vin&query=' + encodeURIComponent(vin);
+      var oreillyUrl = 'https://www.oreillyauto.com/search?q=' + encodeURIComponent(vin);
+      var fleetUrl = 'https://www.fleetpride.com/search?q=' + encodeURIComponent(vin);
+
+      html += '<div style="margin-top:12px;background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:12px;">'
+        + '<div style="font-size:12px;font-weight:700;color:#0d47a1;margin-bottom:8px;">🛻 Quick Parts Lookup by VIN</div>'
+        + '<div style="font-size:12px;font-family:ui-monospace,monospace;color:#0d47a1;margin-bottom:10px;background:#fff;padding:6px 10px;border-radius:6px;border:1px solid #90caf9;">VIN: ' + UI.esc(vin) + '</div>'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +   '<a href="' + raUrl + '" target="_blank" rel="noopener" style="background:#0d47a1;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">RockAuto</a>'
+        +   '<a href="' + napaUrl + '" target="_blank" rel="noopener" style="background:#c62828;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">NAPA</a>'
+        +   '<a href="' + oreillyUrl + '" target="_blank" rel="noopener" style="background:#388e3c;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">O\'Reilly</a>';
+      // FleetPride only for HD trucks (F-750, F-550 chassis cab)
+      if (/F[-]?750|F[-]?550|F[-]?650|F[-]?450/i.test(eqRow.name + ' ' + eqRow.model)) {
+        html += '<a href="' + fleetUrl + '" target="_blank" rel="noopener" style="background:#5d4037;color:#fff;text-decoration:none;font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;">FleetPride (HD)</a>';
+      }
+      html += '</div>'
+        + '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">VIN auto-fills the search · click your usual vendor first</div>'
+        + '</div>';
+    }
+
     // ── Stihl MS 462 wear-parts card (eq8) ──
     // Standard high-frequency consumables for the climber's saw. Chain
     // depends on bar length; we show all 3 common options (25"/28"/32")
