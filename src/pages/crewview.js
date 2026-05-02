@@ -406,8 +406,10 @@ var CrewView = {
       });
     }
 
-    // Upsert to crew_locations
+    // Upsert to crew_locations. tenant_id is now defaulted at the DB level
+    // (May 2 hardening) but set explicitly here too — defense in depth.
     SupabaseDB.client.from('crew_locations').upsert({
+      tenant_id: '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
       user_id: userId,
       user_name: userName,
       role: (typeof Auth !== 'undefined' && Auth.user) ? Auth.user.role : 'crew_member',

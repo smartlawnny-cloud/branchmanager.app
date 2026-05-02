@@ -117,8 +117,12 @@ Deno.serve(async (req) => {
   const event: string = payload.event_type || payload.event || "unknown";
   const data = payload.data || payload;
 
-  // Normalize across Dialpad event shapes
+  // Normalize across Dialpad event shapes.
+  // tenant_id MUST be set or RLS will hide every row from BM's anon-key reads
+  // (the May 2 audit found 56 of 60 communications were orphaned this way and
+  // invisible in the call center UI).
   let row: any = {
+    tenant_id: "93af4348-8bba-4045-ac3e-5e71ec1cc8c5", // Second Nature Tree
     channel: "call",
     direction: "inbound",
     from_number: data.from_number || data.external_number || data.from || null,
