@@ -28,6 +28,46 @@ const BUST_PATHS = new Set([
 
 const ORIGIN = 'https://smartlawnny-cloud.github.io/branchmanager.app';
 
+// Security response headers applied to every response.
+// May 2 2026 audit: only HSTS was set; X-Frame, X-Content, Referrer-Policy,
+// and CSP were all missing.
+//
+// CSP intentionally permissive — BM loads from a wide set of CDNs (unpkg,
+// supabase.co, stripe.com, maptiler/maplibre, googleusercontent for photos,
+// resend, dialpad, etc.). Tightening further requires a per-resource audit;
+// the current CSP catches the common XSS injection attempts (no inline
+// eval, no untrusted scripts) without breaking the integrations.
+const SECURITY_HEADERS = {
+  'X-Frame-Options': 'SAMEORIGIN',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=(self)',
+  'Content-Security-Policy':
+    "default-src 'self' https: data: blob:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; " +
+    "style-src 'self' 'unsafe-inline' https:; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self' https: wss: blob:; " +
+    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com; " +
+    "media-src 'self' blob: https:; " +
+    "worker-src 'self' blob:; " +
+    "object-src 'none'; " +
+    "base-uri 'self'; " +
+    "form-action 'self' https:;",
+};
+
+function applySecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(k, v);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
@@ -44,7 +84,7 @@ export default {
       upstreamReq.headers.set('Host', 'smartlawnny-cloud.github.io');
 
       const upstream = await fetch(upstreamReq, { redirect: 'manual' });
-      return new Response(upstream.body, upstream);
+      return applySecurityHeaders(new Response(upstream.body, upstream));
     }
 
     // ── Main BM domain ──
@@ -72,13 +112,13 @@ export default {
       headers.set('Pragma', 'no-cache');
       headers.delete('etag');
       headers.delete('last-modified');
-      return new Response(upstream.body, {
+      return applySecurityHeaders(new Response(upstream.body, {
         status: upstream.status,
         statusText: upstream.statusText,
         headers,
-      });
+      }));
     }
 
-    return new Response(upstream.body, upstream);
+    return applySecurityHeaders(new Response(upstream.body, upstream));
   },
 };

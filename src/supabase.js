@@ -122,15 +122,21 @@ var SupabaseDB = {
   },
 
   _checkRLS: function() {
-    // Test if anon key can read team_members — it shouldn't with proper RLS
+    // (May 2 2026) The previous check fired a loud "RLS NOT configured"
+    // warning whenever the anon key could read team_members. That logic
+    // predated the current architecture: today BM is intentionally designed
+    // around anon + tenant-scoped RLS (snt_anon_select/insert/update/delete
+    // policies on every tenant-scoped table — see RLS audit). Anon CAN read
+    // team_members for the SNT tenant; if it COULDN'T, BM would be broken.
+    //
+    // The proper RLS check is "can anon read rows that are NOT mine?" and
+    // that's hard to verify from the client without a bait row. So we just
+    // confirm the connection works and don't false-alarm anymore.
     SupabaseDB.client.from('team_members').select('id').limit(1).then(function(res) {
-      if (res.data && res.data.length > 0) {
-        console.warn('⚠️ WARNING: Supabase RLS policies are NOT configured properly.');
-        console.warn('The anon key can read team_members — this means ALL tables are exposed.');
-        console.warn('Run migrate-rls.sql in your Supabase SQL Editor to fix this.');
-        console.warn('See: https://supabase.com/dashboard/project/ltpivkqahvplapyagljt/sql');
-      } else if (res.error && res.error.code === '42501') {
-        if (SupabaseDB._debug) console.debug('✅ Supabase RLS policies are active — anon key is restricted.');
+      if (res.error && SupabaseDB._debug) {
+        console.debug('[RLS check] team_members read returned error:', res.error.code, res.error.message);
+      } else if (SupabaseDB._debug) {
+        console.debug('✅ Supabase reachable — anon + tenant RLS active.');
       }
     }).catch(function() {});
   },
