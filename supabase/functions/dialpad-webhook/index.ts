@@ -393,25 +393,58 @@ Deno.serve(async (req) => {
     if (transcript) noteParts.push("Voicemail transcript:\n" + transcript);
     if (row.recording_url) noteParts.push("Recording: " + row.recording_url);
     noteParts.push(`Source: Dialpad ${row.channel} on ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`);
-    const reqRow: Record<string, unknown> = {
-      tenant_id: TENANT_ID,
-      client_id: row.client_id || null,
-      client_name: callerName,
-      client_phone: row.from_number,
-      title: row.channel === "voicemail" ? "Voicemail from " + callerName : "Missed call from " + callerName,
-      notes: noteParts.join("\n\n"),
-      status: "new",
-      source: "Phone (Dialpad)",
-    };
-    const { data: insData, error: insErr } = await sb
-      .from("requests")
-      .insert(reqRow)
-      .select("id")
-      .single();
-    if (insErr) {
-      console.warn("auto-request insert failed:", insErr.message);
-    } else {
-      requestId = insData?.id || null;
+
+    // Idempotency: a single Dialpad call fires up to 3 webhook events
+    // (ringing → completed → voicemail), each landing here. Without dedup
+    // we'd create 3 request rows per call. Look for an existing 'new'
+    // request from the same caller in the last 5 minutes — if found,
+    // append the latest note instead of creating a fresh row.
+    // (May 2 audit caught this — 6 duplicate rows already in the table.)
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    let existingId: string | null = null;
+    if (row.from_number) {
+      const { data: existing } = await sb
+        .from("requests")
+        .select("id, notes")
+        .eq("tenant_id", TENANT_ID)
+        .eq("client_phone", row.from_number)
+        .eq("source", "Phone (Dialpad)")
+        .gte("created_at", fiveMinAgo)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        existingId = existing[0].id;
+        // Append new info to the existing row instead of duplicating.
+        const merged = (existing[0].notes || "") + "\n\n" + noteParts.join("\n\n");
+        const { error: updErr } = await sb
+          .from("requests")
+          .update({ notes: merged })
+          .eq("id", existingId);
+        if (updErr) console.warn("auto-request merge failed:", updErr.message);
+        requestId = existingId;
+      }
+    }
+
+    if (!existingId) {
+      const reqRow: Record<string, unknown> = {
+        tenant_id: TENANT_ID,
+        client_id: row.client_id || null,
+        client_name: callerName,
+        client_phone: row.from_number,
+        title: row.channel === "voicemail" ? "Voicemail from " + callerName : "Missed call from " + callerName,
+        notes: noteParts.join("\n\n"),
+        status: "new",
+        source: "Phone (Dialpad)",
+      };
+      const { data: insData, error: insErr } = await sb
+        .from("requests")
+        .insert(reqRow)
+        .select("id")
+        .single();
+      if (insErr) {
+        console.warn("auto-request insert failed:", insErr.message);
+      } else {
+        requestId = insData?.id || null;
+      }
     }
   }
 
