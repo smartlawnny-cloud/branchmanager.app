@@ -1,0 +1,17 @@
+name = "branchmanager-proxy"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+# Account / zone associations are managed in the Cloudflare dashboard.
+# Workers & Pages → branchmanager-proxy → Settings → Triggers → Routes
+#   • branchmanager.app/*
+#   • clients.branchmanager.app/*
+
+# Deploy:
+#   cd ~/Desktop/Tree/branchmanager-app/cloudflare-worker
+#   npx wrangler login         # one-time, opens browser to authorize
+#   npx wrangler deploy        # ships index.js to production
+
+# Test before deploy:
+#   npx wrangler dev           # runs the Worker locally on http://localhost:8787
+#                              # then curl localhost:8787/sw.js to verify headers
