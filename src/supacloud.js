@@ -252,33 +252,46 @@ var CloudSync = {
     if (el) el.remove();
   },
 
-  // Proactive auth-state probe. Runs on init + every 60s. If supabase has no
-  // session and the BM is running on the local-auth fallback, surface the loud
-  // badge BEFORE the user discovers it via a silent failure.
+  // Proactive auth-state probe. Runs on init + every 60s.
   //
-  // Tries refreshSession() before showing the badge — many "signed out" cases
-  // are just an expired JWT that can be silently refreshed via the still-valid
-  // refresh token, no password re-entry needed. Only shows the badge if both
-  // getSession AND refreshSession return empty.
+  // Subtle but important: BM is designed to run on LOCAL AUTH + anon-key
+  // cloud writes. The owner's auth.users entry was originally provisioned
+  // by the customer-portal bulk-import (source=bm_client) which set a
+  // random password — so signInWithPassword never succeeds with the real
+  // BM password. That's expected. As long as RLS lets the anon key write
+  // rows where tenant_id matches, cloud sync works fine WITHOUT a Supabase
+  // session.
+  //
+  // Old behavior: any "no session" = loud red badge. False alarm for the
+  // 99% of the time Doug is on the local-auth path.
+  // New behavior: only refresh existing sessions (no badge if there was
+  // never one). The real-rejection path in wrapWrites (which fires
+  // _markCloudSignedOut on a 401/RLS error) still catches actual breakage.
   _checkAuthHealth: function() {
     if (!SupabaseDB || !SupabaseDB.client || !SupabaseDB.client.auth) return;
     SupabaseDB.client.auth.getSession().then(function(res) {
       var hasSession = !!(res && res.data && res.data.session);
       if (hasSession) { CloudSync._clearCloudSignedOut(); return; }
-      // No session — try the refresh-token path before nagging Doug for creds.
+      // No active session. If we previously had one (refresh token in
+      // localStorage), try to silently refresh. If we never had one (clean
+      // local-auth path), do nothing — the badge is a false alarm in that
+      // case and only the wrapWrites real-rejection handler should fire it.
+      var hasRefreshable = false;
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && /^sb-.*-auth-token$/.test(k)) { hasRefreshable = true; break; }
+        }
+      } catch(e) {}
+      if (!hasRefreshable) { CloudSync._clearCloudSignedOut(); return; }
       return SupabaseDB.client.auth.refreshSession().then(function(r2) {
         var refreshed = !!(r2 && r2.data && r2.data.session);
         if (refreshed) {
           CloudSync._clearCloudSignedOut();
           if (typeof UI !== 'undefined' && UI.toast) UI.toast('🔄 Cloud session refreshed', 'success');
-        } else if (typeof Auth !== 'undefined' && Auth.user) {
-          CloudSync._markCloudSignedOut('JWT refresh failed — re-sign in to restore cloud writes.');
         }
-      }).catch(function() {
-        if (typeof Auth !== 'undefined' && Auth.user) {
-          CloudSync._markCloudSignedOut('Cloud session expired — re-sign in to restore writes.');
-        }
-      });
+        // Refresh failed — DON'T badge. Local-auth + anon RLS is fine.
+      }).catch(function() { /* refresh attempt failed silently */ });
     }).catch(function() { /* offline — don't badge */ });
   },
 
