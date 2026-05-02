@@ -145,13 +145,25 @@ var EquipmentPage = {
       }
 
       // Migration B (May 1 2026): backfill VINs / serials / years that Doug provided.
+      // Migration C (May 2 2026): registration #, registration_exp, last inspection
+      // date + cert + mileage from windshield sticker photos. Bouncie GPS now
+      // installed in eq1, eq2, eq3 (OBD-II dongle, takes ~5 min running to pair).
       // Only set if currently blank — never overwrite values Doug edited himself.
       var fleet = {
-        'eq1':  { year: '2011', make: 'Ford', model: 'F-750', name: '2011 Ford F-750 Bucket Truck (Altec)', serial: '3FRPF7FC9BV085425', loanRef: '155642', notes: 'Forestry Package · Altec Elevator Bucket' },
-        'eq2':  { year: '2004', make: 'Ford', model: 'F-550', name: '2004 Ford F-550 Chip Truck', serial: '1FDAF57P24EB71582' },
-        'eq3':  { year: '2019', make: 'Ram',  model: '2500',  name: '2019 Ram 2500',                 serial: '3C6UR5JL1KG623338' },
-        'eq4':  { year: '2005', make: 'Bandit', model: '200XP', name: '2005 Bandit 200XP Chipper',   serial: '020785' },
-        'eq4c': {                make: 'Bandit', model: '254',   name: 'Bandit 254 Chipper',          serial: '4FMUS151191R001171' }
+        'eq1':  { year: '2011', make: 'Ford', model: 'F-750', name: '2011 Ford F-750 Bucket Truck (Altec)', serial: '3FRPF7FC9BV085425', loanRef: '155642', notes: 'Forestry Package · Altec Elevator Bucket',
+                  registration: '747508ES', registration_exp: '2026-11-30',
+                  last_inspection: '2026-01-31', inspection_exp: '2027-01-31', inspection_cert: '0073700024', inspection_mileage: 80367,
+                  bouncie_installed: true, bouncie_class: 'HD' },
+        'eq2':  { year: '2004', make: 'Ford', model: 'F-550', name: '2004 Ford F-550 Chip Truck',          serial: '1FDAF57P24EB71582',
+                  registration: '487181ES', registration_exp: '2026-10-31',
+                  last_inspection: '2025-07-31', inspection_exp: '2026-07-31', inspection_cert: '0073700416', inspection_mileage: 76300,
+                  bouncie_installed: true, bouncie_class: 'HD' },
+        'eq3':  { year: '2019', make: 'Ram',  model: '2500',  name: '2019 Ram 2500',                       serial: '3C6UR5JL1KG623338',
+                  registration: 'JK554987', registration_exp: '2027-06-30',
+                  last_inspection: '2025-06-30', inspection_exp: '2026-06-30', inspection_cert: '1120400112', inspection_mileage: 60561,
+                  bouncie_installed: true, bouncie_class: 'PASS', notes: 'Diesel emissions inspection required' },
+        'eq4':  { year: '2005', make: 'Bandit', model: '200XP', name: '2005 Bandit 200XP Chipper',         serial: '020785' },
+        'eq4c': {                make: 'Bandit', model: '254',   name: 'Bandit 254 Chipper',                serial: '4FMUS151191R001171' }
       };
       Object.keys(fleet).forEach(function(eid) {
         var item = list.find(function(e) { return e.id === eid; });
@@ -695,17 +707,43 @@ var EquipmentPage = {
       var stored = localStorage.getItem('bm-equipment-compliance-' + id);
       if (stored) return JSON.parse(stored);
     } catch(e) {}
-    // Pre-seed insulated bucket truck (eq1) with required ANSI A92.2 +
-    // dielectric tests. These are MANDATORY for tree work near power lines.
+    // Pre-seed insulated bucket truck (eq1, 2011 Ford F-750) — ANSI A92.2 +
+    // dielectric, NY HD safety inspection, registration. May 2 2026 stickers:
+    // Inspection cert 0073700024, exp 01-2027, mileage 80367. Reg 747508ES exp 11/30/2026.
     if (id === 'eq1') {
       var seed1 = [
-        { id: 'cmp-bt-1', label: 'Annual Dielectric Test',     intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Altec / Versalift / TerexUtilities certified lab', notes: 'Required by ANSI A92.2 for insulated aerial devices. ~$1500-2500. Schedule mid-winter when crew demand is low.' },
-        { id: 'cmp-bt-2', label: 'Annual ANSI A92.2 Inspection', intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Qualified inspector',                            notes: 'Boom integrity, hydraulic system, controls, leveling. Often bundled with dielectric.' },
-        { id: 'cmp-bt-3', label: 'DOT Annual Inspection (CDL)',  intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'NY DOT-certified shop',                         notes: 'Required for any commercial vehicle ≥10,001 lbs GVWR. F-750 needs FHWA inspection.' },
-        { id: 'cmp-bt-4', label: '250-hour Service',             intervalDays: 90,  lastDone: '', criticality: 'normal',   vendor: 'Self / Stephenson',                             notes: 'Hyd fluid + filter, slewing ring lube, boom pivot grease.' }
+        { id: 'cmp-bt-1', label: 'Annual Dielectric Test',          intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Altec / Versalift / TerexUtilities certified lab', notes: 'Required by ANSI A92.2 for insulated aerial devices. ~$1500-2500. Schedule mid-winter when crew demand is low.' },
+        { id: 'cmp-bt-2', label: 'Annual ANSI A92.2 Inspection',    intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Qualified inspector',                                notes: 'Boom integrity, hydraulic system, controls, leveling. Often bundled with dielectric.' },
+        { id: 'cmp-bt-3', label: 'NY HD Safety Inspection',         intervalDays: 365, lastDone: '2026-01-31', criticality: 'critical', vendor: 'NY HD-certified inspection station',         notes: 'Cert# 0073700024 · expires 01-2027 · last reading 80367 mi. Required annually for HD commercial vehicles.' },
+        { id: 'cmp-bt-4', label: 'Vehicle Registration Renewal',    intervalDays: 365, lastDone: '2025-11-30', criticality: 'critical', vendor: 'NY DMV',                                     notes: 'Reg# 747508ES · expires 11/30/2026.' },
+        { id: 'cmp-bt-5', label: 'DOT Annual Inspection (FHWA)',    intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'NY DOT-certified shop',                              notes: 'Required for commercial vehicles ≥10,001 lbs GVWR.' },
+        { id: 'cmp-bt-6', label: '250-hour Service',                intervalDays: 90,  lastDone: '', criticality: 'normal',   vendor: 'Self / Stephenson',                                  notes: 'Hyd fluid + filter, slewing ring lube, boom pivot grease.' }
       ];
       EquipmentPage._saveCompliance(id, seed1);
       return seed1;
+    }
+    // Pre-seed F-550 chip truck (eq2) — May 2 2026 stickers:
+    // Inspection cert 0073700416, exp 07-2026, mileage 76300. Reg 487181ES exp 10/31/2026.
+    if (id === 'eq2') {
+      var seed2 = [
+        { id: 'cmp-cs-1', label: 'NY HD Safety Inspection',         intervalDays: 365, lastDone: '2025-07-31', criticality: 'critical', vendor: 'NY HD-certified inspection station',         notes: 'Cert# 0073700416 · expires 07-2026 · last reading 76300 mi. Schedule before July.' },
+        { id: 'cmp-cs-2', label: 'Vehicle Registration Renewal',    intervalDays: 365, lastDone: '2025-10-31', criticality: 'critical', vendor: 'NY DMV',                                     notes: 'Reg# 487181ES · expires 10/31/2026.' },
+        { id: 'cmp-cs-3', label: 'DOT Annual Inspection (FHWA)',    intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'NY DOT-certified shop',                              notes: 'Required for commercial vehicles ≥10,001 lbs GVWR.' },
+        { id: 'cmp-cs-4', label: 'Oil Change',                      intervalDays: 180, lastDone: '', criticality: 'normal',   vendor: 'Self / shop',                                          notes: 'Diesel — every ~5000 mi or 6 months.' }
+      ];
+      EquipmentPage._saveCompliance(id, seed2);
+      return seed2;
+    }
+    // Pre-seed Ram 2500 (eq3) — May 2 2026 stickers:
+    // Diesel inspection cert 1120400112, exp 06-2026, mileage 60561. Reg JK554987 exp 06/30/2027.
+    if (id === 'eq3') {
+      var seed3 = [
+        { id: 'cmp-rm-1', label: 'NY Safety + Diesel Emissions',    intervalDays: 365, lastDone: '2025-06-30', criticality: 'critical', vendor: 'NY-certified diesel inspection station',     notes: 'Cert# 1120400112 · expires 06-2026 · last reading 60561 mi. Diesel-specific — needs OBD-II + emissions check.' },
+        { id: 'cmp-rm-2', label: 'Vehicle Registration Renewal',    intervalDays: 365, lastDone: '2026-06-30', criticality: 'critical', vendor: 'NY DMV',                                     notes: 'Reg# JK554987 · expires 06/30/2027.' },
+        { id: 'cmp-rm-3', label: 'Oil Change',                      intervalDays: 180, lastDone: '', criticality: 'normal',   vendor: 'Self / shop',                                          notes: 'Cummins 6.7L diesel — every ~10000 mi or 6 months.' }
+      ];
+      EquipmentPage._saveCompliance(id, seed3);
+      return seed3;
     }
     // Pre-seed climbing gear (eq7) with ANSI Z133 inspection cycle.
     if (id === 'eq7') {
