@@ -497,6 +497,49 @@ Deno.serve(async (req) => {
     console.warn("doug-alert wrap failed:", e);
   }
 
+  // ── Doug-alert SMS (defense in depth) ────────────────────────────────
+  // Email goes through Resend which is metered. If Resend is over quota
+  // (today's incident, May 2 2026), the email alert silently fails. SMS
+  // alert via Dialpad's own API (dialpad-sms-send fn) is a separate path
+  // — different metering, different failure mode. Doug always sees one of
+  // the two channels, even when one is broken. Fires only for inbound SMS
+  // and missed calls (not for ringing/completed events that don't need
+  // immediate attention). Excludes outbound (so we don't alert on our own
+  // messages bouncing back through the loop).
+  try {
+    const isAlertWorthy =
+      row.direction === "inbound" &&
+      (row.channel === "sms" ||
+       row.channel === "voicemail" ||
+       (row.channel === "call" && (row.status === "missed" || row.status === "no-answer")));
+    if (isAlertWorthy) {
+      const callerPhone = row.from_number ? row.from_number.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/, "($1) $2-$3") : "Unknown";
+      const channelLabel: Record<string, string> = {
+        sms: "💬 SMS",
+        voicemail: "📭 Voicemail",
+        call: "📵 Missed call",
+      };
+      const tag = channelLabel[row.channel] || "📞 Inbound";
+      const bodySnip = (row.body || "").slice(0, 100).replace(/\s+/g, " ").trim();
+      const ownerSmsTo = Deno.env.get("OWNER_ALERT_PHONE") || ""; // optional fallback target
+      // Skip if no fallback target configured — Resend email alert is the primary.
+      if (ownerSmsTo) {
+        const summary = `${tag} from ${callerPhone}${bodySnip ? `: "${bodySnip}"` : ""} — open BM`;
+        fetch(`${SUPABASE_URL}/functions/v1/dialpad-sms-send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_SERVICE_KEY,
+            "Authorization": `Bearer ${SUPABASE_SERVICE_KEY}`,
+          },
+          body: JSON.stringify({ to: ownerSmsTo, message: summary, system: true }),
+        }).catch((e) => console.warn("doug-alert SMS failed:", e));
+      }
+    }
+  } catch (e) {
+    console.warn("doug-alert SMS wrap failed:", e);
+  }
+
   return new Response(JSON.stringify({ ok: true, matched_client: !!row.client_id, request_id: requestId }), {
     headers: { "content-type": "application/json" },
   });
