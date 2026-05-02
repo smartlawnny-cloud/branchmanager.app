@@ -177,20 +177,55 @@ var OnboardingSig = {
       userAgent: navigator.userAgent
     };
 
-    // Async: capture IP
+    // Save immediately (IP updates async)
+    localStorage.setItem(storageKey, JSON.stringify(record));
+
+    // Cloud-backup signatures so they survive a browser-cache wipe.
+    // Added May 2 — onboarding_signatures table, RLS-scoped to SNT tenant.
+    var pushToCloud = function(rec) {
+      try {
+        var emp = JSON.parse(localStorage.getItem('new-hire-data') || '{}');
+        var parts = storageKey.split('-');
+        var docKey = parts[1] || 'unknown';
+        var padId  = parts.slice(2).join('-') || 'main';
+        var ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0cGl2a3FhaHZwbGFweWFnbGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwOTgxNzIsImV4cCI6MjA4OTY3NDE3Mn0.bQ-wAx4Uu-FyA2ZwsTVfFoU2ZPbeWCmupqV-6ZR9uFI';
+        fetch('https://ltpivkqahvplapyagljt.supabase.co/rest/v1/onboarding_signatures', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': ANON,
+            'Authorization': 'Bearer ' + ANON,
+            'Prefer': 'return=minimal,resolution=merge-duplicates'
+          },
+          body: JSON.stringify({
+            tenant_id: '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
+            employee_name: emp.fullName || rec.printedName,
+            doc_key: docKey,
+            pad_id: padId,
+            signature_png: rec.signaturePNG,
+            printed_name: rec.printedName,
+            ip: rec.ip || '',
+            user_agent: rec.userAgent,
+            signed_at: rec.timestamp
+          })
+        }).then(function(r) {
+          if (!r.ok) r.text().then(function(t) { console.warn('[OnboardingSig] cloud push ' + r.status + ': ' + t.slice(0, 200)); });
+        }).catch(function(e) { console.warn('[OnboardingSig] offline — local only:', e); });
+      } catch(e) { console.warn('[OnboardingSig] cloud push error:', e); }
+    };
+
+    // Async: capture IP, then push to cloud
     try {
       fetch('https://api.ipify.org?format=json').then(function(r) { return r.json(); }).then(function(d) {
         record.ip = d.ip || '';
         localStorage.setItem(storageKey, JSON.stringify(record));
+        pushToCloud(record);
       }).catch(function() {
-        localStorage.setItem(storageKey, JSON.stringify(record));
+        pushToCloud(record);
       });
     } catch(e) {
-      localStorage.setItem(storageKey, JSON.stringify(record));
+      pushToCloud(record);
     }
-
-    // Save immediately (IP updates async)
-    localStorage.setItem(storageKey, JSON.stringify(record));
 
     // Show saved state
     var container = document.getElementById(containerId);

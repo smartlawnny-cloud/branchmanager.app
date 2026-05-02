@@ -174,12 +174,10 @@ document.getElementById('intake-form').addEventListener('submit', function(e) {
   roster.push(emp);
   localStorage.setItem('employee-roster', JSON.stringify(roster));
 
-  // 3. Download JSON backup to computer
-  var blob = new Blob([JSON.stringify(emp, null, 2)], { type: 'application/json' });
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = emp.lastName + '_' + emp.firstName + '_hire_' + emp.startDate + '.json';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  // 3. (was: auto-download JSON backup to desktop — removed May 2.
+  // The same data is saved to localStorage + Supabase team_members below.
+  // Doug had ~10 of these JSONs cluttering his desktop. Optional download
+  // button is still available below if a paper trail copy is wanted.)
 
   // 4. Try saving to Supabase (cloud backup)
   try {
@@ -189,6 +187,7 @@ document.getElementById('intake-form').addEventListener('submit', function(e) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Prefer': 'return=minimal' },
       body: JSON.stringify({
+        tenant_id: '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
         name: emp.fullName,
         email: emp.email || null,
         phone: emp.phone || null,
