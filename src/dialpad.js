@@ -71,6 +71,16 @@ var Dialpad = {
    * POST https://dialpad.com/api/v2/call
    * { phone_number: "+1...", outbound_caller_id: "+1..." }
    */
+  // (May 2 2026) Rewrote — was browser-direct POST to dialpad.com/api/v2/call
+  // which CORS-rejects, then fell through to a fake-timer modal that pretended
+  // to track call state but was just a setInterval disconnected from any real
+  // call. Doug saw the "weird timer" + calls not actually placing.
+  //
+  // New behavior: use the dialpad:// or tel: deep link to hand off to the
+  // native Dialpad app or system dialer, log the attempt, show a brief toast.
+  // The actual call state will surface in BM via the dialpad-webhook events
+  // (call.ringing → call.completed) which already write to communications.
+  // No fake timer.
   call: function(toPhone, clientId, clientName) {
     var cleanPhone = Dialpad._cleanPhone(toPhone);
     if (!cleanPhone) {
@@ -78,40 +88,22 @@ var Dialpad = {
       return;
     }
 
-    // Log call attempt
+    // Log call attempt locally so it shows up in client comms history.
     Dialpad._logComm(clientId, 'call', 'outbound', 'Called ' + (clientName || Dialpad._formatPhone(cleanPhone)));
 
-    if (Dialpad.isConfigured()) {
-      // Try Dialpad API call initiation
-      fetch('https://dialpad.com/api/v2/call', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + Dialpad.apiKey
-        },
-        body: JSON.stringify({
-          phone_number: '+' + cleanPhone
-        })
-      }).then(function(resp) {
-        if (resp.ok) {
-          UI.toast('Calling via Dialpad...');
-          Dialpad._showCallTimer(clientId, clientName, toPhone);
-        } else {
-          // Fallback to tel:
-          window.open('tel:' + cleanPhone);
-          UI.toast('Opening phone dialer');
-          Dialpad._showCallTimer(clientId, clientName, toPhone);
-        }
-      }).catch(function() {
-        window.open('tel:' + cleanPhone);
-        Dialpad._showCallTimer(clientId, clientName, toPhone);
-      });
+    // Hand off to the OS dialer / Dialpad app. tel: opens whichever is set as
+    // the default phone handler — on iPhone with Dialpad installed, that's
+    // Dialpad. On macOS Continuity, it routes through the iPhone. On desktop
+    // without a phone handler, it does nothing (toast warns).
+    var url = 'tel:' + cleanPhone;
+    var win = window.open(url);
+    if (win === null || typeof win === 'undefined') {
+      UI.toast('Opening dialer for ' + Dialpad._formatPhone(cleanPhone), 'success');
     } else {
-      // No API key — use tel: link (opens Dialpad app if installed, or phone)
-      window.open('tel:' + cleanPhone);
-      UI.toast('Opening phone dialer');
-      Dialpad._showCallTimer(clientId, clientName, toPhone);
+      UI.toast('Calling ' + (clientName || Dialpad._formatPhone(cleanPhone)) + '…', 'success');
     }
+    // No modal, no fake timer. Real call state arrives via dialpad-webhook
+    // events and will appear in the Call Center / client comms automatically.
   },
 
   // ── Call Timer Modal (like Jobber) ───────────────────
