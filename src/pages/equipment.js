@@ -739,7 +739,7 @@ var EquipmentPage = {
     if (id === 'eq3') {
       var seed3 = [
         { id: 'cmp-rm-1', label: 'NY Safety + Diesel Emissions',    intervalDays: 365, lastDone: '2025-06-30', criticality: 'critical', vendor: 'NY-certified diesel inspection station',     notes: 'Cert# 1120400112 · expires 06-2026 · last reading 60561 mi. Diesel-specific — needs OBD-II + emissions check.' },
-        { id: 'cmp-rm-2', label: 'Vehicle Registration Renewal',    intervalDays: 365, lastDone: '2026-06-30', criticality: 'critical', vendor: 'NY DMV',                                     notes: 'Reg# JK554987 · expires 06/30/2027.' },
+        { id: 'cmp-rm-2', label: 'Vehicle Registration Renewal',    intervalDays: 730, lastDone: '2025-06-30', criticality: 'critical', vendor: 'NY DMV',                                     notes: 'Reg# JK554987 · expires 06/30/2027 · NY passenger 2-year cycle (PAS class).' },
         { id: 'cmp-rm-3', label: 'Oil Change',                      intervalDays: 180, lastDone: '', criticality: 'normal',   vendor: 'Self / shop',                                          notes: 'Cummins 6.7L diesel — every ~10000 mi or 6 months.' }
       ];
       EquipmentPage._saveCompliance(id, seed3);

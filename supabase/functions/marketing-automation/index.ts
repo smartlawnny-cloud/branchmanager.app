@@ -52,14 +52,47 @@ const CORS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// May 2 2026 — Resend free tier is 100 emails/day. Marketing-automation
+// burned through it in one morning run, blocking all transactional sends
+// (quote-notify, request-notify, send-email) for the rest of the day.
+// Cap automation at 85/day so transactional has 15-email headroom.
+const DAILY_AUTOMATION_CAP = 85;
+
+async function checkDailyQuota(): Promise<{ ok: boolean; sent: number }> {
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const { count, error } = await sb
+    .from("communications")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", TENANT_ID)
+    .eq("channel", "email")
+    .eq("direction", "outbound")
+    .gte("created_at", startOfDay.toISOString());
+  if (error) { console.warn("quota check failed:", error.message); return { ok: true, sent: 0 }; } // fail-open on read errors
+  const sent = count ?? 0;
+  return { ok: sent < DAILY_AUTOMATION_CAP, sent };
+}
+
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   if (!RESEND_API_KEY) { console.warn("No RESEND_API_KEY — skipping email to", to); return false; }
+  // Per-send quota check — protects against burst within a single cron run
+  const q = await checkDailyQuota();
+  if (!q.ok) {
+    console.warn(`[quota] daily cap ${DAILY_AUTOMATION_CAP} reached (sent=${q.sent}) — skipping email to ${to}`);
+    return false;
+  }
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html, reply_to: REPLY_TO }),
   });
-  if (!r.ok) { console.error("Resend error", r.status, await r.text().catch(() => "")); return false; }
+  if (!r.ok) {
+    const body = await r.text().catch(() => "");
+    console.error("Resend error", r.status, body);
+    // Soft-bounce 429 = daily quota at Resend's side. Log and bail to avoid
+    // spamming retries (cron will pick up tomorrow).
+    return false;
+  }
   return true;
 }
 
