@@ -305,6 +305,7 @@ var EquipmentPage = {
     }
 
     html += EquipmentPage._renderDocs(id);
+    html += EquipmentPage._renderCompliance(id);
 
     UI.showModal(e.name, html, {
       wide: true,
