@@ -324,7 +324,9 @@ var InvoicesPage = {
     if (typeof PDFGen !== 'undefined' && typeof PDFGen.invoice === 'function') {
       PDFGen.invoice(inv);
     } else {
-      loadPage('pdfgen');
+      // PDFGen is in the bundle so this branch should never fire. Was previously
+      // loadPage('pdfgen') which crashes — there's no top-level 'pdfgen' route.
+      if (typeof UI !== 'undefined' && UI.toast) UI.toast('PDF module not loaded — refresh BM and try again', 'error');
     }
   },
   _quickPay: function(id) {

@@ -120,7 +120,9 @@ var FleetPage = {
     if (!sb) {
       self._err = 'Supabase client not ready';
       self._loading = false;
-      if (forceRender) loadPage('fleet');
+      // Fleet only renders inside the Operations hub — there's no top-level
+      // 'fleet' route. Re-render via Operations with the fleet tab active.
+      if (forceRender) { window._opsTab = 'fleet'; loadPage('operations'); }
       return;
     }
     sb.from('vehicles').select('*').eq('active', true).order('name', { ascending: true }).then(function(r) {
@@ -129,7 +131,8 @@ var FleetPage = {
       self._loading = false;
       if (forceRender || !self._renderedOnce) {
         self._renderedOnce = true;
-        loadPage('fleet');
+        window._opsTab = 'fleet';
+        loadPage('operations');
       } else {
         // Silently update the status badges in-place without full re-render
         self._vehicles.forEach(function(v) {
