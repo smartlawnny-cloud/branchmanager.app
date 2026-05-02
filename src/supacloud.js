@@ -227,10 +227,14 @@ var CloudSync = {
       el = document.createElement('button');
       el.id = 'cloud-auth-badge';
       el.type = 'button';
-      el.textContent = '🔴 Cloud signed out — Sign in';
-      el.title = reason || 'Writes are not reaching the cloud. Click to re-sign in.';
+      el.textContent = '🔴 Cloud signed out — Tap to refresh';
+      el.title = reason || 'Writes are not reaching the cloud. Tap to try refreshing the session — only forces a sign-in if refresh fails.';
       el.style.cssText = 'background:#dc2626;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;margin-right:8px;animation:pulse 2s infinite;';
       el.onclick = function() {
+        // Try refresh-token path first — most "signed out" cases recover here
+        // without making Doug re-enter creds. Only falls through to full
+        // logout/login if the refresh token is also expired.
+        if (CloudSync._tryRefreshFromBadge) { CloudSync._tryRefreshFromBadge(); return; }
         if (typeof Auth !== 'undefined' && Auth.logout) {
           if (confirm('Sign out and re-sign in to restore cloud sync? Your local data is preserved.')) Auth.logout();
         } else {
@@ -251,18 +255,56 @@ var CloudSync = {
   // Proactive auth-state probe. Runs on init + every 60s. If supabase has no
   // session and the BM is running on the local-auth fallback, surface the loud
   // badge BEFORE the user discovers it via a silent failure.
+  //
+  // Tries refreshSession() before showing the badge — many "signed out" cases
+  // are just an expired JWT that can be silently refreshed via the still-valid
+  // refresh token, no password re-entry needed. Only shows the badge if both
+  // getSession AND refreshSession return empty.
   _checkAuthHealth: function() {
     if (!SupabaseDB || !SupabaseDB.client || !SupabaseDB.client.auth) return;
     SupabaseDB.client.auth.getSession().then(function(res) {
       var hasSession = !!(res && res.data && res.data.session);
-      if (hasSession) {
-        CloudSync._clearCloudSignedOut();
-      } else if (typeof Auth !== 'undefined' && Auth.user) {
-        // BM thinks user is logged in (local fallback) but cloud doesn't
-        // have a session. Writes will silently fail. Show the badge.
-        CloudSync._markCloudSignedOut('Local session active but no Supabase session — re-sign in to restore cloud writes.');
-      }
+      if (hasSession) { CloudSync._clearCloudSignedOut(); return; }
+      // No session — try the refresh-token path before nagging Doug for creds.
+      return SupabaseDB.client.auth.refreshSession().then(function(r2) {
+        var refreshed = !!(r2 && r2.data && r2.data.session);
+        if (refreshed) {
+          CloudSync._clearCloudSignedOut();
+          if (typeof UI !== 'undefined' && UI.toast) UI.toast('🔄 Cloud session refreshed', 'success');
+        } else if (typeof Auth !== 'undefined' && Auth.user) {
+          CloudSync._markCloudSignedOut('JWT refresh failed — re-sign in to restore cloud writes.');
+        }
+      }).catch(function() {
+        if (typeof Auth !== 'undefined' && Auth.user) {
+          CloudSync._markCloudSignedOut('Cloud session expired — re-sign in to restore writes.');
+        }
+      });
     }).catch(function() { /* offline — don't badge */ });
+  },
+
+  // One-tap retry from the badge: try refreshSession one more time. If still
+  // no session, fall through to the full logout/login flow. Wired up by the
+  // badge's onclick (see _markCloudSignedOut below).
+  _tryRefreshFromBadge: function() {
+    if (!SupabaseDB || !SupabaseDB.client || !SupabaseDB.client.auth) return false;
+    if (typeof UI !== 'undefined' && UI.toast) UI.toast('Refreshing session…');
+    return SupabaseDB.client.auth.refreshSession().then(function(r) {
+      var refreshed = !!(r && r.data && r.data.session);
+      if (refreshed) {
+        CloudSync._clearCloudSignedOut();
+        if (typeof UI !== 'undefined' && UI.toast) UI.toast('✅ Cloud session restored — no sign-in needed', 'success');
+        return true;
+      }
+      // Refresh failed — fall back to logout flow
+      if (typeof UI !== 'undefined' && UI.toast) UI.toast('Refresh failed — full sign-in required', 'error');
+      if (typeof Auth !== 'undefined' && Auth.logout) {
+        if (confirm('Refresh-token also expired. Sign out and re-enter password? Local data is preserved.')) Auth.logout();
+      }
+      return false;
+    }).catch(function(e) {
+      if (typeof UI !== 'undefined' && UI.toast) UI.toast('Refresh error: ' + (e && e.message || 'unknown'), 'error');
+      return false;
+    });
   },
 
   // Recognize an auth/RLS rejection from a Supabase error object. PostgREST

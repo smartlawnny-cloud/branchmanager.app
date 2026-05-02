@@ -684,6 +684,98 @@ var EquipmentPage = {
     localStorage.setItem('bm-equipment-docs-' + id, JSON.stringify(docs));
   },
 
+  // ── Compliance & Inspections tracker ──
+  // Per-equipment list of recurring required inspections (annual dielectric
+  // for insulated aerial devices, ANSI Z133 for climbing gear, DOT, etc.).
+  // Each item has an interval and a lastDone date — card shows green/yellow/
+  // red based on how close to due. Storage: bm-equipment-compliance-{id}.
+  _getCompliance: function(id) {
+    try {
+      var stored = localStorage.getItem('bm-equipment-compliance-' + id);
+      if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    // Pre-seed insulated bucket truck (eq1) with required ANSI A92.2 +
+    // dielectric tests. These are MANDATORY for tree work near power lines.
+    if (id === 'eq1') {
+      var seed1 = [
+        { id: 'cmp-bt-1', label: 'Annual Dielectric Test',     intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Altec / Versalift / TerexUtilities certified lab', notes: 'Required by ANSI A92.2 for insulated aerial devices. ~$1500-2500. Schedule mid-winter when crew demand is low.' },
+        { id: 'cmp-bt-2', label: 'Annual ANSI A92.2 Inspection', intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Qualified inspector',                            notes: 'Boom integrity, hydraulic system, controls, leveling. Often bundled with dielectric.' },
+        { id: 'cmp-bt-3', label: 'DOT Annual Inspection (CDL)',  intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'NY DOT-certified shop',                         notes: 'Required for any commercial vehicle ≥10,001 lbs GVWR. F-750 needs FHWA inspection.' },
+        { id: 'cmp-bt-4', label: '250-hour Service',             intervalDays: 90,  lastDone: '', criticality: 'normal',   vendor: 'Self / Stephenson',                             notes: 'Hyd fluid + filter, slewing ring lube, boom pivot grease.' }
+      ];
+      EquipmentPage._saveCompliance(id, seed1);
+      return seed1;
+    }
+    // Pre-seed climbing gear (eq7) with ANSI Z133 inspection cycle.
+    if (id === 'eq7') {
+      var seed7 = [
+        { id: 'cmp-cg-1', label: 'Annual Z133 Inspection',       intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Competent person / mfr',  notes: 'ANSI Z133 requires annual documented inspection of all climbing PPE. Sherrilltree offers send-in service.' },
+        { id: 'cmp-cg-2', label: 'Monthly Visual Check',         intervalDays: 30,  lastDone: '', criticality: 'normal',   vendor: 'Self',                   notes: 'Look at rope sheath, harness webbing, hardware action. Bag failed items immediately.' },
+        { id: 'cmp-cg-3', label: 'Helmet 5-year Replacement',    intervalDays: 1825, lastDone: '', criticality: 'critical', vendor: 'Petzl / Kask / Pfanner', notes: 'Tree-rated helmets retire 5 yrs from mfg date regardless of condition.' },
+        { id: 'cmp-cg-4', label: 'Rope Retirement Review',       intervalDays: 365, lastDone: '', criticality: 'critical', vendor: 'Self',                   notes: 'Check cumulative use hours, sheath wear, sun damage. 10 yrs max from mfg even with light use.' }
+      ];
+      EquipmentPage._saveCompliance(id, seed7);
+      return seed7;
+    }
+    return [];
+  },
+
+  _saveCompliance: function(id, items) {
+    localStorage.setItem('bm-equipment-compliance-' + id, JSON.stringify(items));
+  },
+
+  // Returns { color, label, daysUntilDue } based on lastDone + intervalDays.
+  // Red = overdue, yellow = due within 30 days, green = comfortable.
+  _complianceStatus: function(item) {
+    if (!item.lastDone) return { color: '#dc3545', label: 'NEVER LOGGED',     days: -9999 };
+    var last = new Date(item.lastDone).getTime();
+    var dueAt = last + (item.intervalDays * 86400 * 1000);
+    var daysUntil = Math.floor((dueAt - Date.now()) / 86400000);
+    if (daysUntil < 0)  return { color: '#dc3545', label: 'OVERDUE ' + Math.abs(daysUntil) + 'd',                   days: daysUntil };
+    if (daysUntil < 30) return { color: '#e65100', label: 'DUE IN ' + daysUntil + 'd',                              days: daysUntil };
+    if (daysUntil < 90) return { color: '#e6a817', label: 'DUE ' + Math.round(daysUntil/30) + 'mo',                 days: daysUntil };
+    return { color: '#2e7d32', label: 'OK · ' + Math.round(daysUntil/30) + 'mo',                                    days: daysUntil };
+  },
+
+  _renderCompliance: function(id) {
+    var items = EquipmentPage._getCompliance(id);
+    if (!items.length) return '';
+    var html = '<div style="margin-top:12px;background:#fff3e0;border:1px solid #ffcc80;border-radius:8px;padding:12px;">'
+      + '<div style="font-size:12px;font-weight:700;color:#7e2d10;margin-bottom:8px;">⚠️ Compliance &amp; Required Inspections</div>';
+
+    items.forEach(function(item) {
+      var st = EquipmentPage._complianceStatus(item);
+      var critBadge = item.criticality === 'critical'
+        ? '<span style="background:#dc3545;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">REQUIRED</span>' : '';
+      html += '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #ffcc80;font-size:12px;">'
+        +   '<div style="flex:1;min-width:0;">'
+        +     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
+        +       '<strong>' + UI.esc(item.label) + '</strong> ' + critBadge
+        +       '<span style="background:' + st.color + ';color:#fff;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;">' + st.label + '</span>'
+        +     '</div>'
+        +     (item.lastDone ? '<div style="font-size:11px;color:var(--text-light);margin-top:2px;">Last: ' + UI.dateShort(item.lastDone) + ' · every ' + item.intervalDays + 'd · ' + UI.esc(item.vendor || '') + '</div>'
+                              : '<div style="font-size:11px;color:var(--text-light);margin-top:2px;">Every ' + item.intervalDays + 'd · ' + UI.esc(item.vendor || '') + '</div>')
+        +     (item.notes ? '<div style="font-size:11px;color:var(--text-light);margin-top:2px;font-style:italic;">' + UI.esc(item.notes) + '</div>' : '')
+        +   '</div>'
+        +   '<button onclick="EquipmentPage._logCompliance(\'' + id + '\',\'' + item.id + '\')" style="background:var(--green-dark);color:#fff;border:none;font-size:11px;font-weight:700;padding:6px 10px;border-radius:5px;cursor:pointer;flex-shrink:0;">Mark Done</button>'
+        + '</div>';
+    });
+
+    html += '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">Tap "Mark Done" when you complete each — sets last-done to today, recalculates next due.</div>'
+      + '</div>';
+    return html;
+  },
+
+  _logCompliance: function(id, itemId) {
+    var items = EquipmentPage._getCompliance(id);
+    var idx = items.findIndex(function(i) { return i.id === itemId; });
+    if (idx < 0) return;
+    items[idx].lastDone = new Date().toISOString();
+    EquipmentPage._saveCompliance(id, items);
+    UI.toast('✅ ' + items[idx].label + ' logged for today');
+    EquipmentPage.showDetail(id);
+  },
+
   // Render a Stihl-style wear-parts box. Stihl OEM #s deep-link to Bailey's
   // search (most reliable third-party Stihl-OEM retailer); NGK plugs deep-link
   // to Amazon since Bailey's stocking is spotty. Same visual pattern as the
