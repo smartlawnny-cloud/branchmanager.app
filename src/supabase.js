@@ -104,9 +104,27 @@ var SupabaseDB = {
 
   _connect: function(url, key) {
     try {
-      SupabaseDB.client = window.supabase.createClient(url, key);
+      // Multi-tenant Phase 2 (May 2 2026): every Supabase request now carries
+      // X-Tenant-ID so the new mt_anon_* RLS policies can resolve the right
+      // tenant via current_tenant_id(). For SNT today the header is
+      // 93af4348-... — same UUID the legacy snt_anon_* policies hardcode, so
+      // BOTH policy families pass during the dual-write cutover. When friend's
+      // tenant lands, BM will resolve a different tenant_id from URL/auth,
+      // mt_anon_* fires for them, snt_anon_* doesn't (literal mismatch).
+      var resolveTenantHeader = function() {
+        try {
+          var stored = localStorage.getItem('bm-tenant-id');
+          if (stored) return stored;
+        } catch(e) {}
+        return '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // SNT default
+      };
+      SupabaseDB.client = window.supabase.createClient(url, key, {
+        global: {
+          headers: { 'X-Tenant-ID': resolveTenantHeader() }
+        }
+      });
       SupabaseDB.ready = true;
-      if (SupabaseDB._debug) console.debug('Supabase connected:', url);
+      if (SupabaseDB._debug) console.debug('Supabase connected:', url, 'tenant:', resolveTenantHeader());
 
       // Check if RLS policies are properly configured
       SupabaseDB._checkRLS();
