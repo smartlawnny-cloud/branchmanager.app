@@ -8,7 +8,7 @@
 // what's bundled here, we unregister all SWs, blow away all caches, and reload.
 // This breaks the iOS "stale SW holds cached SW" deadlock permanently.
 (function() {
-  var BUNDLED_VERSION = 570; // bump with every deploy (must match version.json)
+  var BUNDLED_VERSION = 571; // bump with every deploy (must match version.json)
   window.BUNDLED_VERSION = BUNDLED_VERSION;
   try { localStorage.setItem('bm-last-bundled-version', String(BUNDLED_VERSION)); } catch(e){}
   // Skip version check if user explicitly passed ?reset=1 (handled later in the file)
@@ -72,6 +72,51 @@
   } catch(e) {}
 })();
 </script>
+<!-- Sentry error monitoring (May 2 2026). Loader Script: lazy-loads the full SDK only when an error fires, so cold-start cost is ~3KB. DSN baked into the URL hash. -->
+<script src="https://js.sentry-cdn.com/2ff75c97eb34cddc80126bac1bb59a20.min.js" crossorigin="anonymous"></script>
+<script>
+  (function() {
+    if (!window.Sentry) return;
+    // Skip Sentry on localhost / file:// — only report from real branchmanager.app traffic.
+    var host = location.hostname || '';
+    var isProd = /(^|\.)branchmanager\.app$/.test(host);
+    if (!isProd) return;
+    Sentry.onLoad(function() {
+      Sentry.init({
+        environment: 'production',
+        release: 'bm@v' + (window.BUNDLED_VERSION || 'unknown'),
+        tracesSampleRate: 0.1,
+        replaysSessionSampleRate: 0.0,   // off by default — replay only on errors
+        replaysOnErrorSampleRate: 1.0,
+        // Keep noise out: skip resize observers, ext extensions, uncatchable async network blips
+        ignoreErrors: [
+          'ResizeObserver loop',
+          'Non-Error promise rejection',
+          'Failed to fetch',
+          'Load failed',
+          /^chrome-extension:\/\//,
+          /^safari-extension:\/\//
+        ],
+        beforeSend: function(event) {
+          // Strip URLs that contain tokens / portal tokens, just in case
+          try {
+            if (event.request && event.request.url) {
+              event.request.url = event.request.url.replace(/([?&](?:token|key|secret|api[_-]?key)=)[^&]+/gi, '$1[REDACTED]');
+            }
+          } catch(e) {}
+          return event;
+        }
+      });
+      // Tag every event with the current BM user id (anon-key user) so Doug can filter
+      try {
+        var supaUser = JSON.parse(localStorage.getItem('sb-ltpivkqahvplapyagljt-auth-token') || '{}');
+        if (supaUser && supaUser.user && supaUser.user.id) {
+          Sentry.setUser({ id: supaUser.user.id, email: supaUser.user.email });
+        }
+      } catch(e) {}
+    });
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <!-- Content Security Policy — first line of XSS defense. Allows only trusted origins.
      'unsafe-inline' is required for the legacy inline onclick handlers + inline <style>
@@ -79,7 +124,7 @@
      'unsafe-eval' is needed by maplibre-gl WASM; removing would require CSP-safe build. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src  'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://*.supabase.co https://js.stripe.com;
+  script-src  'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://*.supabase.co https://js.stripe.com https://js.sentry-cdn.com https://browser.sentry-cdn.com;
   style-src   'self' 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com;
   font-src    'self' https://fonts.gstatic.com data:;
   img-src     'self' data: blob: https: https://*.supabase.co;
@@ -92,7 +137,8 @@
               https://*.tile.openstreetmap.org
               https://hook.us1.make.com https://hook.us2.make.com
               https://hook.eu1.make.com https://hook.eu2.make.com
-              https://hooks.zapier.com;
+              https://hooks.zapier.com
+              https://*.ingest.us.sentry.io https://*.sentry.io;
   frame-src   https://js.stripe.com https://hooks.stripe.com;
   worker-src  'self' blob:;
   object-src  'none';
@@ -952,7 +998,7 @@
 </div>
 
 <!-- Module scripts -->
-<script defer src="dist/bm.bundle.v570.min.js"></script>
+<script defer src="dist/bm.bundle.v571.min.js"></script>
 
 
 
