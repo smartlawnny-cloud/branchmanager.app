@@ -309,25 +309,35 @@ async function auditSpeed() {
 // ── 10. Code audit (dead routes, console.errors, TODO density) ──────────────
 function auditCode() {
   console.log("\n┌─ 10. Code audit (dead routes, console noise, TODO) ─");
-  // Dead loadPage routes: grep for loadPage('xxx') calls and verify the
-  // page module exists in src/pages/. Bug pattern: "loadPage('fleet')"
-  // failed because there was no src/pages/fleet.js handler; today we caught
-  // it manually but no audit existed.
+  // Extract pageRenderers keys from index.html — those are the AUTHORITATIVE
+  // list of valid loadPage('xxx') targets. Cross-check loadPage() call sites
+  // against this list. Bug we hit: loadPage('fleet') and loadPage('pdfgen')
+  // were dead routes — the renderer didn't exist.
+  const indexHtml = readFileSync(join(ROOT, "index.html"), "utf8");
+  // var pageRenderers = { dashboard: function(){...}, schedule: function(){...}, ...
+  const renderersBlock = indexHtml.match(/var\s+pageRenderers\s*=\s*\{([\s\S]*?)\n\};/);
+  const validTargets = new Set();
+  if (renderersBlock) {
+    for (const m of renderersBlock[1].matchAll(/^\s*([a-z][a-z0-9-]*):\s*function/gmi)) {
+      validTargets.add(m[1]);
+    }
+  }
+
   const grepOut = spawnSync("grep", ["-rn", "-E", "loadPage\\(['\"][a-z]+['\"]\\)", join(ROOT, "src"), join(ROOT, "index.html")], { encoding: "utf8" });
   const pageRefs = new Set();
   for (const line of (grepOut.stdout || "").split("\n").filter(Boolean)) {
+    // Skip commented-out references (// or /* */)
+    const codeOnly = line.replace(/^[^:]+:\d+:/, ""); // strip "file:line:" prefix
+    if (/^\s*(\/\/|\*|#)/.test(codeOnly)) continue;
     const m = line.match(/loadPage\(['"]([a-z]+)['"]\)/);
     if (m) pageRefs.add(m[1]);
   }
-  // Cross-check: loadPage('xxx') maps to either src/pages/xxx.js OR a hub case
-  // in index.html. We can't easily prove the latter, so just count refs.
-  const pageFiles = execSync(`ls ${ROOT}/src/pages/ 2>/dev/null`, { encoding: "utf8" }).split("\n").filter(Boolean).map(f => f.replace(/\.js$/, ""));
-  const orphanRefs = [...pageRefs].filter(r => !pageFiles.includes(r));
-  // The hub names (operations, dispatch, etc.) won't have files; not all are bugs.
-  // We just print the LIST so a human can scan.
-  console.log(`  ${pageRefs.size} loadPage() targets found, ${pageFiles.length} src/pages/*.js files`);
+  const orphanRefs = [...pageRefs].filter(r => !validTargets.has(r));
+  console.log(`  ${pageRefs.size} loadPage() call sites, ${validTargets.size} valid pageRenderers keys`);
   if (orphanRefs.length > 0) {
-    console.log(`     refs without page files: ${orphanRefs.slice(0, 10).join(", ")}`);
+    fail("dead-route", `loadPage() calls with no matching pageRenderers entry: ${orphanRefs.join(", ")}`);
+  } else {
+    console.log(`  ✅ all loadPage() targets resolve to a pageRenderers entry`);
   }
 
   // TODO/FIXME density — too many = stale debt
@@ -360,6 +370,295 @@ async function auditSecurityHeaders() {
   console.log(`  ${REQUIRED_HEADERS.length} required headers checked on live response`);
 }
 
+// ── 12. Cron / scheduled-task freshness ──────────────────────────────────────
+async function auditCron() {
+  console.log("\n┌─ 12. Cron / scheduled-task freshness ──────────────");
+  const sql = `
+    select jobid, schedule, command, active,
+           extract(epoch from (now() - last_run_started_at))/3600 as hours_since_last_run
+    from cron.job_run_details d
+    right join cron.job j on j.jobid = d.jobid
+    where j.active = true
+    order by jobid;
+  `.replace(/\s+/g, " ").trim();
+  // Try via pg cron schema; if access denied, fall back to checking
+  // marketing-automation last invocation via communications table proxy.
+  try {
+    const r = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) {
+      const rows = await r.json();
+      if (Array.isArray(rows) && rows.length) {
+        for (const j of rows) {
+          const hrs = j.hours_since_last_run;
+          const flag = hrs == null ? "❓ never run" : hrs > 6 ? `⚠️ ${hrs.toFixed(1)}h ago` : `✅ ${hrs.toFixed(1)}h ago`;
+          console.log(`  job ${j.jobid} (${j.schedule}): ${flag}`);
+          if (hrs != null && hrs > 6) {
+            fail("cron", `cron job ${j.jobid} (${j.schedule}) hasn't run in ${hrs.toFixed(1)}h`);
+          }
+        }
+        return;
+      }
+    }
+  } catch (_) { /* fall through */ }
+
+  // Proxy: marketing-automation logs to communications. If 0 outbound emails
+  // in last 24h via 'tenant_id IS NOT NULL' tagged auto-emails, cron is stalled.
+  const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const r2 = await fetch(`https://${PROJECT_REF}.supabase.co/rest/v1/communications?channel=eq.email&direction=eq.outbound&created_at=gte.${since24}&select=id`, {
+    method: "HEAD",
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, "X-Tenant-ID": SNT_UUID, Prefer: "count=exact" },
+    signal: AbortSignal.timeout(8000),
+  });
+  const cr = r2.headers.get("content-range") || "*/0";
+  const sent = parseInt(cr.split("/")[1] || "0", 10);
+  console.log(`  ${sent} outbound emails in last 24h via marketing-automation`);
+  if (sent === 0) console.log(`  ⚠️  may be quiet day OR marketing-automation cron stalled — check pg_cron`);
+}
+
+// ── 13. Service Worker cache integrity ──────────────────────────────────────
+function auditSW() {
+  console.log("\n┌─ 13. Service Worker cache integrity ───────────────");
+  const swPath = join(ROOT, "sw.js");
+  if (!existsSync(swPath)) { fail("sw", "sw.js missing"); return; }
+  const sw = readFileSync(swPath, "utf8");
+  const versionJson = JSON.parse(readFileSync(join(ROOT, "version.json"), "utf8"));
+
+  const cacheNameMatch = sw.match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/);
+  if (!cacheNameMatch) {
+    fail("sw", "sw.js has no CACHE_NAME constant");
+  } else {
+    const expected = `branch-manager-v${versionJson.version}`;
+    if (cacheNameMatch[1] !== expected) {
+      fail("sw", `sw.js CACHE_NAME=${cacheNameMatch[1]} but version.json=${versionJson.version} (expected ${expected})`);
+    } else {
+      console.log(`  ✅ sw.js CACHE_NAME matches version.json (${expected})`);
+    }
+  }
+
+  // Check for "old caches purge" logic — without it, every deploy leaves
+  // dead caches lingering. The May 2 cache-bypass work added this.
+  if (!/caches\.delete|keys\(\)\.then/i.test(sw)) {
+    fail("sw", "sw.js doesn't appear to purge old caches on activate (cache build-up risk)");
+  } else {
+    console.log(`  ✅ sw.js has cache-purge logic`);
+  }
+
+  // Old dist/ files — every bumped version leaves bm.bundle.vN.min.js behind.
+  // Check we don't have >5 (older deploys ok for rollback, more = bloat).
+  const distFiles = execSync(`ls ${ROOT}/dist/ 2>/dev/null`, { encoding: "utf8" }).split("\n").filter(f => /bm\.bundle\.v\d+\.min\.js$/.test(f));
+  console.log(`  ${distFiles.length} bundle files in dist/ (last 5 kept for rollback; consider pruning if >10)`);
+  if (distFiles.length > 15) fail("sw", `${distFiles.length} bundle files in dist/ — prune older than v${versionJson.version - 5}`);
+}
+
+// ── 14. Realtime + DB trigger health ────────────────────────────────────────
+async function auditRealtime() {
+  console.log("\n┌─ 14. Realtime + DB trigger health ──────────────────");
+  // Health endpoint (we already saw realtime was the only thing alive during
+  // the May 2 outage — check it still is).
+  const r = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/health?services=realtime`, {
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (r.ok) {
+    const j = await r.json();
+    const rt = j.find(s => s.name === "realtime");
+    if (!rt || !rt.healthy) fail("realtime", `realtime UNHEALTHY: ${rt?.error || "unknown"}`);
+    else console.log(`  ✅ realtime ACTIVE (db_connected=${rt.info?.db_connected}, replication_connected=${rt.info?.replication_connected})`);
+  }
+
+  // Verify replica identity is set on tables that BM realtime-subscribes to.
+  // tasks (cloud sync), team_messages (chat), communications (call center),
+  // crew_locations (live map). Without REPLICA IDENTITY FULL or a non-trivial
+  // primary key, postgres_changes events miss the OLD row payload.
+  const sql = `
+    select c.relname as table_name,
+           case relreplident
+             when 'd' then 'default'
+             when 'n' then 'nothing'
+             when 'f' then 'full'
+             when 'i' then 'index'
+           end as replident
+    from pg_class c
+    where c.relname in ('tasks', 'team_messages', 'communications', 'crew_locations',
+                        'clients', 'quotes', 'invoices', 'jobs')
+      and c.relkind = 'r'
+    order by c.relname;
+  `.replace(/\s+/g, " ").trim();
+  const r2 = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query: sql }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (r2.ok) {
+    const rows = await r2.json();
+    const dflt = (rows || []).filter(r => r.replident === "default");
+    console.log(`  ${rows?.length || 0} BM-critical tables checked, ${dflt.length} with default replica identity`);
+    // 'default' is fine if PK exists; 'nothing' means realtime payloads will be incomplete.
+    const broken = (rows || []).filter(r => r.replident === "nothing");
+    if (broken.length) fail("realtime", `Tables with REPLICA IDENTITY NOTHING (realtime won't get old-row payloads): ${broken.map(r => r.table_name).join(", ")}`);
+  }
+}
+
+// ── 15. Auth ↔ team_members consistency ────────────────────────────────────
+async function auditAuthConsistency() {
+  console.log("\n┌─ 15. Auth ↔ team_members consistency ────────────────");
+  // BM has TWO user populations:
+  //   (a) team users — sign into BM operator app, must have team_members row
+  //   (b) portal users — clients who view their invoices/quotes via portal.
+  //       portal access is via portal_sessions (client_id + token), no auth.users.
+  // So auth.users without a team_members row that ALSO have an email matching
+  // a known client = portal-style. Treat those as legitimate.
+  const sql = `
+    select
+      (select count(*) from auth.users)                                                            as total_auth_users,
+      (select count(*) from team_members)                                                           as total_team_members,
+      (select count(*) from auth.users au
+         where au.email is not null
+           and not exists (select 1 from team_members t where lower(t.email) = lower(au.email))
+           and not exists (select 1 from clients c where lower(c.email) = lower(au.email))
+      )                                                                                             as orphan_team_users,
+      (select count(*) from team_members t where t.email is not null
+         and not exists (select 1 from auth.users u where lower(u.email) = lower(t.email)))          as tm_without_auth,
+      (select count(*) from auth.users where last_sign_in_at < now() - interval '90 days')           as dormant_auth_90d,
+      (select count(*) from auth.users au
+         where au.email is not null
+           and exists (select 1 from clients c where lower(c.email) = lower(au.email)))              as auth_users_who_are_clients;
+  `.replace(/\s+/g, " ").trim();
+  const r = await fetch(`https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ query: sql }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) { fail("auth", "Could not query auth/team_members"); return; }
+  const [row] = await r.json();
+  if (!row) { fail("auth", "Empty result"); return; }
+  console.log(`  total_auth_users=${row.total_auth_users}  team_members=${row.total_team_members}  client_match=${row.auth_users_who_are_clients}`);
+  console.log(`  orphan_team_users=${row.orphan_team_users}  tm_without_auth=${row.tm_without_auth}  dormant>90d=${row.dormant_auth_90d}`);
+  // Drift in the "team" population only — portal users are expected to outnumber team
+  if (row.orphan_team_users > 5) fail("auth", `${row.orphan_team_users} non-portal auth users without a team_members row — verify they shouldn't have access`);
+  if (row.tm_without_auth > 5) fail("auth", `${row.tm_without_auth} team_members rows without auth user — can't sign in`);
+}
+
+// ── 16. Page render smoke test ──────────────────────────────────────────────
+function auditPageRender() {
+  console.log("\n┌─ 16. Page render smoke test ────────────────────────");
+  // Pull pageRenderers keys from index.html — those are the modules that
+  // MUST expose a render() function. src/pages/*.js files that aren't in
+  // pageRenderers are utility modules (commandpalette, pdfgen, quotes-tm)
+  // and don't need render().
+  const indexHtml = readFileSync(join(ROOT, "index.html"), "utf8");
+  const renderersBlock = indexHtml.match(/var\s+pageRenderers\s*=\s*\{([\s\S]*?)\n\};/);
+  const validTargets = new Set();
+  const targetToModule = {};
+  if (renderersBlock) {
+    // Format is like:  dashboard: function() { return DashboardPage.render(); },
+    for (const m of renderersBlock[1].matchAll(/^\s*([a-z][a-z0-9-]*):\s*function\s*\(\)\s*\{\s*return\s+([A-Za-z_]+)\.render\(\)/gmi)) {
+      validTargets.add(m[1]);
+      targetToModule[m[1]] = m[2];
+    }
+  }
+  const pageFiles = execSync(`ls ${ROOT}/src/pages/*.js 2>/dev/null`, { encoding: "utf8" }).split("\n").filter(Boolean);
+  let missing = 0;
+  let total = 0;
+  for (const f of pageFiles) {
+    const fname = f.split("/pages/")[1].replace(/\.js$/, "");
+    // Only enforce render() for files that are actually in pageRenderers
+    if (!validTargets.has(fname)) continue; // utility module; skip
+    const src = readFileSync(f, "utf8");
+    total++;
+    if (!/(render\s*:\s*function|render\s*\(\s*\)\s*\{|render\s*=\s*function)/.test(src)) {
+      missing++;
+      fail("page-render", `${fname}.js is in pageRenderers but exposes no render() function`);
+    }
+  }
+  console.log(`  ${total} pageRenderers entries scanned, ${missing} broken`);
+}
+
+// ── 17. UI / button / onclick audit ──────────────────────────────────────────
+function auditUI() {
+  console.log("\n┌─ 17. UI / button / onclick wiring ──────────────────");
+  // Static analysis: every `onclick="someFn(...)"` in HTML strings should
+  // reference a function/method that's defined somewhere in the codebase.
+  // Catches: typo'd handlers, deleted functions still referenced, dead buttons.
+  //
+  // Bug pattern this would catch: button with onclick="ChipDrops.addNew()"
+  // when ChipDrops module was renamed but template wasn't updated → silent
+  // dead button (no error, just no action).
+
+  const allCode = execSync(
+    `find ${ROOT}/src ${ROOT}/index.html ${ROOT}/onboarding ${ROOT}/portal -type f \\( -name '*.js' -o -name '*.html' \\) 2>/dev/null`,
+    { encoding: "utf8" },
+  ).split("\n").filter(Boolean);
+
+  // Extract every onclick="X(...)" / onclick='X(...)' reference
+  const handlerPattern = /onclick\s*=\s*["']\s*([A-Za-z_$][A-Za-z0-9_$.]*)\s*\(/g;
+  const handlerCalls = new Map(); // handler name → first file:line we saw it
+  for (const f of allCode) {
+    const src = readFileSync(f, "utf8");
+    let i = 0;
+    for (const m of src.matchAll(handlerPattern)) {
+      i++;
+      const name = m[1];
+      if (!handlerCalls.has(name)) handlerCalls.set(name, f);
+    }
+  }
+  // For each handler name, verify the LEAF (final segment) is defined
+  // somewhere as a function-like binding. For dotted names like
+  // 'Stripe.sendPaymentLink', the relevant check is whether
+  // 'sendPaymentLink' appears as `sendPaymentLink: function`,
+  // `sendPaymentLink:` (object property), `function sendPaymentLink(`,
+  // `sendPaymentLink = function`, etc.
+  const allSrcText = allCode.map(f => readFileSync(f, "utf8")).join("\n");
+  const undefinedHandlers = [];
+  for (const [name, sample] of handlerCalls.entries()) {
+    // Built-ins / globals we trust
+    const root = name.split(".")[0];
+    const leaf = name.split(".").pop();
+    if (["alert", "console", "history", "location"].includes(root)) continue;
+    // For "Foo" simple names, look for any function definition
+    // For "Foo.bar.baz" dotted names, look for the LEAF as a method/property
+    const target = leaf;
+    const pat = new RegExp(
+      [
+        `function\\s+${target}\\s*\\(`,            // function NAME(
+        `\\b${target}\\s*:\\s*(?:async\\s+)?function`, // NAME: function
+        `\\b${target}\\s*:\\s*\\(`,                  // NAME: (         (arrow)
+        `\\b${target}\\s*=\\s*(?:async\\s+)?function`, // NAME = function
+        `\\b${target}\\s*=\\s*\\(`,                  // NAME = (         (arrow)
+        `\\b${target}\\s*\\([^)]*\\)\\s*\\{`,        // NAME(args) {     (method shorthand)
+        `(?:window|globalThis)\\.${target}\\s*=`,    // window.NAME =
+      ].join("|"),
+    );
+    if (!pat.test(allSrcText)) {
+      undefinedHandlers.push({ name, sample });
+    }
+  }
+  console.log(`  ${handlerCalls.size} unique onclick handlers, ${undefinedHandlers.length} with no visible definition`);
+  if (undefinedHandlers.length > 0) {
+    // Print first 10 — full list might be noisy
+    for (const u of undefinedHandlers.slice(0, 10)) {
+      console.log(`     ⚠️  onclick="${u.name}(…)"  (sample: ${u.sample.split("/").pop()})`);
+    }
+    if (undefinedHandlers.length > 10) {
+      console.log(`     ...and ${undefinedHandlers.length - 10} more`);
+    }
+    // Many of these may be valid (object methods we can't statically resolve).
+    // Threshold: only fail if the count is HIGH (>50 likely means a pattern is broken).
+    if (undefinedHandlers.length > 50) {
+      fail("ui", `${undefinedHandlers.length} onclick handlers can't be statically resolved — investigate`);
+    }
+  } else {
+    console.log(`  ✅ every onclick handler resolves`);
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 console.log("─".repeat(60));
 console.log("  BM Deep Audit — every check that would have caught a real bug");
@@ -376,10 +675,16 @@ await auditEmail();
 await auditSpeed();
 auditCode();
 await auditSecurityHeaders();
+await auditCron();
+auditSW();
+await auditRealtime();
+await auditAuthConsistency();
+auditPageRender();
+auditUI();
 
 console.log("\n" + "─".repeat(60));
 if (issues.length === 0) {
-  console.log("🟢  DEEP-HEALTHY — 0 issues across 11 categories.");
+  console.log("🟢  DEEP-HEALTHY — 0 issues across 17 categories.");
   process.exit(0);
 } else {
   console.log(`🔴  ${issues.length} issue(s) found:\n`);
