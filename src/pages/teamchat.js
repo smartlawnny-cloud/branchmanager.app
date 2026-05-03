@@ -10,8 +10,8 @@ var TeamChat = {
   _loading: {},       // { channel: bool }
   _sub: null,         // Supabase real-time channel handle
   _lastRead: {},      // { channel: timestampMs }  — persisted to localStorage
-  // Phase 2 — resolved per-call so a friend tenant chats only with their team.
-  get TENANT_ID() { return (window.resolveTenantId && window.resolveTenantId()) || '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; },
+  // Phase 2 — resolved per-call via the central resolver in src/supabase.js.
+  get TENANT_ID() { return window.resolveTenantId(); },
 
   // ── Supabase client shortcut ──────────────────────────────────────────
   _sb: function() {

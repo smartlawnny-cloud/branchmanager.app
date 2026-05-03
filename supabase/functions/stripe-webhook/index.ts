@@ -19,6 +19,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SNT_TENANT_ID_CONST } from '../_shared/tenant.ts';
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get('STRIPE_WEBHOOK_SECRET') ?? '';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? 'https://ltpivkqahvplapyagljt.supabase.co';
@@ -190,6 +191,10 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } });
   }
+  // Verify probes (UptimeRobot, Stripe webhook setup pre-flight) get 200
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return new Response('stripe-webhook ok', { status: 200, headers: { 'Access-Control-Allow-Origin': '*' } });
+  }
 
   const body = await req.text();
   const signature = req.headers.get('stripe-signature') ?? '';
@@ -238,8 +243,9 @@ serve(async (req: Request) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   // Phase 2 — resolve tenant by matching Stripe webhook account.id against
-  // tenants.config.stripe_account_id. Falls back to SNT during rollout.
-  let TENANT_ID = '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // SNT fallback
+  // tenants.config.stripe_account_id. Falls back to SNT (single source of
+  // truth at top of file via SNT_TENANT_ID_CONST import).
+  let TENANT_ID: string = SNT_TENANT_ID_CONST;
   try {
     const acctId = (event as { account?: string }).account || '';
     if (acctId) {

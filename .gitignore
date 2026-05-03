@@ -3,8 +3,10 @@ node_modules/
 *.log
 .env
 .env.local
-ios/
-android/
+# iOS/Android source tracked so App/Play Store work survives clones.
+# Build artifacts ignored via the per-platform .gitignore files.
+# ios/
+# android/
 capacitor.config.json
 package.json
 package-lock.json

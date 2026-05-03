@@ -1046,7 +1046,7 @@ var SocialBranch = {
     var city = document.getElementById('c-city').value.trim();
     if (!name) { UI.toast('Name required', 'error'); return; }
     var row = {
-      tenant_id: (window.resolveTenantId && window.resolveTenantId()) || window.CURRENT_TENANT_ID || '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
+      tenant_id: window.resolveTenantId(),
       name: name,
       city: city || null,
       active: true

@@ -21,9 +21,10 @@ var ChipDrops = {
   _pins: [],
   _rtSubInited: false,
 
-  // Phase 2 — pulled from the global tenant resolver so a friend tenant
-  // sees only their own chip drops. Resolver falls back to SNT if absent.
-  get TENANT_ID() { return (window.resolveTenantId && window.resolveTenantId()) || '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; },
+  // Phase 2 — pulled from the global tenant resolver (window.resolveTenantId,
+  // defined in src/supabase.js). Resolver itself has the SNT fallback —
+  // single source of truth so friend-tenant migration is a one-line change.
+  get TENANT_ID() { return window.resolveTenantId(); },
 
   render: function() {
     ChipDrops._kickFetch();

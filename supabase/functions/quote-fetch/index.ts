@@ -35,6 +35,9 @@ const j = (status: number, body: unknown) => new Response(JSON.stringify(body), 
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return new Response('quote-fetch ok', { status: 200, headers: CORS });
+  }
   if (req.method !== 'POST')    return j(405, { ok: false, error: 'POST only' });
 
   let body: any = {};
