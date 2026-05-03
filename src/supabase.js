@@ -111,13 +111,21 @@ var SupabaseDB = {
       // BOTH policy families pass during the dual-write cutover. When friend's
       // tenant lands, BM will resolve a different tenant_id from URL/auth,
       // mt_anon_* fires for them, snt_anon_* doesn't (literal mismatch).
+      // Phase 2 — resolve tenant from (in priority order):
+      //   1. window.CURRENT_TENANT_ID (set by hostname resolver in index.html)
+      //   2. Cloudflare Worker injected X-Tenant-ID (visible via meta tag if needed)
+      //   3. localStorage bm-tenant-id (multi-tenant signed-in user picked one)
+      //   4. SNT fallback for backwards compat during rollout
       var resolveTenantHeader = function() {
         try {
+          if (window.CURRENT_TENANT_ID) return window.CURRENT_TENANT_ID;
           var stored = localStorage.getItem('bm-tenant-id');
           if (stored) return stored;
         } catch(e) {}
-        return '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // SNT default
+        return '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // SNT fallback during Phase 2 rollout
       };
+      // Expose the resolver so other modules don't need their own copy.
+      window.resolveTenantId = resolveTenantHeader;
       SupabaseDB.client = window.supabase.createClient(url, key, {
         global: {
           headers: { 'X-Tenant-ID': resolveTenantHeader() }

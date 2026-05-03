@@ -27,14 +27,28 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL        = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY         = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY      = Deno.env.get("RESEND_API_KEY") ?? "";
-const FROM_EMAIL          = Deno.env.get("RESEND_FROM_EMAIL") ?? "Second Nature Tree <onboarding@resend.dev>";
-const REPLY_TO            = "info@peekskilltree.com";
-const GOOGLE_REVIEW_URL   = "https://g.page/r/CcVkZHV_EKlEEBM/review";
-const COMPANY_NAME        = "Second Nature Tree Service";
-const COMPANY_PHONE       = "(914) 391-5233";
-const OWNER_NAME          = "Doug Brown";
-const TENANT_ID           = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5";
-const COMPANY_ADDRESS     = "Second Nature Tree LLC · 1 Highland Industrial Park, Peekskill, NY 10566";
+
+// Phase 2 — these were hardcoded SNT values. Now loaded per-tenant inside the
+// run loop. Kept here as fallbacks if a tenant's config is missing fields.
+const FALLBACK_FROM_EMAIL    = Deno.env.get("RESEND_FROM_EMAIL") ?? "Second Nature Tree <onboarding@resend.dev>";
+const FALLBACK_REPLY_TO      = "info@peekskilltree.com";
+const FALLBACK_REVIEW_URL    = "https://g.page/r/CcVkZHV_EKlEEBM/review";
+const FALLBACK_COMPANY_NAME  = "Second Nature Tree Service";
+const FALLBACK_COMPANY_PHONE = "(914) 391-5233";
+const FALLBACK_OWNER_NAME    = "Doug Brown";
+const FALLBACK_ADDRESS       = "Second Nature Tree LLC · 1 Highland Industrial Park, Peekskill, NY 10566";
+
+// Per-tenant context populated per iteration in the main handler.
+// Module-level vars so the existing helpers can still see them. The handler
+// rewrites these at the start of each tenant iteration.
+let TENANT_ID: string        = "";
+let FROM_EMAIL: string       = FALLBACK_FROM_EMAIL;
+let REPLY_TO: string         = FALLBACK_REPLY_TO;
+let GOOGLE_REVIEW_URL: string = FALLBACK_REVIEW_URL;
+let COMPANY_NAME: string     = FALLBACK_COMPANY_NAME;
+let COMPANY_PHONE: string    = FALLBACK_COMPANY_PHONE;
+let OWNER_NAME: string       = FALLBACK_OWNER_NAME;
+let COMPANY_ADDRESS: string  = FALLBACK_ADDRESS;
 
 // Toggle individual triggers via Supabase secrets (default: enabled)
 const REVIEW_ENABLED         = Deno.env.get("AUTOMATION_REVIEW")         !== "false";
@@ -422,21 +436,59 @@ Deno.serve(async (req) => {
   const startMs = Date.now();
   console.log("marketing-automation: starting run at", new Date().toISOString());
 
-  const [review, followup, upsell, apptReminder] = await Promise.all([
-    runReviewRequests(),
-    runQuoteFollowups(),
-    runUpsells(),
-    runApptReminders(),
-  ]);
+  // Phase 2 — fetch all active tenants and run all 4 triggers per tenant.
+  // Each iteration sets the module-level constants from tenants.config so
+  // the existing helpers (which read those vars) work unchanged.
+  const { data: tenants, error: tErr } = await sb
+    .from("tenants")
+    .select("id, name, config")
+    .order("created_at", { ascending: true });
+  if (tErr || !tenants || tenants.length === 0) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "No tenants to process: " + (tErr?.message || "empty") }),
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
+    );
+  }
+
+  const perTenant: Record<string, unknown>[] = [];
+  let total_sent = 0;
+  for (const t of tenants) {
+    TENANT_ID         = t.id;
+    const cfg = (t.config || {}) as Record<string, unknown>;
+    const fromName    = String(cfg.from_name      ?? FALLBACK_COMPANY_NAME);
+    const fromAddr    = String(cfg.from_email     ?? FALLBACK_REPLY_TO);
+    FROM_EMAIL        = `${fromName} <${fromAddr}>`;
+    REPLY_TO          = String(cfg.from_email     ?? FALLBACK_REPLY_TO);
+    GOOGLE_REVIEW_URL = String(cfg.google_review_url ?? FALLBACK_REVIEW_URL);
+    COMPANY_NAME      = String(cfg.company_name   ?? FALLBACK_COMPANY_NAME);
+    COMPANY_PHONE     = String(cfg.company_phone  ?? FALLBACK_COMPANY_PHONE);
+    OWNER_NAME        = String(cfg.owner_name     ?? FALLBACK_OWNER_NAME);
+    COMPANY_ADDRESS   = String(cfg.company_address ?? FALLBACK_ADDRESS);
+
+    const [review, followup, upsell, apptReminder] = await Promise.all([
+      runReviewRequests(),
+      runQuoteFollowups(),
+      runUpsells(),
+      runApptReminders(),
+    ]);
+    const tenant_total = review.sent + followup.sent + upsell.sent + apptReminder.sent;
+    total_sent += tenant_total;
+    perTenant.push({
+      tenant_id: t.id,
+      tenant_name: t.name,
+      review_requests: review,
+      quote_followups: followup,
+      upsells: upsell,
+      appt_reminders: apptReminder,
+      total_sent: tenant_total,
+    });
+  }
 
   const result = {
-    ran_at:           new Date().toISOString(),
-    duration_ms:      Date.now() - startMs,
-    review_requests:  review,
-    quote_followups:  followup,
-    upsells:          upsell,
-    appt_reminders:   apptReminder,
-    total_sent:       review.sent + followup.sent + upsell.sent + apptReminder.sent,
+    ran_at:       new Date().toISOString(),
+    duration_ms:  Date.now() - startMs,
+    tenants:      perTenant,
+    total_sent,
   };
 
   console.log("marketing-automation: done", JSON.stringify(result));

@@ -21,7 +21,9 @@ var ChipDrops = {
   _pins: [],
   _rtSubInited: false,
 
-  TENANT_ID: '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
+  // Phase 2 — pulled from the global tenant resolver so a friend tenant
+  // sees only their own chip drops. Resolver falls back to SNT if absent.
+  get TENANT_ID() { return (window.resolveTenantId && window.resolveTenantId()) || '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; },
 
   render: function() {
     ChipDrops._kickFetch();

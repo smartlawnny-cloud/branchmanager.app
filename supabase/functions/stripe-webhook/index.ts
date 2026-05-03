@@ -237,13 +237,28 @@ serve(async (req: Request) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  // Fetch company config once for this request
+  // Phase 2 — resolve tenant by matching Stripe webhook account.id against
+  // tenants.config.stripe_account_id. Falls back to SNT during rollout.
+  let TENANT_ID = '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // SNT fallback
+  try {
+    const acctId = (event as { account?: string }).account || '';
+    if (acctId) {
+      const { data: tRow } = await supabase
+        .from('tenants')
+        .select('id')
+        .filter('config->>stripe_account_id', 'eq', acctId)
+        .limit(1);
+      if (tRow && tRow.length) TENANT_ID = tRow[0].id;
+    }
+  } catch (_) { /* keep SNT fallback */ }
+
+  // Fetch company config for the resolved tenant
   let coConfig: Record<string, unknown> = {};
   try {
     const { data: tenantRow } = await supabase
       .from('tenants')
       .select('config')
-      .eq('id', '93af4348-8bba-4045-ac3e-5e71ec1cc8c5')
+      .eq('id', TENANT_ID)
       .single();
     if (tenantRow?.config) coConfig = tenantRow.config as Record<string, unknown>;
   } catch (e) {

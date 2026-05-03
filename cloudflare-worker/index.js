@@ -28,6 +28,29 @@ const BUST_PATHS = new Set([
 
 const ORIGIN = 'https://smartlawnny-cloud.github.io/branchmanager.app';
 
+// Phase 2 — subdomain → tenant_id map. Adding a new tenant: register
+// {subdomain}.branchmanager.app DNS at Cloudflare, add a row here, seed
+// `tenants` row with matching slug. Worker stamps `X-Tenant-ID` header
+// onto requests so edge functions + the BM bundle scope correctly.
+//
+// SNT (apex) and any apex/www traffic continue to use the SNT tenant
+// without an injected header — edge functions already have a SNT
+// fallback when X-Tenant-ID is absent.
+const TENANT_BY_SUBDOMAIN = {
+  // 'friend': 'TENANT-UUID-FOR-FRIEND',  // add when seeded
+  // 'acme':   'TENANT-UUID-FOR-ACME',
+};
+
+function tenantForHost(hostname) {
+  // matches "<sub>.branchmanager.app"
+  const m = hostname.match(/^([a-z0-9-]+)\.branchmanager\.app$/i);
+  if (!m) return null;
+  const sub = m[1].toLowerCase();
+  // Reserved subdomains that don't map to tenants
+  if (sub === 'www' || sub === 'clients' || sub === 'app') return null;
+  return TENANT_BY_SUBDOMAIN[sub] || null;
+}
+
 // Security response headers applied to every response.
 // May 2 2026 audit: only HSTS was set; X-Frame, X-Content, Referrer-Policy,
 // and CSP were all missing.
@@ -72,6 +95,12 @@ export default {
   async fetch(request) {
     const url = new URL(request.url);
 
+    // ── Phase 2 tenant subdomain routing ──
+    // {tenant}.branchmanager.app/* → same content as apex but with
+    // X-Tenant-ID header injected for the BM bundle and any edge
+    // function calls relayed downstream.
+    const tenantId = tenantForHost(url.hostname);
+
     // ── Customer portal subdomain ──
     // clients.branchmanager.app/* → /portal/* on the GH Pages origin.
     if (url.hostname === 'clients.branchmanager.app') {
@@ -87,10 +116,18 @@ export default {
       return applySecurityHeaders(new Response(upstream.body, upstream));
     }
 
-    // ── Main BM domain ──
+    // ── Main BM domain (apex) or tenant subdomain ──
     const target = ORIGIN + url.pathname + url.search;
     const upstreamReq = new Request(target, request);
     upstreamReq.headers.set('Host', 'smartlawnny-cloud.github.io');
+    if (tenantId) {
+      // Stamp the tenant id so edge functions reached via the BM bundle
+      // know which tenant the user is operating as. The bundle ALSO
+      // writes a localStorage `bm-tenant-id` and includes the header on
+      // its own Supabase calls — this stamp is the safety net for any
+      // path that bypasses the bundle (e.g. cold redirect → form post).
+      upstreamReq.headers.set('X-Tenant-ID', tenantId);
+    }
 
     const isCacheBust = BUST_PATHS.has(url.pathname);
 

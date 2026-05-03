@@ -8,12 +8,12 @@
 //   supabase secrets set DIALPAD_FROM_NUMBER=+19143915233 --project-ref ltpivkqahvplapyagljt
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTenantId } from "../_shared/tenant.ts";
 
 const DIALPAD_API_KEY   = Deno.env.get("DIALPAD_API_KEY") || "";
 const DIALPAD_FROM      = Deno.env.get("DIALPAD_FROM_NUMBER") || "";
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const TENANT_ID         = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
@@ -43,6 +43,8 @@ Deno.serve(async (req) => {
     return cors(JSON.stringify({ error: "DIALPAD_API_KEY not configured" }), 503);
   }
 
+  const tenantId = resolveTenantId(req);
+
   let body: { to: string; message: string; clientId?: string; system?: boolean };
   try { body = await req.json(); } catch { return cors(JSON.stringify({ error: "Invalid JSON" }), 400); }
 
@@ -64,7 +66,7 @@ Deno.serve(async (req) => {
       .from("clients")
       .select("id, name, sms_opt_out")
       .ilike("phone", `%${last10}%`)
-      .eq("tenant_id", TENANT_ID)
+      .eq("tenant_id", tenantId)
       .limit(1);
     if (optData && optData.length && optData[0].sms_opt_out === true) {
       return cors(JSON.stringify({
@@ -110,7 +112,7 @@ Deno.serve(async (req) => {
 
   // Log to communications table regardless of Dialpad success
   const commRow = {
-    tenant_id: TENANT_ID,
+    tenant_id: tenantId,
     client_id: clientId || null,
     channel: "sms",
     direction: "outbound",

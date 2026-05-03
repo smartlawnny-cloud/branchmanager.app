@@ -20,11 +20,11 @@
 // can't fire 285 emails. Both flags must be set to actually send.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { resolveTenantId } from '../_shared/tenant.ts';
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const SUPABASE_URL   = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const TENANT_ID      = '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // Second Nature
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 
 // Owner-only gate. Verifies the caller's Supabase Auth JWT and confirms
@@ -143,6 +143,9 @@ serve(async (req: Request) => {
     if (!dry && !confirmed) {
       return json(400, { ok: false, error: 'To send for real, pass both {dry_run:false, confirm:"send-it"}' });
     }
+
+    // Phase 2 — resolve tenant from caller's X-Tenant-ID header (SNT fallback)
+    const TENANT_ID = resolveTenantId(req);
 
     // Pull eligible clients — has email, not archived, current tenant
     const r = await fetch(`${SUPABASE_URL}/rest/v1/clients?select=id,name,first_name,email,archived&tenant_id=eq.${TENANT_ID}&email=neq.&archived=is.false&limit=1000`, {

@@ -19,6 +19,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { resolveTenantId } from '../_shared/tenant.ts';
 
 // Resend is the email provider. SendGrid fallback removed v349 (free tier suits volume,
 // cleaner API, Resend trial expires May 22 2026 and we've verified Resend works).
@@ -28,7 +29,6 @@ const TWILIO_TOKEN      = Deno.env.get('TWILIO_AUTH_TOKEN')  ?? '';
 const TWILIO_FROM       = Deno.env.get('TWILIO_FROM')        ?? '';
 const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')       ?? '';
 const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-const DEFAULT_TENANT_ID = '93af4348-8bba-4045-ac3e-5e71ec1cc8c5'; // Second Nature
 const NOTIFY_PHONE      = '+19143915233'; // Doug
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' };
 
@@ -146,7 +146,7 @@ serve(async (req: Request) => {
       source: source || 'Website form',
       status: 'new',
       priority: 'normal',
-      tenant_id: DEFAULT_TENANT_ID,
+      tenant_id: resolveTenantId(req),
       created_at: nowIso,
       updated_at: nowIso
     });

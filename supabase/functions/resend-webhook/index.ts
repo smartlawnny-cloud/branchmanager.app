@@ -18,14 +18,24 @@
 // here: missing secret => 503 reject every request. This is intentional.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTenantFromEvent, SNT_TENANT_ID_CONST } from "../_shared/tenant.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("RESEND_WEBHOOK_SECRET") || "";
 
-const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5"; // Second Nature Tree (sole tenant)
-
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// Phase 2 — match Resend payload's `from` (sender domain) against
+// tenants.config.from_email. Falls back to SNT.
+async function tenantForResend(payload: { data?: { from?: string } }): Promise<string> {
+  const from = String(payload?.data?.from || "").trim().toLowerCase();
+  if (!from) return SNT_TENANT_ID_CONST;
+  // Extract email from "Name <email>" format
+  const m = from.match(/<([^>]+)>/);
+  const email = (m ? m[1] : from).trim();
+  return await resolveTenantFromEvent(sb, "from_email" as never, email);
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -137,6 +147,9 @@ Deno.serve(async (req) => {
   const data = payload.data || {};
   const recipientList: string[] = Array.isArray(data.to) ? data.to : (data.to ? [data.to] : []);
   const recipient = (recipientList[0] || "").toLowerCase().trim();
+
+  // Phase 2 — resolve tenant from sender email (data.from). Falls back to SNT.
+  const TENANT_ID = await tenantForResend(payload);
 
   // Normalize action label for the response
   let action: "bounce" | "complaint" | "delivered" | "ignored" = "ignored";

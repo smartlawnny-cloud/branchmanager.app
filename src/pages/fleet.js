@@ -170,7 +170,7 @@ var FleetPage = {
     var name = document.getElementById('fleet-name').value.trim();
     if (!name) { UI.toast('Name is required', 'error'); return; }
     var row = {
-      tenant_id: window.CURRENT_TENANT_ID || '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
+      tenant_id: (window.resolveTenantId && window.resolveTenantId()) || window.CURRENT_TENANT_ID || '93af4348-8bba-4045-ac3e-5e71ec1cc8c5',
       name: name,
       nickname: document.getElementById('fleet-nick').value.trim() || null,
       license_plate: document.getElementById('fleet-plate').value.trim() || null,

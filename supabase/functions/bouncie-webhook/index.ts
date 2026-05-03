@@ -15,12 +15,24 @@
 // Tables expected: vehicles, vehicle_positions (created Apr 26, 2026)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTenantFromEvent } from "../_shared/tenant.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("BOUNCIE_WEBHOOK_SECRET") || "";
-const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5"; // Second Nature Tree
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// Phase 2 — route by Bouncie account hash stored on tenants.config.bouncie_account.
+// Falls back to SNT when not found (current single-tenant behavior).
+async function tenantForBouncie(payload: Record<string, unknown>): Promise<string> {
+  const acct = String(
+    (payload as { account?: string; accountId?: string; account_id?: string }).account
+    || (payload as { accountId?: string }).accountId
+    || (payload as { account_id?: string }).account_id
+    || "",
+  );
+  return await resolveTenantFromEvent(sb, "bouncie_account", acct);
+}
 
 async function verifyHmac(rawBody: string, sig: string): Promise<boolean> {
   if (!WEBHOOK_SECRET) return true; // dev mode — no verification
@@ -38,7 +50,7 @@ async function verifyHmac(rawBody: string, sig: string): Promise<boolean> {
   return hex === provided;
 }
 
-async function ensureVehicle(deviceId: string, vin?: string, nickname?: string) {
+async function ensureVehicle(deviceId: string, vin?: string, nickname?: string, tenant_id?: string) {
   // Look up by tracker_device_id first, then by VIN
   let { data } = await sb.from("vehicles").select("id").eq("tracker_device_id", deviceId).maybeSingle();
   if (data?.id) return data.id;
@@ -51,7 +63,7 @@ async function ensureVehicle(deviceId: string, vin?: string, nickname?: string) 
   }
   // Auto-create — admin can later rename + assign metadata
   const { data: ins } = await sb.from("vehicles").insert({
-    tenant_id: TENANT_ID,
+    tenant_id,
     name: nickname || `Vehicle ${deviceId.slice(-4)}`,
     nickname: nickname || null,
     vin: vin || null,
@@ -82,7 +94,10 @@ Deno.serve(async (req) => {
   const vin: string | undefined = d.vin;
   if (!deviceId) return new Response(JSON.stringify({ ok: false, reason: "no device id" }), { status: 200 });
 
-  const vehicleId = await ensureVehicle(deviceId, vin, d.nickName || d.nickname);
+  // Phase 2 — resolve tenant by Bouncie account hash from payload
+  const TENANT_ID = await tenantForBouncie(payload);
+
+  const vehicleId = await ensureVehicle(deviceId, vin, d.nickName || d.nickname, TENANT_ID);
   if (!vehicleId) return new Response(JSON.stringify({ ok: false, reason: "no vehicle" }), { status: 200 });
 
   // Position — present on tripStart/tripData/tripEnd

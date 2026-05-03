@@ -28,12 +28,23 @@
 //   CREATE INDEX idx_comms_created ON communications(created_at DESC);
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTenantFromEvent, SNT_TENANT_ID_CONST } from "../_shared/tenant.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WEBHOOK_SECRET = Deno.env.get("DIALPAD_WEBHOOK_SECRET") || "";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// Phase 2 multi-tenant: route inbound events to the right tenant by
+// matching the destination number against tenants.config.sms_from_number.
+// Falls back to SNT for backwards compat during rollout.
+async function tenantForEvent(toNumber: string | null): Promise<string> {
+  // Normalize to +E.164 for the lookup
+  const digits = (toNumber || "").replace(/\D/g, "");
+  const e164 = digits.length === 10 ? "+1" + digits : (digits.length === 11 && digits[0] === "1" ? "+" + digits : (digits ? "+" + digits : ""));
+  return await resolveTenantFromEvent(sb, "sms_from_number", e164);
+}
 
 function normPhone(n?: string): string {
   if (!n) return "";
@@ -135,12 +146,18 @@ Deno.serve(async (req) => {
   const event: string = payload.event_type || payload.event || "unknown";
   const data = payload.data || payload;
 
+  // Phase 2 — resolve tenant by matching the destination number against
+  // tenants.config.sms_from_number. Falls back to SNT during rollout.
+  // The to_number for inbound events = the Dialpad number that received it.
+  const toForRouting = data.to_number || data.internal_number || data.to || null;
+  const TENANT_ID = await tenantForEvent(toForRouting);
+
   // Normalize across Dialpad event shapes.
   // tenant_id MUST be set or RLS will hide every row from BM's anon-key reads
   // (the May 2 audit found 56 of 60 communications were orphaned this way and
   // invisible in the call center UI).
   let row: any = {
-    tenant_id: "93af4348-8bba-4045-ac3e-5e71ec1cc8c5", // Second Nature Tree
+    tenant_id: TENANT_ID,
     channel: "call",
     direction: "inbound",
     from_number: data.from_number || data.external_number || data.from || null,
@@ -178,7 +195,7 @@ Deno.serve(async (req) => {
   // Always still log the inbound message; just stamp metadata.note + try to
   // patch clients.sms_opt_out when sender matches a known client.
   if (row.channel === "sms" && row.direction === "inbound") {
-    const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5"; // Second Nature Tree
+    // (TENANT_ID already resolved by tenantForEvent() at top of handler)
     const raw = (row.body || "").trim().toUpperCase();
     var keyword = "";
     if (raw === "STOP" || raw === "STOPALL" || raw === "UNSUBSCRIBE" || raw === "CANCEL" || raw === "END" || raw === "QUIT") {
@@ -285,7 +302,7 @@ Deno.serve(async (req) => {
   // Doug taps the task to confirm. Preserves human control on a fuzzy match.
   if (row.channel === "sms" && row.direction === "inbound" && row.client_id) {
     try {
-      const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5";
+      // (TENANT_ID already resolved by tenantForEvent() at top of handler)
       const clean = (row.body || "").trim().toUpperCase();
       let action: "approve" | "decline" | "reschedule" | null = null;
 
@@ -404,7 +421,7 @@ Deno.serve(async (req) => {
     (row.channel === "call" && (row.status === "missed" || row.status === "no-answer" || row.status === "voicemail"))
   );
   if (isMissedInbound) {
-    const TENANT_ID = "93af4348-8bba-4045-ac3e-5e71ec1cc8c5"; // Second Nature Tree
+    // (TENANT_ID already resolved by tenantForEvent() at top of handler)
     const callerName = data.from_name || data.contact_name || data.caller_name || "Phone caller";
     const transcript = row.body || "";
     const noteParts: string[] = [];
