@@ -21,6 +21,9 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
   }
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return new Response('send-email ok', { status: 200, headers: CORS_HEADERS })
+  }
 
   try {
     const { to, subject, html, text, from, replyTo } = await req.json()

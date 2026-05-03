@@ -29,6 +29,7 @@ const ALLOWED_FIELDS = ["email", "phone", "address", "city", "state", "zip", "no
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors("", 200);
+  if (req.method === "GET" || req.method === "HEAD") return cors("portal-update ok", 200);
   if (req.method !== "POST") return cors(JSON.stringify({ error: "Method not allowed" }), 405);
 
   let token: string;

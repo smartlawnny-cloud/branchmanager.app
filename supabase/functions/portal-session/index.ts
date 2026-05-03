@@ -21,6 +21,7 @@ function cors(body: string, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors("", 200);
+  if (req.method === "GET" || req.method === "HEAD") return cors("portal-session ok", 200);
   if (req.method !== "POST") return cors(JSON.stringify({ error: "Method not allowed" }), 405);
 
   let token: string;

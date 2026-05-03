@@ -87,6 +87,9 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS });
   }
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return new Response('quote-notify ok', { status: 200, headers: CORS });
+  }
 
   try {
     const data = await req.json();

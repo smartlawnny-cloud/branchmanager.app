@@ -95,6 +95,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
   }
+  // Verify probes (UptimeRobot HEAD, Resend preflight, etc.) get 200
+  if (req.method === "GET" || req.method === "HEAD") {
+    return new Response("resend-webhook ok", { status: 200, headers: CORS });
+  }
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405, headers: CORS });
   }

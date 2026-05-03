@@ -103,6 +103,10 @@ serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS });
   }
+  // Verify probes get 200 (UptimeRobot HEAD, etc.) — was 500-ing on req.json()
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return new Response('request-notify ok', { status: 200, headers: CORS });
+  }
 
   try {
     const data = await req.json();

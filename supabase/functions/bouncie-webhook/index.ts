@@ -63,6 +63,10 @@ async function ensureVehicle(deviceId: string, vin?: string, nickname?: string) 
 }
 
 Deno.serve(async (req) => {
+  // Verify probes (UptimeRobot HEAD pings, webhook provider preflights) get 200
+  if (req.method === "GET" || req.method === "HEAD") {
+    return new Response("bouncie-webhook ok", { status: 200 });
+  }
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
   const rawBody = await req.text();
   const sig = req.headers.get("x-bouncie-signature") || "";

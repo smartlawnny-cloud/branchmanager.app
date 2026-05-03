@@ -31,6 +31,7 @@ function randomToken(len = 48): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return cors("", 200);
+  if (req.method === "GET" || req.method === "HEAD") return cors("portal-auth ok", 200);
   if (req.method !== "POST") return cors(JSON.stringify({ error: "Method not allowed" }), 405);
 
   let email: string;
