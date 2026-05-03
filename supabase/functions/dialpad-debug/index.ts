@@ -77,6 +77,37 @@ Deno.serve(async (req) => {
       out.created = created;
     }
     out.list_after = await dialpadGET('/subscriptions/sms');
+  } else if (action === 'sub-with-target') {
+    // Try variants of SMS subscription with explicit target scoping
+    const wh = await dialpadGET('/webhooks');
+    let webhookId = '';
+    try { webhookId = JSON.parse(wh.body).items[0]?.id || ''; } catch (_) { /* */ }
+    out.webhookId = webhookId;
+    if (!webhookId) { out.err = 'no webhook'; return new Response(JSON.stringify(out), { headers: { 'Content-Type':'application/json' }}); }
+    // Delete existing SMS subs first
+    const list = await dialpadGET('/subscriptions/sms');
+    try {
+      const items = JSON.parse(list.body).items || [];
+      for (const it of items) await dialpadJSON('DELETE', `/subscriptions/sms/${it.id}`);
+    } catch (_) { /* */ }
+    // Create with target_type=office, target_id=6741644772777984
+    out.tryOffice = await dialpadJSON('POST', '/subscriptions/sms', {
+      webhook_id: webhookId,
+      direction: 'all',
+      enabled: true,
+      target_type: 'office',
+      target_id: '6741644772777984',
+    });
+  } else if (action === 'numbers') {
+    out.numbers = await dialpadGET('/numbers?limit=20');
+  } else if (action === 'number-sms') {
+    const e164 = url.searchParams.get('n') || '+19143915233';
+    out.r1 = await dialpadGET(`/numbers/${encodeURIComponent(e164)}/sms?limit=10`);
+    out.r2 = await dialpadGET(`/numbers/${encodeURIComponent(e164)}/messages?limit=10`);
+    out.r3 = await dialpadGET(`/numbers/${encodeURIComponent(e164)}`);
+  } else if (action === 'company') {
+    out.company = await dialpadGET('/company');
+    out.callcenters = await dialpadGET('/callcenters?limit=10');
   } else if (action === 'recreate-webhook') {
     // Nuke webhook + all subscriptions, recreate from scratch using the
     // exact secret that's already in DIALPAD_WEBHOOK_SECRET.

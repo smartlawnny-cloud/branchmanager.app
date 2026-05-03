@@ -91,6 +91,24 @@ async function decodeDialpadJwt(token: string): Promise<unknown | null> {
 }
 
 Deno.serve(async (req) => {
+  // Dialpad + UptimeRobot probe with GET/HEAD before marking the URL "alive".
+  // Returning 405 here was causing Dialpad's SMS subscription to stay in
+  // status:false (no events delivered) and UptimeRobot to flag the
+  // webhook as DOWN. Respond 200 to verification probes; only require POST
+  // for actual event delivery.
+  if (req.method === "GET" || req.method === "HEAD") {
+    return new Response("dialpad-webhook ok", { status: 200 });
+  }
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, GET, HEAD, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+      },
+    });
+  }
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
